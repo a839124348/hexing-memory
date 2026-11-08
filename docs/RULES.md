@@ -238,7 +238,7 @@
 ## 八、日常操作
 
 1. **起停**：DSH 启动时插件自动加载；关闭 DSH 时，插件自己拉起的向量服务一起退出。已经在跑的外部向量服务只复用，不接管、不杀。随包服务先跑一次安装：零 Python 版 `vector/onnx/install.ps1`，Python 版 `vector/install.ps1`；生成 `.ready` 后，16891 没服务时自动拉起。
-2. **看状态**：`memory_common` 看常识层与统计；日志看“已加载 / 提炼 / LLM 建链 / 向量服务”回执；总览看 `http://127.0.0.1:3099/`，真 3D 链网看 `http://127.0.0.1:3099/universe`（拖拽旋转、滚轮缩放、点击看链；虚线圈 = 节点 ≥5 但还没链头）。
+2. **看状态**：`memory_common` 看常识层与统计；日志看“已加载 / 提炼 / LLM 建链 / 向量服务”回执；总览看 `http://127.0.0.1:3099/`，真 3D 链网看 `http://127.0.0.1:3099/universe`（拖拽旋转、滚轮缩放、点击看链；虚线圈 = 节点 ≥5 但还没链头）。要发 issue 时跑 `node tools/diagnose.js`，只输出统计，不含记忆原文。
 3. **提炼**：后台进程，**没有手动提炼工具**（也没有 `memory_refine`）。草稿最老满 10 分钟或满 100 条自动跑；LLM 失败原文仍入库，链进 `llmPending`，60 秒后补。不要为了“马上看到链”去改状态文件或反复重启。
 4. **检索**：`memory_search` 同时查草稿、链节点、存档（带 `layer`）；`memory_draft` 看最近跨会话板；`memory_chain` 读链网。
 5. **备份/恢复**：整目录复制 `%APPDATA%/dsh-memory`（raw / draft / index / links / common）。备份最好先停 DSH；恢复后从原文重建索引。
@@ -497,7 +497,7 @@
 
 **先诊断，再备份，最后只做最小改动。**
 
-0. **判定类型**：先跑 `node test/selfcheck.js`（只读，不动数据：模块加载 / 插件语法 / 单测 / 数据目录），再按类型分：显示问题（3099/3D）→ 检索问题（`degraded`/召回）→ 链问题（`memory_chain action=audit` 看孤儿/重复/待补头）→ 注入问题（`memory_common` 为空）→ 写入问题（草稿不动）。
+0. **判定类型**：开发机先跑 `node test/selfcheck.js`（只读，不动数据）；用户反馈先跑 `node tools/diagnose.js`（只出统计，不含记忆原文），再按类型分：显示问题（3099/3D）→ 检索问题（`degraded`/召回）→ 链问题（`memory_chain action=audit` 看孤儿/重复/待补头）→ 注入问题（`memory_common` 为空）→ 写入问题（草稿不动）。
 1. **停 DSH**：涉及写文件、删索引、改链，一律先停；只读诊断可以不停。
 2. **整目录备份**：复制 `%APPDATA%/dsh-memory` 到 `_backup/`，确认备份可读再动手。
 3. **按类型修**：

@@ -130,6 +130,20 @@ node test/acceptance.js     # 全链路自动验收（生成 ACCEPTANCE-*.md）
 
 单元测试见 `docs/TEST-REPORT.md`：19 个文件、298 个用例。
 
+## 反馈问题
+
+1. 先记下**版本号**：启动日志、总览页右上角、或诊断报告里的 `v0.4.0`。
+2. 在项目目录运行只读诊断：
+
+   ```sh
+   node tools/diagnose.js
+   ```
+
+   它只输出版本、环境、各层条数、链网/话题统计、提炼错误、服务健康，**不含记忆原文**。
+3. 按仓库的 Bug report 模板提交，贴上诊断输出和相关 `[memory-system]` 日志。
+
+**不要贴记忆原文、身份内容、API key、密码。** 已知问题见 [CHANGELOG.md](CHANGELOG.md) 每个版本的 Known issues。
+
 ## 已知限制
 
 - 10 万条已做扫描压测（写入 19.4s / 读回 138ms / 向量扫描 76ms）；XVEC 完整查询 736ms（含 embed）；100 万条写入 17.4s / 流式扫描 7.7s / 524MB，需要分片/ANN 才能实时。
@@ -145,6 +159,7 @@ node test/acceptance.js     # 全链路自动验收（生成 ACCEPTANCE-*.md）
 - [规划书 v0.4](docs/规划书-v0.4.md)：设计、红线、13 项验收
 - [RULES.md](docs/RULES.md)：**给模型看的操作手册**（写入规范 / 接入 / 迁移 / 日常操作 / 验收 / 用户沟通）；你不用读，模型首次使用会自己通读。
 - [TEST-REPORT.md](docs/TEST-REPORT.md)：测试结果与已知限制
+- [CHANGELOG.md](CHANGELOG.md)：每个版本的新增/修复/已知问题
 
 ## 署名与商业使用
 
