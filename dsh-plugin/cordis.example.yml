@@ -1,0 +1,12 @@
+# DSH 插件加载配置（模板，不能直接运行）
+#
+# 用法：
+#   1) 在仓库根目录运行：node tools/make-patch.js
+#   2) 会生成 dsh-plugin/cordis.local.yml（含你机器上的绝对路径，已 gitignore）
+#   3) dsh --profile web --patch ./dsh-plugin/cordis.local.yml
+#
+# 或者按 README 把 insert 段写进 ~/.dsh/profiles/web/cordis.patch.yml。
+# name 必须是本机绝对路径，不能照抄别人的路径。
+- insert:
+    - id: memory-system
+      name: '__PLUGIN_ENTRY__'

@@ -13,7 +13,7 @@ const BAD = path.join(TMP, 'bad.jsonl');
 
 const rows = [
   { t: '2026-11-08 10:00', s: '用户', c: '我想喝柚子茶', cid: 'dsh:t1', v: 1, mid: 'm1' },
-  { t: '2026-11-08 10:01', s: '星绪', c: '好，记住了', cid: 'dsh:t1', v: 1, mid: 'm2' },
+  { t: '2026-11-08 10:01', s: '助手', c: '好，记住了', cid: 'dsh:t1', v: 1, mid: 'm2' },
 ];
 fs.writeFileSync(GOOD, rows.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
 fs.writeFileSync(BAD, '{"t":"2026-13-40 99:99","s":"用户","c":"坏时间","cid":"dsh:x","v":1}\n', 'utf8');

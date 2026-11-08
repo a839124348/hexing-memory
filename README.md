@@ -33,8 +33,10 @@
 ```yaml
 - insert:
     - id: memory-system
-      name: 'D:/你的路径/AI-SF-14-开源记忆系统-MVP/dsh-plugin/src/index.ts'
+      name: '<你解压的绝对路径>/dsh-plugin/src/index.ts'
 ```
+
+> 路径必须是你机器上的绝对路径，不能照抄别人的。不知道写什么就先跑 `node tools/make-patch.js --print`，它会按当前仓库位置打印；或者让 DSH 模型帮你改。
 
 3. 配置向量服务（按需选一）：
    - **零 Python（推荐发行版）**：运行 `powershell -ExecutionPolicy Bypass -File .\vector\onnx\install.ps1`，Node 直接加载 ONNX；不需要 Python，但要 npm 依赖和约 96MB 模型；

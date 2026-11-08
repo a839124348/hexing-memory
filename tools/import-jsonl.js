@@ -7,7 +7,7 @@
  * 用法：
  *   node tools/import-jsonl.js --file old.jsonl              # 预检
  *   node tools/import-jsonl.js --file old.jsonl --apply      # 写入
- *   node tools/import-jsonl.js --file old.jsonl --data D:\dsh-memory --apply
+ *   node tools/import-jsonl.js --file old.jsonl --data <你的数据目录> --apply
  *   node tools/import-jsonl.js --file old.jsonl --strict-similar   # 连近似重复也拦
  *   node tools/import-jsonl.js --file old.jsonl --strict-duplicates # 完全重复也拦
  *

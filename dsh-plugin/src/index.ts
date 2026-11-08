@@ -648,6 +648,18 @@ function resolveSpeakers(): { user: string; ai: string } {
 }
 
 export function apply(ctx: Context) {
+  // 路径自检：用户下载到任意目录，仓库结构必须保持 dsh-plugin/ 与 src/ 同级。
+  // 找不到就明确停用插件，别让 DSH 因为一个模块路径报一堆看不懂的错。
+  const coreEntry = path.join(CORE_DIR, 'store.js')
+  if (!fs.existsSync(coreEntry)) {
+    console.error(`[memory-system] 核心引擎未找到：${coreEntry}`)
+    console.error('[memory-system] 插件已停用，不影响 DSH。请保持 dsh-plugin/ 与 src/ 在同一仓库，或设置 MEMORY_CORE。')
+    return
+  }
+  if (!fs.existsSync(RULES_PATH)) {
+    console.warn(`[memory-system] 说明书未找到：${RULES_PATH}；常识层会缺少规则。请保持 docs/RULES.md 随仓库，或设置 MEMORY_RULES。`)
+  }
+
   const app = initCore()
   let embedService: any = null
   ensureIdentityTemplate()   // 身份文件由插件预置模板，模型只能在模板里填内容

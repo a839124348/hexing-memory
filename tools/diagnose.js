@@ -4,7 +4,7 @@
  * 用法：
  *   node tools/diagnose.js
  *   node tools/diagnose.js --json
- *   node tools/diagnose.js --data D:\dsh-memory
+ *   node tools/diagnose.js --data <你的数据目录>
  *
  * 只输出：版本、运行环境、数据目录、各层条数、链网/话题统计、提炼错误、
  * 向量服务健康、说明书阅读进度。**不输出任何 raw 原文、身份内容、链节点正文。**

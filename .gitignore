@@ -8,6 +8,9 @@ __pycache__/
 # 本地发布暂存
 release/
 
+# 本机绝对路径的 DSH patch（tools/make-patch.js 生成）
+dsh-plugin/cordis.local.yml
+
 # 个人数据 / 本机备份
 data/
 _backup/

@@ -27,7 +27,7 @@ python vector/embed_server.py 16891
 离线部署时：
 
 ```powershell
-$env:BGE_MODEL_PATH = "D:\models\bge-small-zh-v1.5"
+$env:BGE_MODEL_PATH = "<你的模型目录>\bge-small-zh-v1.5"
 $env:HF_HUB_OFFLINE = "1"
 python vector/embed_server.py 16891
 ```
@@ -35,8 +35,10 @@ python vector/embed_server.py 16891
 插件侧也可以显式指定：
 
 ```powershell
-$env:MEMORY_EMBED_CMD = 'python D:\...\vector\embed_server.py 16891'
+$env:MEMORY_EMBED_CMD = 'python <仓库绝对路径>\vector\embed_server.py 16891'
 ```
+
+> 所有路径都换成你自己机器上的位置；仓库里不写死任何人的 `D:\...` 或 `/home/...`。
 
 ## 健康检查
 

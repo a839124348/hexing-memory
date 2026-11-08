@@ -1,6 +1,6 @@
 # 核星记忆 / Hexing Memory · DSH 插件
 
-把开源记忆系统接进 DeepSeek Harness。装载后模型获得七个工具，并且**每次上下文压缩后自动重新加载常识层**。
+把开源记忆系统接进 DeepSeek Harness。装载后模型获得八个工具，并且**每次上下文压缩后自动重新加载常识层**。
 
 ## 一、前置
 
@@ -16,8 +16,10 @@
 ```yaml
 - insert:
     - id: memory-system
-      name: 'D:/你的绝对路径/AI-SF-14-开源记忆系统-MVP/dsh-plugin/src/index.ts'
+      name: '<你解压的绝对路径>/dsh-plugin/src/index.ts'
 ```
+
+> `name` 必须是**你这台机器上的绝对路径**，不能照抄别人的 `D:/...` 或 `/home/...`。不知道写什么就运行 `node tools/make-patch.js --print`，它会按当前仓库位置打印。Windows 路径在 YAML 里用正斜杠 `/` 最稳。
 
 然后正常启动：
 
@@ -27,9 +29,14 @@ dsh web
 
 ### 方式 B：单次启动时挂载（不改 profile）
 
+仓库里不存本机绝对路径；先生成一份只属于这台机器的 patch：
+
 ```sh
-dsh --profile web --patch ./dsh-plugin/cordis.yml
+node tools/make-patch.js
+dsh --profile web --patch ./dsh-plugin/cordis.local.yml
 ```
+
+`cordis.local.yml` 已 gitignore，不会上传；换电脑重新生成即可。
 
 > 注意：当前 DSH 0.2.x 里 `--patch` 是**启动器参数**，要放在 profile 名之前或配合 `--profile` 使用；
 > `dsh web --patch ...` 会报 `unknown option '--patch'`。
@@ -59,7 +66,7 @@ dsh --profile web --patch ./dsh-plugin/cordis.yml
 | `BGE_ONNX_MODEL` | `vector/onnx/model.onnx` | ONNX 版模型路径 |
 | `MEMORY_VIEWER_PORT` | `3099` | 总览 + 链网展示窗端口（Three.js 真 3D） |
 
-## 四、七个工具
+## 四、八个工具
 
 | 工具 | 作用 | 什么时候调用 |
 |:--|:--|:--|
@@ -67,8 +74,9 @@ dsh --profile web --patch ./dsh-plugin/cordis.yml
 | `memory_search` | 检索草稿 + 链节点 + 正式存档（向量；可带 `chain` 过滤） | 用户问“之前说过什么 / 这条链里说过什么” |
 | `memory_draft` | 看最近未提炼的跨会话草稿（带“距今多久”） | 用户问“刚才那个 / 另一个窗口” |
 | `memory_common` | 读常识层 | 手动刷新（正常由请求前自动注入） |
+| `memory_manual` | 分节读 RULES、记录进度、`ack` 解锁 | 首次安装/升级先通读；迁移前必读 |
 | `memory_identity` | 写身份四段（空字段才填，改已有值要用户明确同意） | 用户自报名字 / 关系 |
-| `memory_chain` | 链网：tree / get（大链 digest / offset / full）/ append / header | 用户问“我们经历过什么 / 这个项目”；get 返回 needHeader 时顺手写 header |
+| `memory_chain` | 链网：tree / get（大链 digest / offset / full）/ append / header / audit | 用户问“我们经历过什么 / 这个项目”；get 返回 needHeader 时顺手写 header |
 | `memory_topic` | 话题栈 / 创意池：list / get / add / promote / close / merge | 想法累计 ≥5 成立创意池；想法立项升格项目链 |
 
 > 提炼不是工具，是后台进程：草稿 ≥100 条立即跑，否则最老草稿满 10 分钟跑一次；对话结束/重启也会补。
