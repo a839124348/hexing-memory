@@ -16,6 +16,7 @@ data/
 _backup/
 docs/HANDOFF-*.md
 docs/待办清单.md
+docs/哲学原句池*.md
 .env
 .env.*
 
