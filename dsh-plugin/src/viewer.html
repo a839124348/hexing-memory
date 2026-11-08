@@ -150,7 +150,7 @@
 <div id="legend">
   <div><i style="background:#ffd479;box-shadow:0 0 8px #ffd479"></i>核星（AI 的自我）</div>
   <div><i style="background:#7aa2ff;box-shadow:0 0 8px #7aa2ff"></i>父节点（分支）</div>
-  <div><i style="background:#6ee7c7;box-shadow:0 0 6px #6ee7c7"></i>子链（卫星）</div>
+  <div><i style="background:#6ee7c7;box-shadow:0 0 6px #6ee7c7"></i>子链（陨石带）</div>
   <div><i style="border:1px dashed #ffbe78;background:transparent"></i>缺链头（节点 ≥5）</div>
 </div>
 
@@ -209,7 +209,7 @@ let pitch = 0.55;
 let distance = 15;
 let solarDistance = 15;
 let focusBody = null;
-let bandLines = [];
+let orbitLines = [];
 let dragging = false;
 let lastX = 0, lastY = 0, moved = 0;
 let hovered = null;
@@ -390,6 +390,48 @@ function makeDiskTexture() {
   return tex;
 }
 
+function makeRockTexture() {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const g = c.getContext('2d');
+  const rnd = rngFor(9917);
+  g.translate(32, 32);
+  g.beginPath();
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const r = 12 + rnd() * 10;
+    const x = Math.cos(a) * r, y = Math.sin(a) * r;
+    if (i) g.lineTo(x, y); else g.moveTo(x, y);
+  }
+  g.closePath();
+  g.fillStyle = 'rgba(198,220,240,.96)';
+  g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.6)';
+  g.lineWidth = 1.4;
+  g.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeDebrisTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  const rg = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  rg.addColorStop(0, 'rgba(255,255,255,0)');
+  rg.addColorStop(.36, 'rgba(255,255,255,0)');
+  rg.addColorStop(.52, 'rgba(255,255,255,.68)');
+  rg.addColorStop(.64, 'rgba(255,255,255,.22)');
+  rg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rg;
+  g.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function makeGlowTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
@@ -481,6 +523,8 @@ const glowTex = makeGlowTexture();
 const sunTex = makeSunTexture();
 const flareTex = makeFlareTexture();
 const diskTex = makeDiskTexture();
+const rockTex = makeRockTexture();
+const debrisTex = makeDebrisTexture();
 
 function addNebula(x, y, z, scale, color, opacity) {
   const mat = new THREE.SpriteMaterial({
@@ -505,6 +549,7 @@ addNebula(2, 15, -50, 40, 0x1d5a78, .10);
 const ringDashedTex = makeRingTexture(true);
 const ringSolidTex = makeRingTexture(false);
 const planetGeo = new THREE.SphereGeometry(1, 48, 32);
+const rockGeo = new THREE.IcosahedronGeometry(1, 0);
 
 const selectionSprite = new THREE.Sprite(new THREE.SpriteMaterial({
   map: ringSolidTex,
@@ -596,21 +641,45 @@ function createBody(chain, level, pos, radius, parentName, tone, paletteKey) {
   };
   fitPoints.push(pos.clone());
 
+  const isRock = level >= 2;
   const mat = level === 0
     ? new THREE.MeshBasicMaterial({ map: sunTex })
-    : new THREE.MeshStandardMaterial({
-      map: planetTexture(kind, chain.name + ':' + level + ':' + parentName, paletteKey),
-      color: new THREE.Color(tone || 0xffffff),
-      roughness: .66,
-      metalness: .06,
-      emissive: new THREE.Color(EMISSIVE[kind]),
-      emissiveIntensity: .035,
-    });
-  const mesh = new THREE.Mesh(planetGeo, mat);
+    : isRock
+      ? new THREE.MeshStandardMaterial({
+        color: new THREE.Color(tone || 0x9fb4c8),
+        roughness: .95,
+        metalness: .03,
+        flatShading: true,
+        emissive: 0x0a1a22,
+        emissiveIntensity: .3,
+      })
+      : new THREE.MeshStandardMaterial({
+        map: planetTexture(kind, chain.name + ':' + level + ':' + parentName, paletteKey),
+        color: new THREE.Color(tone || 0xffffff),
+        roughness: .66,
+        metalness: .06,
+        emissive: new THREE.Color(EMISSIVE[kind]),
+        emissiveIntensity: .035,
+      });
+  const mesh = new THREE.Mesh(isRock ? rockGeo : planetGeo, mat);
   mesh.position.copy(pos);
-  mesh.scale.setScalar(radius);
+  if (isRock) {
+    mesh.scale.set(radius * 1.15, radius * .72, radius * .95);
+    mesh.rotation.set(
+      (body.seed % 100) / 100 * Math.PI,
+      (body.seed % 73) / 73 * Math.PI,
+      (body.seed % 51) / 51 * Math.PI
+    );
+  } else {
+    mesh.scale.setScalar(radius);
+  }
   mesh.userData.body = body;
   body.mesh = mesh;
+  body.isRock = isRock;
+  body.baseScale = isRock ? [1.15, .72, .95] : [1, 1, 1];
+  body.spin = isRock
+    ? { x: .001 + (body.seed % 7) * .0003, y: .0015 + (body.seed % 5) * .0004, z: .0008 }
+    : null;
   scene.add(mesh);
   clickable.push(mesh);
 
@@ -618,13 +687,13 @@ function createBody(chain, level, pos, radius, parentName, tone, paletteKey) {
     map: glowTex,
     color: level === 0 ? 0xffc46b : (level === 1 ? 0x7198ff : 0x66e4c8),
     transparent: true,
-    opacity: level === 0 ? .85 : (level === 1 ? .5 : .3),
+    opacity: level === 0 ? .85 : (level === 1 ? .5 : (isRock ? .14 : .3)),
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
   const glow = new THREE.Sprite(glowMat);
   glow.position.copy(pos);
-  glow.scale.setScalar(radius * (level === 0 ? 3.8 : (level === 1 ? 3.2 : 3.0)));
+  glow.scale.setScalar(radius * (level === 0 ? 3.8 : (level === 1 ? 3.2 : (isRock ? 2.6 : 3.0))));
   body.glow = glow;
   body.glowBase = glowMat.opacity;
   scene.add(glow);
@@ -667,84 +736,116 @@ function buildScene(data) {
   rootBody = createBody({ name: rootName, nodes: 0 }, 0, origin, .9, '');
 
   const roots = data.树 || [];
-  const BANDS = [
-    { radius: 3.15, tilt: -0.52, roll: 0.38, color: 0x587cff, opacity: .32, palette: 'branch' },
-    { radius: 4.75, tilt: 0.16, roll: -0.52, color: 0x8f7bff, opacity: .26, palette: 'branchViolet' },
-    { radius: 6.35, tilt: 0.58, roll: 0.82, color: 0x49d7c0, opacity: .20, palette: 'branchTeal' },
+  const ORBITS = [
+    { radius: 2.60, tilt: -0.10, roll: 0.12, color: 0x587cff, palette: 'branch' },
+    { radius: 3.30, tilt: 0.07, roll: -0.18, color: 0x6f8dff, palette: 'branch' },
+    { radius: 4.00, tilt: -0.04, roll: 0.22, color: 0x8f7bff, palette: 'branchViolet' },
+    { radius: 4.70, tilt: 0.12, roll: -0.08, color: 0x7aa2ff, palette: 'branch' },
+    { radius: 5.40, tilt: -0.09, roll: 0.16, color: 0x8f7bff, palette: 'branchViolet' },
+    { radius: 6.10, tilt: 0.05, roll: -0.24, color: 0x49d7c0, palette: 'branchTeal' },
+    { radius: 6.80, tilt: -0.13, roll: 0.06, color: 0x6f8dff, palette: 'branch' },
+    { radius: 7.50, tilt: 0.10, roll: -0.12, color: 0x8f7bff, palette: 'branchViolet' },
+    { radius: 8.20, tilt: -0.02, roll: 0.20, color: 0x49d7c0, palette: 'branchTeal' },
   ];
-  const bands = BANDS.map((band) => ({ ...band, chains: [] }));
-  roots.forEach((c, i) => bands[i % bands.length].chains.push(c));
-  bandLines = [];
+  orbitLines = [];
 
-  bands.forEach((band, bi) => {
-    if (!band.chains.length) return;
-    const bandLine = addOrbit(origin, band.radius, band.tilt, band.color, band.opacity, band.roll);
-    bandLines.push(bandLine);
-    band.chains.forEach((c, j) => {
-      const phase = (j / band.chains.length) * Math.PI * 2 + bi * 1.05;
-      const ppos = orbitPoint(origin, band.radius, band.tilt, phase, band.roll);
-      const weight = chainWeight(c);
-      const pr = 0.32 + Math.sqrt(Math.min(weight, 60) / 60) * 0.26;
-      const body = createBody(c, 1, ppos, pr, rootName, null, band.palette);
-      body.orbit = {
-        radius: band.radius, tilt: band.tilt, roll: band.roll,
-        phase, speed: 0.03 + bi * .006 + j * .002, parent: null,
-      };
-      body.orbitLine = bandLine;
-      body.solarVisible = true;
+  roots.forEach((c, i) => {
+    const o = ORBITS[i % ORBITS.length];
+    const phase = i * 2.399963229728653 + 0.6;
+    const ppos = orbitPoint(origin, o.radius, o.tilt, phase, o.roll);
+    const line = addOrbit(origin, o.radius, o.tilt, o.color, .20, o.roll);
+    orbitLines.push(line);
 
-      const kids = c.children || [];
-      const primaryIdx = kids.reduce((best, k, i) => ((k.nodes || 0) > (kids[best].nodes || 0) ? i : best), 0);
-      if (kids.length > 1) {
-        const ring = new THREE.Mesh(
-          new THREE.RingGeometry(1.22, 1.46 + Math.min(kids.length, 6) * .015, 96),
-          new THREE.MeshBasicMaterial({
-            color: band.color, transparent: true,
-            opacity: .12 + Math.min(kids.length, 6) * .022,
-            side: THREE.DoubleSide, depthWrite: false,
-            blending: THREE.AdditiveBlending, toneMapped: false,
-          })
-        );
-        ring.rotation.x = -Math.PI / 2 + band.tilt * .4;
-        ring.rotation.z = band.roll;
-        ring.position.copy(ppos);
-        ring.renderOrder = 0;
-        body.dustRing = ring;
-        scene.add(ring);
+    const weight = chainWeight(c);
+    const pr = 0.32 + Math.sqrt(Math.min(weight, 60) / 60) * 0.23;
+    const body = createBody(c, 1, ppos, pr, rootName, null, o.palette);
+    body.orbit = {
+      radius: o.radius, tilt: o.tilt, roll: o.roll,
+      phase, speed: 0.018 + (i % 4) * .003, parent: null,
+    };
+    body.orbitLine = line;
+    body.solarVisible = true;
+
+    const kids = c.children || [];
+    const nodeSum = kids.reduce((n, k) => n + (k.nodes || 0), 0);
+    if (kids.length) {
+      const count = Math.round(Math.min(110, 24 + kids.length * 14 + Math.min(nodeSum, 80) * .5));
+      const group = new THREE.Group();
+      const posArr = new Float32Array(count * 3);
+      const rnd = rngFor(nameSeed(c.name + ':debris'));
+      for (let d = 0; d < count; d++) {
+        const a = rnd() * Math.PI * 2;
+        const r = 0.82 + rnd() * 0.58;
+        posArr[d * 3] = Math.cos(a) * r;
+        posArr[d * 3 + 1] = (rnd() - .5) * 0.10;
+        posArr[d * 3 + 2] = Math.sin(a) * r;
       }
-      const moonR = 0.95 + Math.min(kids.length, 4) * .06;
-      kids.forEach((k, j2) => {
-        const ma = (j2 / Math.max(1, kids.length)) * Math.PI * 2 + bi * .55 + j * .9;
-        const mt = band.tilt + (((j2 * 5) % 7) - 3) * .035;
-        const mpos = orbitPoint(ppos, moonR, mt, ma);
-        const mWeight = 1 + (k.nodes || 0);
-        const moonBody = createBody(k, 2, mpos, 0.10 + Math.sqrt(Math.min(mWeight, 20) / 20) * 0.05, c.name);
-        moonBody.solarVisible = (j2 === primaryIdx);
-        moonBody.orbit = {
-          radius: moonR, tilt: mt, roll: 0,
-          phase: ma, speed: 0.22 + j2 * .025, parent: body,
-        };
-        const mline = addOrbit(mpos, moonR, mt, 0x49d7c0, .10);
-        mline.userData.parentBody = body;
-        moonBody.orbitLine = mline;
+      const dg = new THREE.BufferGeometry();
+      dg.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+      const dm = new THREE.PointsMaterial({
+        size: .16, map: rockTex,
+        color: new THREE.Color(o.color).lerp(new THREE.Color(0xffffff), .55),
+        transparent: true, opacity: .9,
+        depthWrite: false, blending: THREE.AdditiveBlending,
+        sizeAttenuation: true,
+      });
+      const pts = new THREE.Points(dg, dm);
+      group.add(pts);
+      const disk = new THREE.Mesh(
+        new THREE.CircleGeometry(1.5, 72),
+        new THREE.MeshBasicMaterial({
+          map: debrisTex, color: o.color, transparent: true, opacity: .75,
+          side: THREE.DoubleSide, depthWrite: false,
+          blending: THREE.AdditiveBlending, toneMapped: false,
+        })
+      );
+      disk.rotation.x = -Math.PI / 2;
+      disk.renderOrder = 0;
+      group.add(disk);
+      group.position.copy(ppos);
+      group.rotation.x = o.tilt + 0.22;
+      group.rotation.z = o.roll;
+      body.debris = group;
+      body.debrisSpeed = .04 + (i % 3) * .012;
+      scene.add(group);
+      for (let a = 0; a < 8; a++) {
+        fitPoints.push(orbitPoint(ppos, 1.45, o.tilt, (a / 8) * Math.PI * 2, o.roll));
+      }
+    }
 
-        const gkids = k.children || [];
-        const grandR = .34;
-        gkids.forEach((gk, gj) => {
-          const ga = (gj / Math.max(1, gkids.length)) * Math.PI * 2 + j2 * .6;
-          const gt = mt + (((gj * 3) % 5) - 2) * .04;
-          const gpos = orbitPoint(mpos, grandR, gt, ga);
-          const gWeight = 1 + (gk.nodes || 0);
-          const grandBody = createBody(gk, 3, gpos, 0.05 + Math.sqrt(Math.min(gWeight, 10) / 10) * 0.02, k.name);
-          grandBody.solarVisible = false;
-          grandBody.orbit = {
-            radius: grandR, tilt: gt, roll: 0,
-            phase: ga, speed: 0.6 + gj * .04, parent: moonBody,
-          };
-          const gline = addOrbit(mpos, grandR, gt, 0x49d7c0, .06);
-          gline.userData.parentBody = moonBody;
-          grandBody.orbitLine = gline;
-        });
+    kids.forEach((k, j2) => {
+      const ringR = 0.84 + j2 * 0.17 + Math.min(kids.length, 4) * .02;
+      const ma = (j2 / Math.max(1, kids.length)) * Math.PI * 2 + i * .55;
+      const mt = o.tilt + (((j2 * 5) % 7) - 3) * .045;
+      const mpos = orbitPoint(ppos, ringR, mt, ma);
+      const mWeight = 1 + (k.nodes || 0);
+      const mrad = 0.09 + Math.sqrt(Math.min(mWeight, 20) / 20) * 0.04;
+      const rockColor = new THREE.Color(0x8a99a8).lerp(new THREE.Color(o.color), .25);
+      const rock = createBody(k, 2, mpos, mrad, c.name, rockColor.getHex());
+      rock.solarVisible = false;
+      rock.orbit = {
+        radius: ringR, tilt: mt, roll: 0,
+        phase: ma, speed: 0.30 - j2 * .03, parent: body,
+      };
+      const mline = addOrbit(mpos, ringR, mt, 0x49d7c0, .07);
+      mline.userData.parentBody = body;
+      rock.orbitLine = mline;
+
+      const gkids = k.children || [];
+      gkids.forEach((gk, gj) => {
+        const ga = (gj / Math.max(1, gkids.length)) * Math.PI * 2 + j2 * .6;
+        const gt = mt + (((gj * 3) % 5) - 2) * .05;
+        const gpos = orbitPoint(mpos, .20, gt, ga);
+        const gWeight = 1 + (gk.nodes || 0);
+        const grandBody = createBody(gk, 3, gpos, 0.045 + Math.sqrt(Math.min(gWeight, 10) / 10) * 0.018, k.name, 0x7fd8c4);
+        grandBody.solarVisible = false;
+        grandBody.orbit = {
+          radius: .20, tilt: gt, roll: 0,
+          phase: ga, speed: 0.55 + gj * .04, parent: rock,
+        };
+        const gline = addOrbit(mpos, .20, gt, 0x49d7c0, .04);
+        gline.userData.parentBody = rock;
+        grandBody.orbitLine = gline;
       });
     });
   });
@@ -780,7 +881,7 @@ function fitDistance() {
   const forward = dir.clone().negate();
   const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
   const up = new THREE.Vector3().crossVectors(right, forward).normalize();
-  const margin = 0.9;
+  const margin = 1.1;
   let need = 0;
   for (const p of fitPoints) {
     const proj = p.dot(dir);
@@ -832,7 +933,7 @@ function applyVisibility() {
   }
   if (sunFlare) sunFlare.visible = !inFocus;
   if (sunDisk) sunDisk.visible = !inFocus;
-  bandLines.forEach((l) => { l.visible = !inFocus; });
+  orbitLines.forEach((l) => { l.visible = !inFocus; });
 
   for (const b of bodies) {
     if (b === rootBody) continue;
@@ -840,7 +941,7 @@ function applyVisibility() {
     b.mesh.visible = vis;
     if (b.glow) b.glow.visible = vis;
     if (b.indicator) b.indicator.visible = vis;
-    if (b.dustRing) b.dustRing.visible = !inFocus && (b.chain.children || []).length > 1;
+    if (b.debris) b.debris.visible = vis && (b.chain.children || []).length > 0;
     b.labelEl.style.display = vis ? '' : 'none';
     if (b.orbitLine && b.orbitLine.userData.parentBody) b.orbitLine.visible = vis;
   }
@@ -857,7 +958,7 @@ function enterFocus(body) {
   selected = body;
   applyVisibility();
   if (focusBackEl) focusBackEl.classList.add('show');
-  if (hintEl) hintEl.textContent = '拖拽旋转 · 滚轮缩放 · 点击卫星查看 · 返回太阳系';
+  if (hintEl) hintEl.textContent = '拖拽旋转 · 滚轮缩放 · 点击陨石查看 · 返回太阳系';
   showPanel(body.chain.name);
 }
 
@@ -1111,7 +1212,10 @@ function animate(now) {
     b.mesh.position.copy(b.pos);
     if (b.glow) b.glow.position.copy(b.pos);
     if (b.indicator) b.indicator.position.copy(b.pos);
-    if (b.dustRing) b.dustRing.position.copy(b.pos);
+    if (b.debris) {
+      b.debris.position.copy(b.pos);
+      b.debris.rotation.y = t * b.debrisSpeed;
+    }
     if (b.orbitLine && b.orbitLine.userData.parentBody) {
       b.orbitLine.position.copy(b.orbitLine.userData.parentBody.pos);
     }
@@ -1119,7 +1223,19 @@ function animate(now) {
 
   for (const b of bodies) {
     const hot = b === selected || b === hovered;
-    if (b.level > 0) b.mesh.scale.setScalar(b.radius * (hot ? 1.09 : 1));
+    if (b.level > 0) {
+      const s = b.radius * (hot ? 1.09 : 1);
+      if (b.isRock) {
+        b.mesh.scale.set(s * 1.15, s * .72, s * .95);
+        if (b.spin) {
+          b.mesh.rotation.x += b.spin.x;
+          b.mesh.rotation.y += b.spin.y;
+          b.mesh.rotation.z += b.spin.z;
+        }
+      } else {
+        b.mesh.scale.setScalar(s);
+      }
+    }
     if (b.glow) b.glow.material.opacity = b.glowBase * (hot ? 1.25 : 1);
     if (b.indicator) b.indicator.material.opacity = (b.chain.needHeader ? .65 : .28) * (hot ? 1.4 : 1);
   }
