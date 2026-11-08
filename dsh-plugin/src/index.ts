@@ -43,6 +43,12 @@ const COMMON_MARK = '<!-- memory-system:common -->'
 // 唯一说明书路径（发布时把 docs/RULES.md 一起打包；可用环境变量覆盖）
 const RULES_PATH = process.env.MEMORY_RULES || path.join(__dirname, '..', '..', 'docs', 'RULES.md')
 
+// 说明书阅读进度（首次安装/升级强制通读）；apply() 里初始化
+let manualReader: any = null
+function manualGate(): any {
+  return manualReader ? manualReader.gate() : { ok: true }
+}
+
 // 适配层纯函数（选真话/剥注入/渲染常识层/去重键），单测直接覆盖
 const pure = require(path.join(CORE_DIR, 'adapter_pure.js'))
 // 链头状态 + 大链取节点纯函数
@@ -374,12 +380,15 @@ function buildCommonText(app: MemoryApp): string {
     const s = app.topic.stats()
     if (s.total) topics = `- 未闭合 ${s.open} 个；已升格 ${s.promoted} 个（memory_topic list 查看）`
   } catch (e) { /* 空数据也要能启动 */ }
+  let onboarding = ''
+  try { if (manualReader) onboarding = manualReader.onboardingText() } catch (e) { /* 说明书读不到就不拦 */ }
   return pure.composeCommonText({
     profile,
     resident: readResidentSpec(),
     manualIndex: readManualIndex(),
     chains: buildChainIndex(app),
     topics,
+    onboarding,
   })
 }
 
@@ -636,6 +645,14 @@ export function apply(ctx: Context) {
   let embedService: any = null
   ensureIdentityTemplate()   // 身份文件由插件预置模板，模型只能在模板里填内容
   ensureChains(app.chain)    // 链网骨架：核星 → 身份（含身份链）/ 项目
+
+  // 说明书阅读进度：首次安装/升级未读完会在常识层提示，并拦住链网/话题写入
+  try {
+    const { ManualReader } = require(path.join(CORE_DIR, 'manual.js'))
+    manualReader = new ManualReader(DATA_ROOT, RULES_PATH)
+  } catch (e: any) {
+    console.warn('[memory-system] 说明书阅读进度未加载：' + (e && e.message))
+  }
 
   // 启动就有回执——否则用户无法判断插件到底加载了没有（实测排查时吃过这个亏）
   try {
@@ -894,7 +911,34 @@ export function apply(ctx: Context) {
     },
   }))
 
-  // ── 工具 5：写身份（IDENTITY.md）─────────────────────
+  // ── 工具 5：读说明书（首次安装/升级必须通读）──────────
+  ctx.tools.register(defineTool({
+    name: 'memory_manual',
+    description: '读唯一说明书 RULES.md。首次安装/升级必须从第一节读到最后一节，**不要只读开头和结尾**。action：toc（看目录和进度）／read（读一节；不带 section 读下一节没读的）／status（看已读/未读）／ack（全部读完后标记完成；没读完会被拒绝）。没读完时改链网/话题会被拦住。',
+    parameters: {
+      action: { type: 'string', required: true, description: 'toc / read / status / ack' },
+      section: { type: 'string', description: 'read：节号 0 起（如 "3"）或标题片段（如 "迁移"）；不填 = 下一节' },
+    } as any,
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args: any, value: any) => [{ type: 'text', text: JSON.stringify(value, null, 1) }],
+    },
+    async execute(args: any) {
+      if (!manualReader) return { ok: false, error: '说明书阅读进度未加载（检查 docs/RULES.md 是否存在）' }
+      const action = String(args.action || '').trim()
+      try {
+        if (action === 'toc') return cleanJson(manualReader.toc())
+        if (action === 'read') return cleanJson(manualReader.read(args.section))
+        if (action === 'status') return cleanJson(manualReader.status())
+        if (action === 'ack') return cleanJson(manualReader.ack())
+      } catch (e: any) {
+        return { ok: false, error: '读说明书失败：' + (e && e.message) }
+      }
+      return { ok: false, error: '未知 action：' + action + '（可用：toc / read / status / ack）' }
+    },
+  }))
+
+  // ── 工具 6：写身份（IDENTITY.md）─────────────────────
   // 结构由插件定死（四段模板 + identity.json），模型只能填字段内容。
   // 为什么不让它写自由文本：它会自己设计表格、自己加章节，换个模型结构就全变了。
   ctx.tools.register(defineTool({
@@ -988,7 +1032,7 @@ export function apply(ctx: Context) {
     },
   }))
 
-  // ── 工具 6：链网（以核星为中心的树）──────────────────
+  // ── 工具 7：链网（以核星为中心的树）──────────────────
   // 常识层是索引、链是摘要、原文是历史（用户 2026-11-07 定）。
   // 链负责"直接给出答案"，不让人每次都去翻原文。
   ctx.tools.register(defineTool({
@@ -1059,10 +1103,14 @@ export function apply(ctx: Context) {
       }
 
       if (action === 'header') {
+        const g = manualGate()
+        if (!g.ok) return g
         return cleanJson(app.chain.setHeader(args.name, args.text, { by: 'lazy' }))
       }
 
       if (action === 'append') {
+        const g = manualGate()
+        if (!g.ok) return g
         const chainName = String(args.name || '').trim()
         if (!chainName) return { ok: false, error: 'append 需要 name' }
         // 链不存在就自动建：父链只允许核星 / 九个默认根 / 已有链，且最多 4 层。
@@ -1096,7 +1144,7 @@ export function apply(ctx: Context) {
     },
   }))
 
-  // ── 工具 7：话题栈 / 创意池 ─────────────────────────
+  // ── 工具 8：话题栈 / 创意池 ─────────────────────────
   // 用户 2026-11-08 定：想法不需要相关，同类型累计 ≥5 条成立一条创意池链，
   // 一个节点一个想法；立项时从池里升格出独立项目链，原想法保留并挂 promoted_to。
   ctx.tools.register(defineTool({
@@ -1121,6 +1169,11 @@ export function apply(ctx: Context) {
     },
     async execute(args: any) {
       const action = String(args.action || '').trim()
+
+      if (action !== 'list' && action !== 'get') {
+        const g = manualGate()
+        if (!g.ok) return g
+      }
 
       if (action === 'list') {
         const topics = app.topic.list().slice(-100).map((t: any) => ({

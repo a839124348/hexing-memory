@@ -23,12 +23,14 @@
 | `unit-llm-refine` LLM 纯函数 | 26 | 26 |
 | `unit-refine-llm` LLM 提炼管线 | 16 | 16 |
 | `unit-service` 向量服务生命周期 | 8 | 8 |
-| `unit-adapter-pure` 适配层纯函数 | 25 | 25 |
+| `unit-adapter-pure` 适配层纯函数 | 27 | 27 |
 | `unit-topics` 创意池/话题栈 | 25 | 25 |
 | `unit-topic-llm` LLM → 创意池 | 7 | 7 |
 | `unit-chain-view` 链头状态/大链 digest | 14 | 14 |
 | `unit-chain-search` 链节点语义检索 | 9 | 9 |
-| **合计** | **260** | **260** |
+| `unit-manual` 说明书通读/闸门 | 19 | 19 |
+| `unit-import` 迁移导入器 | 13 | 13 |
+| **合计** | **294** | **294** |
 
 ---
 

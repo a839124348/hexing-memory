@@ -16,6 +16,7 @@
 - **链网宇宙**：`http://127.0.0.1:3099/universe` 是本地 Three.js 真 3D 链网：真实深度遮挡、球面光照/贴图、分层星空/星云、父节点各自轨道、标签避让、拖拽旋转、滚轮缩放、点击看链；节点 ≥5 还没链头的链带虚线圈。Three.js 随包放在 `vendor/`，不联网、不引 CDN。
 - **总览页**：`http://127.0.0.1:3099/` 的主视觉是「陪伴第几天」，下面才是记忆条数、草稿、向量库、链网/话题池、最近提炼、`llmPending`、向量服务健康，以及今日/近 14 天 token。
 - **记忆不可删除**：原文是存证；状态可被推翻，事件永存。
+- **首次使用先通读**：`memory_manual` 把说明书切成 17 节并记录进度；没读完不让改链网/话题，常识层会一直提示——防止模型只读开头和结尾就上手。
 - **多进程写锁**：草稿、存档、链网、提炼状态、向量索引都走跨进程锁；多开 DSH 不会互相覆盖。
 
 ## 快速开始（DSH）
@@ -51,6 +52,25 @@ dsh web
 
 6. 打开 `http://127.0.0.1:3099/` 看记忆总览；右上角「链网宇宙」进真 3D 链网。
 
+**第一次装好后，先让模型通读说明书**：`memory_manual action=toc` → 逐节 `read` → `ack`。没读完时链网/话题写入会被拦住，常识层也会一直提示——这是故意的，防止模型只读开头结尾就上手改数据。
+
+## 迁移旧记忆
+
+1. 先完成上面的说明书通读（`memory_manual` 17 节 + `ack`）。
+2. 把旧平台对话导出成 JSONL：一条 = 一次发言，`t/s/c/cid/v` 必填；不要总结、合并、改写。
+3. 预检（不写库）：
+   ```sh
+   node tools/import-jsonl.js --file old.jsonl
+   ```
+4. 停 DSH，确认预检无误后写入：
+   ```sh
+   node tools/import-jsonl.js --file old.jsonl --apply
+   ```
+   只追加、不重写；重复导入同一文件不会翻倍；报告在 `common/import-report-*.json`。
+5. 启动 DSH，等 5 秒补原文索引，再用 `memory_search` 验证。**旧历史不会自动建链**——导入的是 raw + 向量，链网从新对话积累；不要手工导入链。
+
+详见 [RULES.md 第十节](docs/RULES.md)。
+
 ## 结构
 
 ```
@@ -74,6 +94,7 @@ src/               核心引擎（纯 JS，与平台无关）
   adapter_pure.js  适配层纯函数（选真话/剥注入/常识层组装）
 docs/              规划书 v0.4、RULES 唯一说明书、测试报告
 test/              单元测试 + 全链路验收
+tools/             迁移导入器（import-jsonl.js，校验 + 追加 + 去重 + 报告）
 vector/            随包向量服务
   embed_server.py  Python 版（sentence-transformers）
   onnx/            零 Python 版（ONNX Runtime + tokenizer）
@@ -99,7 +120,7 @@ common/    IDENTITY.md / identity.json / links.json / refine-state.json / topics
 node test/acceptance.js     # 全链路自动验收（生成 ACCEPTANCE-*.md）
 ```
 
-单元测试见 `docs/TEST-REPORT.md`：17 个文件、260 个用例。
+单元测试见 `docs/TEST-REPORT.md`：19 个文件、294 个用例。
 
 ## 已知限制
 

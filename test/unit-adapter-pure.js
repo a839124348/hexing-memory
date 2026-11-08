@@ -94,6 +94,17 @@ check('不塞当前状态/最近会话', !common.includes('## 当前状态') && 
 check('剥掉旧 SYSTEM_NOTE', !common.includes('记忆系统说明') && !common.includes('旧的规则副本'));
 check('有注入标记', common.includes('<!-- memory-system:common -->') && common.includes('<!-- /memory-system:common -->'));
 
+// 5a. 首次使用提示（有才出现）
+const withOnboarding = composeCommonText({
+  profile: '# 身份\n## 我是谁\n验收身份',
+  resident,
+  manualIndex: index,
+  chains: '- 身份链（3 节点）',
+  onboarding: '## 首次使用（说明书未读完）\n- 0/17 节',
+});
+check('有首次使用提示', withOnboarding.includes('## 首次使用') && withOnboarding.includes('0/17'));
+check('无提示不出现', !common.includes('## 首次使用'));
+
 // 5b. 话题栈段落（有才出现）
 const withTopics = composeCommonText({
   profile: '# 身份\n## 我是谁\n验收身份',

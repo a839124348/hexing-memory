@@ -100,7 +100,7 @@ function fitLines(text, budget) {
  * 组装常识层：身份 + 常驻摘要 + 说明书索引 + 链网索引。
  * 动态内容（当前状态/最近会话/草稿/链正文）不进来。
  */
-function composeCommonText({ profile, resident, manualIndex, chains, topics, maxChars = COMMON_MAX }) {
+function composeCommonText({ profile, resident, manualIndex, chains, topics, onboarding, maxChars = COMMON_MAX }) {
   const cleanProfile = String(profile || '')
     .replace(/##\s*记忆系统说明[\s\S]*$/m, '')
     .trim()
@@ -114,6 +114,7 @@ function composeCommonText({ profile, resident, manualIndex, chains, topics, max
     '',
     '## 常驻规范',
     resident || '（RULES.md 的常驻摘要未找到；按“先查再答、原文不改、草稿/存档分开”执行）',
+    ...(onboarding ? ['', String(onboarding).trim()] : []),
   ].join('\n');
 
   if (head.length >= maxChars) {
