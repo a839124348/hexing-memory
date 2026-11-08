@@ -507,6 +507,7 @@
 | 症状 | 最小修复 |
 |:--|:--|
 | 换模型 / 索引损坏 / 检索全空 | 删 `index/vectors.xvec`、`vectors.meta.json`、`chain_vectors.json`，重启，从 raw/links 重建；不要删 raw |
+| DSH 启动报找不到模块 / 插件不加载 | 检查 `cordis.patch.yml` 的 `name` 是不是**本机绝对路径**；跑 `node tools/make-patch.js --print` 按当前仓库位置生成；确认 `dsh-plugin/` 与 `src/`、`docs/RULES.md` 都在 |
 | 单条链文件损坏 | 从备份恢复那一个 JSON；不要手工补节点、不要改 `parent` 指向 |
 | 链树缺链 / 出现孤儿 / 重复节点 | `memory_chain action=audit` 定位；孤儿把 `parent` 改回 `核星` 或已有链（停库后），重复节点先备份再去重；不要手工补节点 |
 | 常识层为空 | 查 `MEMORY_RULES` / `docs/RULES.md` 路径、`RESIDENT` 标记是否完整，重启 DSH |

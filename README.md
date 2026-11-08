@@ -104,7 +104,7 @@ src/               核心引擎（纯 JS，与平台无关）
   adapter_pure.js  适配层纯函数（选真话/剥注入/常识层组装）
 docs/              规划书 v0.4、RULES 唯一说明书、测试报告
 test/              单元测试 + 全链路验收
-tools/             迁移导入器（import-jsonl.js，校验 + 追加 + 去重 + 报告）
+tools/             迁移导入器、patch 生成器、只读诊断（import-jsonl / make-patch / diagnose）
 vector/            随包向量服务
   embed_server.py  Python 版（sentence-transformers）
   onnx/            零 Python 版（ONNX Runtime + tokenizer）

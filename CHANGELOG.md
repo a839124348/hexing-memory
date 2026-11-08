@@ -24,6 +24,7 @@
 - 迁移导入器 `tools/import-jsonl.js`：dry-run/apply、15 项校验、整批拒绝、按 `cid+t+s+mid+c` 去重、导入报告。
 - 链网体检 `memory_chain action=audit`：孤儿链/空链/重复节点/待补链头。
 - 只读诊断 `tools/diagnose.js`：版本、环境、各层条数、链网/话题统计、提炼错误、服务健康；不含记忆原文。
+- 可移植安装：`dsh-plugin/cordis.example.yml` + `tools/make-patch.js` 按本机仓库位置生成 `cordis.local.yml`，不写死任何人的绝对路径；插件启动时自检 `src/`、`docs/RULES.md` 是否存在，缺失时明确停用/告警。
 - MIT 许可；`AUTHORS.md` 署名请求；`NOTICE.md` 第三方组件。
 
 ### Changed
@@ -39,6 +40,7 @@
 - `memory_topic add` 的 `type` 未限制，可能造新根；现在白名单。
 - `reset-all.js` 可直接跑且漏清 links/topics/manual-state；现在必须 `--yes`、默认备份、补清。
 - 说明书里的 `memory_refine`（不存在）、`SYSTEM_NOTE`（不存在）、内容哈希（未实现）、“待压测/252 用例”等过期说法。
+- `dsh-plugin/cordis.yml` 写死了开发机绝对路径；改为模板 + 生成器，仓库不再包含任何本机路径。
 
 ### Known issues
 
