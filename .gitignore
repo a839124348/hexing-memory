@@ -1,0 +1,33 @@
+_dsh_run*.log
+*.log
+*.bak
+*.bak-*
+__pycache__/
+*.pyc
+
+# 本地发布暂存
+release/
+
+# 个人数据 / 本机备份
+data/
+_backup/
+docs/HANDOFF-*.md
+docs/待办清单.md
+.env
+.env.*
+
+# 测试生成物
+test/.tmp-*
+test/ACCEPTANCE-*.md
+*.zip
+*.tgz
+
+# 运行时依赖
+node_modules/
+vector/onnx/node_modules/
+vector/.ready
+vector/onnx/.ready
+
+# 模型走 GitHub Release 附件，不进主仓库
+vector/onnx/model.onnx
+vector/onnx/*.onnx.data

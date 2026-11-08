@@ -1,0 +1,8 @@
+{
+  "name": "hexing-memory-dsh",
+  "version": "0.4.0",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "description": "核星记忆 / Hexing Memory — DSH plugin"
+}

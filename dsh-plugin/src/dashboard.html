@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>核星记忆 · 总览</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #050814;
+    --panel: rgba(13, 21, 43, .76);
+    --line: rgba(110, 145, 235, .18);
+    --text: #dbe6ff;
+    --muted: #6d80ad;
+    --dim: #45557c;
+    --blue: #7aa2ff;
+    --teal: #6ee7c7;
+    --gold: #ffd479;
+    --red: #ff8f9b;
+  }
+  html, body { min-height: 100%; background: var(--bg); }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(1100px 560px at 72% -18%, rgba(255, 190, 90, .10), transparent 62%),
+      radial-gradient(900px 500px at 12% -8%, rgba(55, 88, 190, .22), transparent 60%),
+      radial-gradient(700px 500px at 96% 18%, rgba(100, 65, 170, .14), transparent 60%),
+      radial-gradient(700px 500px at 50% 110%, rgba(30, 100, 130, .12), transparent 60%),
+      var(--bg);
+    min-height: 100vh;
+    padding: 32px clamp(18px, 4vw, 56px) 48px;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    opacity: .22; mix-blend-mode: soft-light;
+    background-image:
+      radial-gradient(rgba(255,255,255,.07) .5px, transparent .5px),
+      radial-gradient(rgba(0,0,0,.10) .5px, transparent .5px);
+    background-size: 3px 3px, 4px 4px;
+    background-position: 0 0, 1px 1px;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      radial-gradient(1px 1px at 8% 18%, rgba(180,205,255,.55), transparent),
+      radial-gradient(1px 1px at 22% 72%, rgba(150,180,255,.35), transparent),
+      radial-gradient(1px 1px at 41% 12%, rgba(255,225,180,.45), transparent),
+      radial-gradient(1px 1px at 67% 28%, rgba(170,200,255,.35), transparent),
+      radial-gradient(1px 1px at 83% 64%, rgba(190,215,255,.45), transparent),
+      radial-gradient(1px 1px at 94% 9%, rgba(255,225,180,.30), transparent),
+      radial-gradient(1px 1px at 54% 86%, rgba(170,200,255,.34), transparent);
+    background-size: 100% 100%;
+  }
+  main, header { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; }
+
+  header {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;
+    margin-bottom: 28px;
+  }
+  .eyebrow {
+    font-size: 11px; letter-spacing: 3.4px; text-transform: uppercase;
+    color: #7185b4; margin-bottom: 8px;
+  }
+  h1 {
+    font-family: "Songti SC", "STSong", "Noto Serif SC", "SimSun", serif;
+    font-size: clamp(28px, 3.4vw, 42px); font-weight: 400;
+    letter-spacing: .10em; color: #f2f6ff;
+    text-shadow: 0 0 30px rgba(122, 162, 255, .14);
+  }
+  .sub { margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  .btn {
+    appearance: none; border: 1px solid var(--line); background: rgba(20, 31, 62, .72);
+    color: #b9c9f2; border-radius: 999px; padding: 9px 15px; font-size: 12px;
+    cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 7px;
+    transition: .2s ease;
+  }
+  .btn:hover { border-color: rgba(122, 162, 255, .55); color: #eaf2ff; background: rgba(35, 54, 105, .78); }
+  .btn.primary { border-color: rgba(110, 231, 199, .32); color: #bff8e9; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px rgba(110,231,199,.8); }
+  .dot.bad { background: var(--red); box-shadow: 0 0 10px rgba(255,143,155,.8); }
+
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr) minmax(280px, .68fr);
+    gap: 16px; margin-bottom: 14px;
+  }
+  .hero-card {
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.09), transparent 34%, rgba(255,255,255,.018) 66%, transparent),
+      linear-gradient(135deg, rgba(20, 33, 70, .72), rgba(11, 17, 36, .60));
+    border: 1px solid rgba(170, 195, 255, .24); border-top-color: rgba(210, 225, 255, .36);
+    border-radius: 22px; padding: 20px 22px;
+    min-height: 210px; position: relative; overflow: hidden;
+    backdrop-filter: blur(24px) saturate(145%);
+    -webkit-backdrop-filter: blur(24px) saturate(145%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.12),
+      inset 0 -1px 0 rgba(0,0,0,.22),
+      0 26px 60px rgba(0,0,0,.28);
+    transition: border-color .25s ease, transform .25s ease, box-shadow .25s ease;
+  }
+  .hero-card:hover {
+    border-color: rgba(150, 180, 255, .28);
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px rgba(0,0,0,.20);
+  }
+  .hero-card::after {
+    content: ""; position: absolute; right: -40px; top: -60px; width: 190px; height: 190px;
+    border-radius: 50%; background: radial-gradient(circle, rgba(122,162,255,.16), transparent 68%);
+  }
+  .hero-label { font-size: 11px; color: #9aadd6; letter-spacing: 2.4px; position: relative; z-index: 2; }
+  .hero-value { font-size: clamp(30px, 4vw, 44px); font-weight: 300; letter-spacing: .5px; margin: 10px 0 4px; color: #eef4ff; position: relative; z-index: 2; }
+  .hero-note { font-size: 11px; color: var(--muted); line-height: 1.8; position: relative; z-index: 2; }
+  .hero-note b { color: #a9c1ff; font-weight: 500; }
+
+  /* 陪伴天数：总览的主视觉 */
+  .companion-card {
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.10), transparent 36%),
+      radial-gradient(520px 260px at 82% 18%, rgba(255, 212, 121, .22), transparent 62%),
+      radial-gradient(480px 260px at 12% 110%, rgba(122, 162, 255, .20), transparent 66%),
+      linear-gradient(135deg, rgba(25, 36, 76, .78), rgba(7, 12, 28, .66));
+    border-color: rgba(255, 212, 121, .34);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 236, 190, .16),
+      inset 0 -1px 0 rgba(0,0,0,.24),
+      0 28px 64px rgba(0,0,0,.30);
+  }
+  .companion-card::after {
+    right: -120px; top: -160px; width: 470px; height: 470px;
+    background: radial-gradient(circle, rgba(255, 202, 105, .15), transparent 66%);
+  }
+  .companion-card::before {
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      radial-gradient(1px 1px at 12% 28%, rgba(255,244,210,.62), transparent),
+      radial-gradient(1px 1px at 27% 76%, rgba(170,200,255,.42), transparent),
+      radial-gradient(1px 1px at 54% 18%, rgba(255,225,170,.50), transparent),
+      radial-gradient(1px 1px at 71% 62%, rgba(170,200,255,.38), transparent),
+      radial-gradient(1px 1px at 89% 34%, rgba(255,240,200,.55), transparent),
+      radial-gradient(1px 1px at 43% 91%, rgba(170,200,255,.32), transparent);
+    background-size: 100% 100%;
+    opacity: .85;
+  }
+  .companion-kicker {
+    position: relative; z-index: 2;
+    font-size: 11px; font-weight: 500; letter-spacing: 3.8px; color: #b9a370;
+    text-shadow: 0 0 16px rgba(255, 212, 121, .18);
+  }
+  .companion-main {
+    position: relative; z-index: 2;
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 8px;
+    margin-top: 18px; padding-bottom: 16px;
+  }
+  .companion-copy { padding-bottom: 6px; min-width: 0; }
+  .companion-days {
+    position: relative; z-index: 2;
+    flex: none; text-align: right;
+    font-family: "Songti SC", "STSong", "Noto Serif SC", "SimSun", serif;
+    font-size: clamp(104px, 13.5vw, 184px);
+    font-weight: 300; line-height: .74; letter-spacing: -6px;
+    color: #ffe7ae;
+    text-shadow: 0 0 38px rgba(255, 190, 90, .34), 0 4px 30px rgba(0,0,0,.2);
+    font-variant-numeric: tabular-nums;
+  }
+  .companion-days small {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 16px; font-weight: 400; letter-spacing: 1px;
+    color: #a88f60; margin-left: 8px; vertical-align: 12px;
+  }
+  .companion-sub {
+    position: relative; z-index: 2;
+    margin-top: 0; font-size: 11px; line-height: 1.75; color: #8d9bc0;
+  }
+  .companion-sub b { color: #c7d6ff; font-weight: 500; }
+  .companion-sub span { color: #5f7099; }
+  .companion-tag {
+    position: absolute; left: 20px; bottom: 14px; z-index: 2;
+    font-size: 8px; letter-spacing: 2px; color: #6b5a3c;
+  }
+  .companion-orbit {
+    position: absolute; z-index: 0; border: 1px solid rgba(255, 212, 121, .15);
+    border-radius: 50%; pointer-events: none;
+    transform: rotate(-23deg);
+  }
+  .orbit-one { width: 300px; height: 112px; right: -60px; top: 28px; }
+  .orbit-two { width: 230px; height: 86px; right: -30px; top: 48px; border-color: rgba(122,162,255,.12); }
+
+  .memory-card {
+    display: flex; flex-direction: column; justify-content: center;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.085), transparent 38%),
+      radial-gradient(380px 180px at 50% 0%, rgba(122, 162, 255, .20), transparent 70%),
+      linear-gradient(135deg, rgba(18, 30, 64, .76), rgba(8, 13, 28, .64));
+    border-color: rgba(122, 162, 255, .30);
+  }
+  .memory-card::before, .token-card::before {
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(120, 150, 255, .035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(120, 150, 255, .035) 1px, transparent 1px);
+    background-size: 26px 26px;
+    mask-image: linear-gradient(to bottom right, rgba(0,0,0,.65), transparent 72%);
+  }
+  .memory-card::after {
+    right: -100px; top: -120px; width: 330px; height: 330px;
+    border: 1px solid rgba(122, 162, 255, .10);
+    background: transparent;
+  }
+  .token-card::after {
+    right: -60px; bottom: -80px; top: auto; width: 220px; height: 220px;
+    background: radial-gradient(circle, rgba(110, 231, 199, .08), transparent 68%);
+  }
+  .memory-value {
+    position: relative; z-index: 2;
+    font-size: clamp(44px, 5.2vw, 64px);
+    font-weight: 300; line-height: .95; letter-spacing: -1px;
+    color: #eaf2ff; margin-top: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .memory-meta {
+    position: relative; z-index: 2;
+    display: flex; gap: 16px; margin-top: 10px;
+    font-size: 10px; color: #65769f;
+  }
+  .memory-meta b { color: #b8c9f0; font-weight: 500; }
+  .memory-rule {
+    position: relative; z-index: 2;
+    height: 1px; margin: 13px 0 9px;
+    background: linear-gradient(90deg, rgba(122,162,255,.35), transparent);
+  }
+  .memory-note { position: relative; z-index: 2; font-size: 10px; color: #4f5f84; letter-spacing: .4px; }
+  .card-index {
+    position: absolute; top: 16px; right: 18px; z-index: 2;
+    font-size: 9px; letter-spacing: 1px; color: rgba(150, 170, 220, .26);
+  }
+
+  @keyframes orbit-drift {
+    0%, 100% { transform: rotate(-23deg) translate(0, 0); }
+    50% { transform: rotate(-19deg) translate(0, -4px); }
+  }
+  .orbit-one { animation: orbit-drift 24s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    .orbit-one { animation: none; }
+    .hero-card { transition: none; }
+  }
+
+  .section-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin: 0 4px 12px; padding-top: 12px;
+    font-size: 9px; letter-spacing: 2.4px; color: #45557c;
+    border-top: 1px solid rgba(110, 145, 235, .10);
+  }
+  .section-head span:last-child { letter-spacing: .8px; color: #3f4d6e; }
+
+  .token-card { min-width: 0; }
+
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .card {
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.065), transparent 42%),
+      linear-gradient(145deg, rgba(22, 35, 72, .72), rgba(8, 13, 28, .66));
+    border: 1px solid rgba(160, 185, 255, .20); border-top-color: rgba(200, 220, 255, .28);
+    border-radius: 16px; padding: 17px 18px; min-height: 132px;
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.08),
+      0 16px 34px rgba(0,0,0,.18);
+    transition: border-color .22s ease, transform .22s ease, box-shadow .22s ease;
+  }
+  .card:hover {
+    border-color: rgba(122, 162, 255, .40);
+    transform: translateY(-2px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 22px 44px rgba(0,0,0,.24);
+  }
+  .card-label { font-size: 10px; letter-spacing: 1.4px; color: var(--dim); margin-bottom: 12px; text-transform: uppercase; }
+  .card-main { font-size: 26px; font-weight: 300; color: #e6efff; line-height: 1; }
+  .card-main small { font-size: 11px; color: var(--muted); margin-left: 5px; }
+  .card-lines { margin-top: 12px; display: grid; gap: 5px; font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .card-lines b { color: #a9bce8; font-weight: 500; }
+  .warn { color: #ffd18a !important; }
+  .bad { color: var(--red) !important; }
+  .good { color: var(--teal) !important; }
+
+  .chart-card {
+    margin-top: 18px;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.06), transparent 42%),
+      linear-gradient(145deg, rgba(18, 29, 62, .74), rgba(7, 11, 24, .70));
+    border: 1px solid rgba(160, 185, 255, .20); border-top-color: rgba(200, 220, 255, .26);
+    border-radius: 20px; padding: 20px 22px 16px;
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 18px 42px rgba(0,0,0,.20);
+  }
+  .chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+  .chart-title { font-size: 13px; color: #c9d8ff; letter-spacing: .4px; }
+  .chart-sub { font-size: 10px; color: var(--dim); }
+  .bars { display: flex; align-items: flex-end; gap: 7px; height: 150px; padding-top: 10px; }
+  .bar-wrap { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 7px; min-width: 0; }
+  .bar { width: 100%; max-width: 34px; min-height: 2px; border-radius: 5px 5px 2px 2px;
+    background: linear-gradient(180deg, rgba(122,162,255,.8), rgba(77,105,200,.24));
+    box-shadow: 0 0 14px rgba(90,130,255,.12); transition: height .35s ease; }
+  .bar.today { background: linear-gradient(180deg, rgba(110,231,199,.92), rgba(40,130,110,.26)); }
+  .bar-label { font-size: 9px; color: var(--dim); white-space: nowrap; }
+  .bar-label.today { color: var(--teal); }
+  .empty { color: var(--dim); font-size: 12px; padding: 36px 0; text-align: center; }
+
+  .error {
+    display: none; margin-bottom: 16px; padding: 11px 14px; border-radius: 10px;
+    border: 1px solid rgba(255,143,155,.25); background: rgba(255,80,110,.06);
+    color: #ffb6be; font-size: 12px;
+  }
+  .error.show { display: block; }
+  @media (max-width: 980px) {
+    .hero { grid-template-columns: 1fr; }
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 560px) {
+    body { padding: 22px 14px 32px; }
+    header { align-items: flex-start; flex-direction: column; }
+    .actions { justify-content: flex-start; }
+    .grid { grid-template-columns: 1fr; }
+    .bars { gap: 4px; height: 120px; }
+    .bar-label { font-size: 8px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="eyebrow">HEXING MEMORY / OVERVIEW</div>
+      <h1>核星记忆</h1>
+      <div class="sub">记忆总览 · <span id="statusDot" class="dot"></span> <span id="generated">正在读取…</span></div>
+    </div>
+    <div class="actions">
+      <a class="btn primary" href="/universe">链网宇宙 →</a>
+      <button class="btn" id="refresh" type="button">刷新</button>
+    </div>
+  </header>
+
+  <div id="error" class="error"></div>
+
+  <section class="hero">
+    <div class="hero-card companion-card">
+      <div class="companion-orbit orbit-one"></div>
+      <div class="companion-orbit orbit-two"></div>
+      <span class="card-index">01</span>
+      <div class="companion-top">
+        <div class="companion-kicker">C O M P A N I O N S H I P</div>
+      </div>
+      <div class="companion-main">
+        <div class="companion-copy">
+          <div class="companion-sub">从 <b id="companionFirstDay">—</b> 开始<br><span id="companionToday">今天 · —</span></div>
+        </div>
+        <div class="companion-days"><span id="companionDays">—</span><small>天</small></div>
+      </div>
+      <div class="companion-tag">S T A R L I G H T &nbsp; K E P T</div>
+    </div>
+    <div class="hero-card memory-card">
+      <span class="card-index">02</span>
+      <div class="hero-label">M E M O R Y &nbsp; A R C H I V E</div>
+      <div class="memory-value" id="memTotal">—</div>
+      <div class="memory-meta">
+        <span>今日新增 <b id="memToday">—</b></span>
+        <span>覆盖 <b id="memDays">—</b> 天</span>
+      </div>
+      <div class="memory-rule"></div>
+      <div class="memory-note">原文一字不改 · 记忆不删除</div>
+    </div>
+    <div class="hero-card token-card">
+      <span class="card-index">03</span>
+      <div class="hero-label">T O D A Y &nbsp; T O K E N S</div>
+      <div class="hero-value" id="tokenTotal">—</div>
+      <div class="hero-note">
+        输入 <b id="tokenIn">—</b> · 输出 <b id="tokenOut">—</b><br>
+        对话 <b id="tokenChat">—</b> · 提炼 <b id="tokenRefine">—</b><br>
+        <span id="tokenHint" style="color:#45557c">重启后从 0 开始，下一次对话/提炼累计</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="section-head">
+    <span>M E M O R Y &nbsp; S Y S T E M</span>
+    <span>本地运行 · 不上传云端 · 开源可审计</span>
+  </div>
+
+  <section class="grid">
+    <article class="card">
+      <div class="card-label">Draft / 草稿</div>
+      <div class="card-main" id="draftPending">— <small>条待提炼</small></div>
+      <div class="card-lines">
+        <div>最老：<b id="draftOldest">—</b></div>
+        <div>最新：<b id="draftNewest">—</b></div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-label">Vectors / 向量库</div>
+      <div class="card-main" id="vecCount">— <small>条已索引</small></div>
+      <div class="card-lines">
+        <div>模型：<b id="vecModel">—</b></div>
+        <div>维度：<b id="vecDim">—</b></div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-label">Chain / 链网</div>
+      <div class="card-main" id="chainChains">— <small>条链</small></div>
+      <div class="card-lines">
+        <div>分支：<b id="chainBranches">—</b> · 节点：<b id="chainNodes">—</b></div>
+        <div>缺链头：<b id="chainNeedHeader">—</b></div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-label">Topics / 创意池</div>
+      <div class="card-main" id="topicOpen">— <small>个未闭合</small></div>
+      <div class="card-lines">
+        <div>已升格：<b id="topicPromoted">—</b></div>
+        <div>总数：<b id="topicTotal">—</b></div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-label">Refine / 提炼</div>
+      <div class="card-main" id="refineRuns">— <small>次运行</small></div>
+      <div class="card-lines">
+        <div>最近：<b id="refineLast">—</b></div>
+        <div>待补链：<b id="refinePending">—</b> · 死信：<b id="refineDead">—</b></div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-label">Embed / 向量服务</div>
+      <div class="card-main" id="serviceState">—</div>
+      <div class="card-lines">
+        <div>健康：<b id="serviceHealth">—</b></div>
+        <div>模式：<b id="serviceMode">—</b></div>
+      </div>
+    </article>
+
+    <article class="card" style="grid-column: span 2">
+      <div class="card-label">Last error / 最近异常</div>
+      <div class="card-lines" style="margin-top:0">
+        <div>提炼：<b id="refineError">—</b></div>
+        <div>LLM 补链：<b id="llmError">—</b></div>
+      </div>
+    </article>
+  </section>
+
+  <section class="chart-card">
+    <div class="chart-head">
+      <div>
+        <div class="chart-title">最近 14 天 token</div>
+        <div class="chart-sub">对话 + 记忆提炼 · 输入 / 输出合计</div>
+      </div>
+      <div class="chart-sub">今日高亮</div>
+    </div>
+    <div class="bars" id="bars"><div class="empty">还没有 token 记录</div></div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const nf = new Intl.NumberFormat('zh-CN');
+
+function n(v) {
+  return (v === null || v === undefined || Number.isNaN(Number(v))) ? '—' : nf.format(Number(v));
+}
+function text(id, v) { const el = $(id); if (el) el.textContent = (v === null || v === undefined || v === '') ? '—' : String(v); }
+function time(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function short(s, max = 90) {
+  if (!s) return '—';
+  const t = String(s).replace(/\s+/g, ' ').trim();
+  return t.length > max ? t.slice(0, max - 1) + '…' : t;
+}
+function setStatus(ok) {
+  const el = $('statusDot');
+  if (el) el.className = 'dot' + (ok ? '' : ' bad');
+}
+
+function renderBars(history) {
+  const el = $('bars');
+  el.innerHTML = '';
+  const list = Array.isArray(history) ? history : [];
+  if (!list.length) {
+    el.innerHTML = '<div class="empty">还没有 token 记录</div>';
+    return;
+  }
+  const max = Math.max(1, ...list.map((x) => (x.total && (x.total.in + x.total.out)) || 0));
+  const today = list[list.length - 1].day;
+  list.forEach((x, i) => {
+    const total = (x.total && (x.total.in + x.total.out)) || 0;
+    const wrap = document.createElement('div');
+    wrap.className = 'bar-wrap';
+    const bar = document.createElement('div');
+    bar.className = 'bar' + (x.day === today ? ' today' : '');
+    bar.style.height = Math.max(2, (total / max) * 100) + '%';
+    bar.title = x.day + ' · 输入 ' + n(x.total && x.total.in) + ' / 输出 ' + n(x.total && x.total.out);
+    const label = document.createElement('div');
+    label.className = 'bar-label' + (x.day === today ? ' today' : '');
+    label.textContent = x.day === today ? '今天' : x.day.slice(5);
+    wrap.appendChild(bar);
+    wrap.appendChild(label);
+    el.appendChild(wrap);
+  });
+}
+
+function render(s) {
+  const mem = s.memory || {};
+  const draft = s.draft || {};
+  const vec = s.vectors || {};
+  const chains = s.chains || {};
+  const topics = s.topics || {};
+  const refine = s.refine || {};
+  const tokens = s.tokens || {};
+  const today = tokens.today || {};
+  const total = today.total || {};
+  const service = s.service || {};
+  const health = service.health || {};
+  const status = service.status || {};
+
+  text('memTotal', n(mem.total));
+  text('memToday', n(mem.today));
+  text('memDays', n(mem.days));
+  const companion = s.companion || {};
+  text('companionDays', companion.days ? n(companion.days) : '—');
+  text('companionFirstDay', companion.firstDay || mem.firstDay || '—');
+  text('companionToday', '今天 · ' + (s.today || '—'));
+
+  text('tokenTotal', n((total.in || 0) + (total.out || 0)));
+  text('tokenIn', n(total.in));
+  text('tokenOut', n(total.out));
+  text('tokenChat', n((today.chat && ((today.chat.in || 0) + (today.chat.out || 0))) || 0));
+  text('tokenRefine', n((today.refine && ((today.refine.in || 0) + (today.refine.out || 0))) || 0));
+  text('tokenHint', ((total.calls || 0) > 0) ? '对话 + 提炼 · 输入含缓存' : '重启后从 0 开始，下一次对话/提炼累计');
+
+  text('draftPending', n(draft.pending));
+  text('draftOldest', time(draft.oldest));
+  text('draftNewest', time(draft.newest));
+
+  text('vecCount', n(vec.indexed));
+  text('vecModel', vec.model || '—');
+  text('vecDim', vec.dim ? vec.dim + ' 维' : '—');
+
+  text('chainChains', n(chains.chains));
+  text('chainBranches', n(chains.branches));
+  text('chainNodes', n(chains.nodes));
+  text('chainNeedHeader', n(chains.needHeader));
+
+  text('topicOpen', n(topics.open));
+  text('topicPromoted', n(topics.promoted));
+  text('topicTotal', n(topics.total));
+
+  text('refineRuns', n(refine.runs));
+  text('refineLast', time(refine.lastRunAt));
+  text('refinePending', n(refine.llmPending));
+  text('refineDead', n(refine.deadLetters));
+  text('refineError', short(refine.lastError));
+  text('llmError', short(refine.lastLlmError));
+
+  const ok = !!(health.ok);
+  setStatus(ok);
+  text('serviceState', ok ? '在线' : '降级');
+  $('serviceState').className = 'card-main ' + (ok ? 'good' : 'bad');
+  text('serviceHealth', ok ? ('ok · ' + (health.model || '模型未知')) : (health.error || '不可用'));
+  const mode = status.stopped ? '已停止' : (status.owned ? '插件托管' : (status.child ? '子进程' : '复用外部'));
+  text('serviceMode', mode);
+
+  text('generated', '更新于 ' + time(s.generatedAt) + ' · ' + (s.today || ''));
+  renderBars(tokens.history);
+}
+
+async function load() {
+  const err = $('error');
+  try {
+    const r = await fetch('/api/stats', { cache: 'no-store' });
+    const s = await r.json();
+    if (!r.ok || !s || s.ok === false) throw new Error((s && s.error) || ('HTTP ' + r.status));
+    err.classList.remove('show');
+    render(s);
+  } catch (e) {
+    err.textContent = '总览读取失败：' + (e && e.message ? e.message : e);
+    err.classList.add('show');
+    setStatus(false);
+  }
+}
+
+$('refresh').addEventListener('click', load);
+load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+{"t":"2026-11-08 00:40","s":"用户","c":"我喜欢喝茶，下周三晚上八点去体检。","cid":"sample-001","v":1,"mid":"sample-msg-1","src":"dsh","type":"human","origin":"human"}
+{"t":"2026-11-08 00:40","s":"助手","c":"记下了：喝茶、下周三晚上八点体检。","cid":"sample-001","v":1,"mid":"sample-msg-2","src":"dsh","type":"ai","origin":"ai"}
+{"t":"2026-11-08 00:41","s":"用户","c":"周末想去看海。","cid":"sample-002","v":1,"mid":"sample-msg-3","src":"dsh","type":"human","origin":"human"}

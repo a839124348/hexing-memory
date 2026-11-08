@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>核星记忆 · 真 3D 链网</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #02040b; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #c9d6ff;
+    cursor: default;
+    user-select: none;
+  }
+  canvas {
+    display: block;
+    position: fixed;
+    inset: 0;
+    width: 100vw; height: 100vh;
+    z-index: 1;
+    touch-action: none;
+    cursor: grab;
+  }
+  #vignette {
+    position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.16) 72%, rgba(0,0,0,.55) 100%);
+  }
+  #labels {
+    position: fixed; inset: 0; z-index: 3; pointer-events: none; overflow: hidden;
+  }
+  .label {
+    position: absolute; left: 0; top: 0;
+    transform: translate(-50%, -50%);
+    white-space: nowrap;
+    font-size: 10px; line-height: 1.2;
+    color: rgba(150,220,205,.82);
+    text-shadow: 0 1px 8px #000, 0 0 5px #000;
+    opacity: 0;
+    transition: color .18s ease;
+    will-change: left, top, opacity;
+  }
+  .label.root { font-size: 13px; color: rgba(255,240,200,.96); font-weight: 500; }
+  .label.branch { font-size: 12px; color: rgba(190,208,255,.94); }
+  .label.child { font-size: 10px; }
+  .label.grand { font-size: 9px; color: rgba(140,210,195,.7); }
+  .label.hot { color: #eaf4ff; text-shadow: 0 0 10px rgba(140,190,255,.8), 0 1px 8px #000; }
+
+  #hud {
+    position: absolute; top: 22px; left: 26px; z-index: 10;
+    font-size: 12px; line-height: 1.9; letter-spacing: .4px;
+    color: #6f82b8;
+  }
+  #hud b { color: #9fb4ff; font-weight: 500; }
+  #hud .dim { color: #3f4d6e; }
+
+  #nav {
+    position: absolute; top: 22px; right: 26px; z-index: 10;
+  }
+  #nav a {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: #9fb4ff; text-decoration: none; font-size: 12px;
+    border: 1px solid rgba(90,120,220,.25); border-radius: 999px;
+    padding: 7px 13px; background: rgba(12,18,38,.55);
+    backdrop-filter: blur(8px); transition: .2s ease;
+  }
+  #nav a:hover { color: #eaf2ff; border-color: rgba(122,162,255,.55); }
+
+  #panel {
+    position: absolute; right: 24px; bottom: 24px; z-index: 10;
+    width: 320px; max-height: 60vh; overflow-y: auto;
+    background: rgba(12, 18, 38, .92);
+    border: 1px solid rgba(90, 120, 220, .28);
+    border-radius: 14px; padding: 16px 18px;
+    backdrop-filter: blur(12px);
+    opacity: 0; transform: translateY(8px);
+    transition: .25s ease;
+    pointer-events: none;
+  }
+  #panel.show { opacity: 1; transform: none; pointer-events: auto; }
+  #panel h3 {
+    font-size: 15px; font-weight: 500; margin-bottom: 10px; color: #e8efff;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #panel .tag {
+    font-size: 10px; padding: 2px 7px; border-radius: 20px;
+    background: rgba(90, 120, 220, .2); color: #8fa6e8;
+  }
+  #panel .meta { font-size: 11px; color: #5f7099; margin-bottom: 10px; }
+  #panel .head {
+    font-size: 12px; line-height: 1.8; color: #93a4cc;
+    background: rgba(255,255,255,.03); border-left: 2px solid rgba(90,120,220,.4);
+    padding: 8px 10px; border-radius: 4px; margin-bottom: 10px; white-space: pre-wrap;
+  }
+  #panel .node {
+    font-size: 11px; line-height: 1.7; color: #7d8db8;
+    padding: 5px 0; border-bottom: 1px dashed rgba(90,120,220,.12);
+  }
+  #panel .node:last-child { border-bottom: none; }
+  #panel .who { color: #6b8ad4; margin-right: 5px; }
+
+  #legend {
+    position: absolute; left: 26px; bottom: 24px; z-index: 10;
+    font-size: 11px; color: #4d5c82; line-height: 2;
+  }
+  #legend i {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 7px; vertical-align: middle;
+  }
+
+  #loading {
+    position: fixed; inset: 0; z-index: 20;
+    display: flex; align-items: center; justify-content: center;
+    background: #02040b;
+    color: #6f82b8; font-size: 12px; letter-spacing: 1px;
+    transition: opacity .4s ease;
+  }
+  #loading.hide { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="vignette"></div>
+<div id="labels"></div>
+
+<div id="nav"><a href="/">← 总览</a></div>
+
+<div id="hud">
+  <b>核星记忆</b> · 链网宇宙 · 以核星为心<br>
+  <span id="stat">正在读取链网…</span><br>
+  <span class="dim">拖拽旋转 · 滚轮缩放 · 点击查看</span>
+</div>
+
+<div id="legend">
+  <div><i style="background:#ffd479;box-shadow:0 0 8px #ffd479"></i>核星（AI 的自我）</div>
+  <div><i style="background:#7aa2ff;box-shadow:0 0 8px #7aa2ff"></i>父节点（分支）</div>
+  <div><i style="background:#6ee7c7;box-shadow:0 0 6px #6ee7c7"></i>子链（卫星）</div>
+  <div><i style="border:1px dashed #ffbe78;background:transparent"></i>缺链头（节点 ≥5）</div>
+</div>
+
+<div id="panel"></div>
+<div id="loading">正在点亮宇宙…</div>
+
+<script>
+  window.__viewerReady = false;
+  window.__viewerErrors = [];
+  window.addEventListener('error', function (e) { window.__viewerErrors.push(String((e && e.message) || e)); });
+  window.addEventListener('unhandledrejection', function (e) {
+    window.__viewerErrors.push(String((e && e.reason && e.reason.message) || (e && e.reason) || e));
+  });
+  setTimeout(function () {
+    if (!window.__viewerReady) {
+      var el = document.getElementById('loading');
+      if (el && !el.classList.contains('hide')) el.textContent = '3D 资源加载失败，请检查 vendor/three.module.min.js';
+    }
+  }, 8000);
+</script>
+
+<script type="module">
+import * as THREE from './vendor/three.module.min.js';
+
+const canvas = document.getElementById('c');
+const panel = document.getElementById('panel');
+const statEl = document.getElementById('stat');
+const labelsEl = document.getElementById('labels');
+const loadingEl = document.getElementById('loading');
+
+let W = window.innerWidth;
+let H = window.innerHeight;
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+} catch (err) {
+  loadingEl.textContent = 'WebGL 初始化失败：' + (err && err.message ? err.message : err);
+  throw err;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(W, H);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+renderer.setClearColor(0x02040b, 1);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x02040b, 0.006);
+const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 220);
+
+let yaw = 0.62;
+let pitch = 0.52;
+let distance = 15;
+let dragging = false;
+let lastX = 0, lastY = 0, moved = 0;
+let hovered = null;
+let selected = null;
+
+const bodies = [];
+const clickable = [];
+let occluders = [];
+let rootBody = null;
+let data = null;
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const labelRaycaster = new THREE.Raycaster();
+const labelPointer = new THREE.Vector2();
+
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+function fail(msg) {
+  loadingEl.textContent = msg;
+  loadingEl.classList.remove('hide');
+  console.error('[viewer3d]', msg);
+}
+
+/* ── 程序化贴图 ─────────────────────────── */
+function rngFor(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+function nameSeed(name) {
+  let h = 2166136261;
+  for (let i = 0; i < name.length; i++) {
+    h ^= name.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+const PALETTES = {
+  root:   { base: '#b96b1e', bands: ['#ffd37a', '#8f4510', '#ffe7ae', '#d47a1d'], spot: '#6e2c06' },
+  branch: { base: '#304f96', bands: ['#8fb2ff', '#1e3470', '#b7cdff', '#4d72c4'], spot: '#14264f' },
+  leaf:   { base: '#176b60', bands: ['#7fe8d0', '#0d4d45', '#b8fff0', '#2ca38b'], spot: '#073c35' },
+};
+
+const texCache = new Map();
+function planetTexture(kind, name) {
+  const key = kind + ':' + name;
+  if (texCache.has(key)) return texCache.get(key);
+  const pal = PALETTES[kind] || PALETTES.leaf;
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 256;
+  const g = c.getContext('2d');
+  const rnd = rngFor(nameSeed(name));
+
+  g.fillStyle = pal.base;
+  g.fillRect(0, 0, 512, 256);
+
+  const gloss = g.createLinearGradient(0, 0, 0, 256);
+  gloss.addColorStop(0, 'rgba(0,0,0,.32)');
+  gloss.addColorStop(.22, 'rgba(255,255,255,.06)');
+  gloss.addColorStop(.55, 'rgba(255,255,255,.02)');
+  gloss.addColorStop(.82, 'rgba(0,0,0,.10)');
+  gloss.addColorStop(1, 'rgba(0,0,0,.46)');
+  g.fillStyle = gloss;
+  g.fillRect(0, 0, 512, 256);
+
+  for (let i = 0; i < 20; i++) {
+    const y = rnd() * 256;
+    const h = 3 + rnd() * 22;
+    g.globalAlpha = .10 + rnd() * .18;
+    g.fillStyle = pal.bands[Math.floor(rnd() * pal.bands.length)];
+    g.fillRect(0, y, 512, h);
+  }
+  g.globalAlpha = 1;
+
+  for (let i = 0; i < 64; i++) {
+    const x = rnd() * 512, y = rnd() * 256;
+    const rx = 8 + rnd() * 50, ry = 2 + rnd() * 10;
+    g.globalAlpha = .04 + rnd() * .07;
+    g.fillStyle = pal.spot;
+    g.beginPath();
+    g.ellipse(x, y, rx, ry, rnd() * .4 - .2, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.globalAlpha = 1;
+
+  for (let i = 0; i < 1500; i++) {
+    g.fillStyle = 'rgba(255,255,255,' + (rnd() * .055).toFixed(3) + ')';
+    g.fillRect(rnd() * 512, rnd() * 256, 1, 1);
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  texCache.set(key, tex);
+  return tex;
+}
+
+function makeSkyTexture() {
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#02040b';
+  g.fillRect(0, 0, 1024, 512);
+
+  const bg = g.createLinearGradient(0, 0, 0, 512);
+  bg.addColorStop(0, 'rgba(8,14,34,.8)');
+  bg.addColorStop(.45, 'rgba(5,10,25,.4)');
+  bg.addColorStop(1, 'rgba(1,3,10,.9)');
+  g.fillStyle = bg;
+  g.fillRect(0, 0, 1024, 512);
+
+  g.save();
+  g.translate(512, 256);
+  g.rotate(-.32);
+  g.scale(1, .34);
+  const band = g.createRadialGradient(0, 0, 40, 0, 0, 700);
+  band.addColorStop(0, 'rgba(120,140,220,.18)');
+  band.addColorStop(.35, 'rgba(55,80,170,.12)');
+  band.addColorStop(1, 'rgba(40,60,140,0)');
+  g.fillStyle = band;
+  g.beginPath();
+  g.arc(0, 0, 700, 0, Math.PI * 2);
+  g.fill();
+  g.restore();
+
+  const blobs = [
+    [180, 145, 260, 'rgba(50,80,190,.18)'],
+    [790, 100, 220, 'rgba(120,70,190,.13)'],
+    [720, 380, 300, 'rgba(30,100,150,.11)'],
+    [310, 430, 210, 'rgba(150,80,160,.08)'],
+  ];
+  for (const [x, y, r, color] of blobs) {
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 1024, 512);
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  return tex;
+}
+
+function makeGlowTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0, 'rgba(255,255,255,.95)');
+  grad.addColorStop(.18, 'rgba(255,255,255,.55)');
+  grad.addColorStop(.48, 'rgba(255,255,255,.12)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+}
+
+function makeStarTexture() {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(.22, 'rgba(255,255,255,.85)');
+  grad.addColorStop(.55, 'rgba(255,255,255,.15)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+function makeRingTexture(dashed) {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  g.translate(64, 64);
+  g.strokeStyle = 'rgba(255,255,255,1)';
+  g.lineWidth = 2;
+  if (dashed) g.setLineDash([5, 6]);
+  g.beginPath();
+  g.arc(0, 0, 48, 0, Math.PI * 2);
+  g.stroke();
+  return new THREE.CanvasTexture(c);
+}
+
+/* ── 场景基础 ───────────────────────────── */
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(92, 48, 24),
+  new THREE.MeshBasicMaterial({
+    map: makeSkyTexture(),
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    toneMapped: false,
+  })
+);
+sky.renderOrder = -10;
+scene.add(sky);
+
+const starTex = makeStarTexture();
+function makeStars(count, size, rMin, rMax) {
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const color = new THREE.Color();
+  for (let i = 0; i < count; i++) {
+    const u = Math.random() * 2 - 1;
+    const theta = Math.random() * Math.PI * 2;
+    const r = Math.sqrt(1 - u * u);
+    const rad = rMin + Math.random() * (rMax - rMin);
+    positions[i * 3] = r * Math.cos(theta) * rad;
+    positions[i * 3 + 1] = u * rad;
+    positions[i * 3 + 2] = r * Math.sin(theta) * rad;
+
+    const roll = Math.random();
+    if (roll < .13) color.setHSL(.12, .55, .82);
+    else if (roll < .28) color.setHSL(.58, .35, .88);
+    else color.setHSL(.6, .12, .92);
+    const lum = .75 + Math.random() * .25;
+    colors[i * 3] = color.r * lum;
+    colors[i * 3 + 1] = color.g * lum;
+    colors[i * 3 + 2] = color.b * lum;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size, map: starTex, vertexColors: true, transparent: true,
+    alphaTest: .01, depthWrite: false, blending: THREE.AdditiveBlending,
+    sizeAttenuation: true, fog: false, opacity: .95,
+  });
+  return new THREE.Points(geo, mat);
+}
+const starsNear = makeStars(5200, .35, 42, 68);
+const starsBright = makeStars(280, .62, 48, 82);
+scene.add(starsNear, starsBright);
+
+scene.add(new THREE.HemisphereLight(0x8fb4ff, 0x0a0618, 1.05));
+const sunLight = new THREE.DirectionalLight(0xe8f0ff, 2.4);
+sunLight.position.set(6, 9, 5);
+scene.add(sunLight);
+const rootLight = new THREE.PointLight(0xffb35c, 26, 32, 2);
+scene.add(rootLight);
+
+const glowTex = makeGlowTexture();
+const ringDashedTex = makeRingTexture(true);
+const ringSolidTex = makeRingTexture(false);
+const planetGeo = new THREE.SphereGeometry(1, 48, 32);
+
+const selectionSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: ringSolidTex,
+  color: 0x9fe8ff,
+  transparent: true,
+  opacity: .9,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+}));
+selectionSprite.visible = false;
+selectionSprite.renderOrder = 2;
+scene.add(selectionSprite);
+
+const EMISSIVE = {
+  root: 0xffb347,
+  branch: 0x0e1d46,
+  leaf: 0x073a33,
+};
+
+function orbitPoint(center, radius, tilt, angle) {
+  return new THREE.Vector3(
+    center.x + Math.cos(angle) * radius,
+    center.y + Math.sin(angle) * radius * Math.sin(tilt),
+    center.z + Math.sin(angle) * radius * Math.cos(tilt)
+  );
+}
+
+function addOrbit(center, radius, tilt, color, opacity) {
+  const pts = [];
+  const seg = 144;
+  for (let i = 0; i < seg; i++) {
+    pts.push(orbitPoint(center, radius, tilt, (i / seg) * Math.PI * 2));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const line = new THREE.LineLoop(geo, new THREE.LineBasicMaterial({
+    color, transparent: true, opacity, depthWrite: false,
+  }));
+  line.renderOrder = 1;
+  scene.add(line);
+  return line;
+}
+
+function createBody(chain, level, pos, radius, parentName) {
+  const kind = level === 0 ? 'root' : (level === 1 ? 'branch' : 'leaf');
+  const labelClass = level === 0 ? 'root' : (level === 1 ? 'branch' : (level === 2 ? 'child' : 'grand'));
+  const body = {
+    chain,
+    level,
+    pos: pos.clone(),
+    radius,
+    parentName,
+    kind,
+    seed: nameSeed(chain.name || ''),
+  };
+
+  const mat = new THREE.MeshStandardMaterial({
+    map: planetTexture(kind, chain.name + ':' + level + ':' + parentName),
+    roughness: .66,
+    metalness: .06,
+    emissive: new THREE.Color(EMISSIVE[kind]),
+    emissiveIntensity: level === 0 ? .38 : .035,
+  });
+  const mesh = new THREE.Mesh(planetGeo, mat);
+  mesh.position.copy(pos);
+  mesh.scale.setScalar(radius);
+  mesh.userData.body = body;
+  body.mesh = mesh;
+  scene.add(mesh);
+  clickable.push(mesh);
+
+  const glowMat = new THREE.SpriteMaterial({
+    map: glowTex,
+    color: level === 0 ? 0xffc46b : (level === 1 ? 0x7198ff : 0x66e4c8),
+    transparent: true,
+    opacity: level === 0 ? .7 : (level === 1 ? .32 : .20),
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const glow = new THREE.Sprite(glowMat);
+  glow.position.copy(pos);
+  glow.scale.setScalar(radius * (level === 0 ? 3.2 : (level === 1 ? 3.2 : 3.0)));
+  body.glow = glow;
+  body.glowBase = glowMat.opacity;
+  scene.add(glow);
+
+  if (level > 0 && (chain.needHeader || chain.needRefresh)) {
+    const im = new THREE.SpriteMaterial({
+      map: chain.needHeader ? ringDashedTex : ringSolidTex,
+      color: 0xffb060,
+      transparent: true,
+      opacity: chain.needHeader ? .8 : .35,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const ind = new THREE.Sprite(im);
+    ind.position.copy(pos);
+    ind.scale.setScalar(radius * 4.6);
+    body.indicator = ind;
+    scene.add(ind);
+  }
+
+  const el = document.createElement('div');
+  el.className = 'label ' + labelClass;
+  el.textContent = chain.name;
+  labelsEl.appendChild(el);
+  body.labelEl = el;
+
+  bodies.push(body);
+  return body;
+}
+
+function buildScene(data) {
+  const rootName = (data.根 && data.根.name) || '核星';
+  const origin = new THREE.Vector3(0, 0, 0);
+  rootBody = createBody({ name: rootName, nodes: 0 }, 0, origin, .8, '');
+
+  const roots = data.树 || [];
+  const ringRadii = [2.4, 3.2, 4.0, 4.8, 2.8, 3.6, 4.4, 3.0];
+
+  roots.forEach((c, i) => {
+    const radius = ringRadii[i % ringRadii.length];
+    const phase = i * 2.399963229728653 + 0.6;
+    const tilt = (((i * 7) % 9) - 4) * 0.06;
+    addOrbit(origin, radius, tilt, 0x587cff, .24);
+    const ppos = orbitPoint(origin, radius, tilt, phase);
+    createBody(c, 1, ppos, .42, rootName);
+
+    const kids = c.children || [];
+    const moonR = .78 + Math.min(kids.length, 4) * .04;
+    kids.forEach((k, j) => {
+      const ma = (j / Math.max(1, kids.length)) * Math.PI * 2 + i * .55;
+      const mt = tilt + (((j * 5) % 7) - 3) * .03;
+      const mpos = orbitPoint(ppos, moonR, mt, ma);
+      addOrbit(ppos, moonR, mt, 0x49d7c0, .10);
+      createBody(k, 2, mpos, .16, c.name);
+
+      const gkids = k.children || [];
+      const grandR = .42;
+      gkids.forEach((gk, gj) => {
+        const ga = (gj / Math.max(1, gkids.length)) * Math.PI * 2 + j * .6;
+        const gt = mt + (((gj * 3) % 5) - 2) * .04;
+        const gpos = orbitPoint(mpos, grandR, gt, ga);
+        addOrbit(mpos, grandR, gt, 0x49d7c0, .05);
+        createBody(gk, 3, gpos, .082, k.name);
+      });
+    });
+  });
+
+  occluders = bodies.filter((b) => b.level <= 1).map((b) => b.mesh);
+
+  const total = countChains(roots);
+  statEl.textContent = `${roots.length} 个分支 · ${total.n} 条链 · ${total.nodes} 个节点 · 真 3D`;
+  loadingEl.classList.add('hide');
+  window.__viewerReady = true;
+}
+
+function countChains(list) {
+  let n = 0, nodes = 0;
+  for (const c of (list || [])) {
+    n++;
+    nodes += c.nodes || 0;
+    const sub = countChains(c.children || []);
+    n += sub.n;
+    nodes += sub.nodes;
+  }
+  return { n, nodes };
+}
+
+/* ── 相机与交互 ─────────────────────────── */
+function fitDistance() {
+  const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const sceneR = 5.15;
+  return Math.max(sceneR / tan, sceneR / (tan * camera.aspect)) * 1.08;
+}
+
+function updateCamera() {
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  camera.position.set(
+    distance * Math.cos(yaw) * cp,
+    distance * sp,
+    distance * Math.sin(yaw) * cp
+  );
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+}
+
+function pickAt(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(clickable, false);
+  return hits.length ? hits[0].object.userData.body : null;
+}
+
+function selectBody(body) {
+  selected = body || null;
+  if (body && body.chain) {
+    showPanel(body.chain.name);
+  } else {
+    panel.classList.remove('show');
+  }
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  dragging = true;
+  moved = 0;
+  lastX = e.clientX;
+  lastY = e.clientY;
+  canvas.style.cursor = 'grabbing';
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (dragging) {
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    moved += Math.abs(dx) + Math.abs(dy);
+    yaw += dx * 0.006;
+    pitch = clamp(pitch - dy * 0.004, 0.06, 1.18);
+    lastX = e.clientX;
+    lastY = e.clientY;
+    return;
+  }
+  const hit = pickAt(e.clientX, e.clientY);
+  hovered = hit;
+  canvas.style.cursor = hit ? 'pointer' : 'grab';
+});
+
+canvas.addEventListener('pointerup', (e) => {
+  dragging = false;
+  canvas.style.cursor = 'grab';
+  if (moved < 5) {
+    selectBody(pickAt(e.clientX, e.clientY));
+  }
+});
+
+canvas.addEventListener('pointerleave', () => {
+  if (!dragging) {
+    hovered = null;
+    canvas.style.cursor = 'grab';
+  }
+});
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  distance = clamp(distance * Math.exp(e.deltaY * 0.0012), 6, 40);
+}, { passive: false });
+
+/* ── 标签布局 ───────────────────────────── */
+function updateLabels() {
+  const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const projected = [];
+  const bodyRects = [];
+
+  for (const b of bodies) {
+    const v = b.pos.clone().project(camera);
+    if (v.z < -1 || v.z > 1) {
+      b.labelEl.style.opacity = '0';
+      b.labelEl.classList.remove('hot');
+      continue;
+    }
+    const x = (v.x * .5 + .5) * W;
+    const y = (-v.y * .5 + .5) * H;
+    const camDist = camera.position.distanceTo(b.pos);
+    const screenR = Math.max(2, (b.radius / (camDist * tanHalf)) * (H / 2));
+    const hot = b === selected || b === hovered;
+
+    if (b.level <= 1) {
+      bodyRects.push({
+        name: b.chain.name,
+        x1: x - screenR - 5, x2: x + screenR + 5,
+        y1: y - screenR - 5, y2: y + screenR + 5,
+      });
+    }
+
+    let show = b.level <= 1
+      || (b.level === 2 && ((b.chain.nodes || 0) > 0 || hot))
+      || (b.level >= 3 && hot);
+
+    if (show && b.level > 0) {
+      labelPointer.set(v.x, v.y);
+      labelRaycaster.setFromCamera(labelPointer, camera);
+      labelRaycaster.far = camDist + b.radius * 3;
+      const hits = labelRaycaster.intersectObjects(occluders, false);
+      if (hits.length && hits[0].object !== b.mesh && hits[0].distance < camDist - b.radius * .8) {
+        show = false;
+      }
+    }
+    if (!show) {
+      b.labelEl.style.opacity = '0';
+      b.labelEl.classList.remove('hot');
+      continue;
+    }
+
+    projected.push({
+      body: b,
+      x, y, screenR, camDist, hot,
+      pri: hot ? 5 : (b.level === 0 ? 4 : (b.level === 1 ? 3 : 1)),
+    });
+  }
+
+  projected.sort((a, b) => (b.pri - a.pri) || (a.camDist - b.camDist));
+
+  const occupied = bodyRects.slice();
+  for (const item of projected) {
+    const el = item.body.labelEl;
+    const w = Math.max(30, el.offsetWidth || (item.body.chain.name.length * 10 + 10));
+    const h = item.body.level === 0 ? 17 : 14;
+    const gap = 10;
+    const candidates = [
+      [item.x, item.y + item.screenR + gap + h / 2],
+      [item.x, item.y - item.screenR - gap - h / 2],
+      [item.x + item.screenR + w / 2 + gap, item.y],
+      [item.x - item.screenR - w / 2 - gap, item.y],
+      [item.x, item.y + item.screenR + gap + h * 2],
+      [item.x, item.y - item.screenR - gap - h * 2],
+    ];
+
+    let placed = null;
+    for (const [x, y] of candidates) {
+      const r = {
+        x1: x - w / 2 - 4, x2: x + w / 2 + 4,
+        y1: y - h / 2 - 4, y2: y + h / 2 + 4,
+      };
+      if (r.x1 < 8 || r.x2 > W - 8 || r.y1 < 18 || r.y2 > H - 18) continue;
+      if (occupied.some((o) => o.name !== item.body.chain.name && !(r.x2 < o.x1 || r.x1 > o.x2 || r.y2 < o.y1 || r.y1 > o.y2))) continue;
+      placed = { x, y, r };
+      break;
+    }
+    if (!placed && (item.pri >= 3 || item.hot)) {
+      const x = item.x;
+      const y = item.y + item.screenR + gap + h / 2;
+      placed = {
+        x, y,
+        r: { x1: x - w / 2 - 4, x2: x + w / 2 + 4, y1: y - h / 2 - 4, y2: y + h / 2 + 4 },
+      };
+    }
+    if (!placed) {
+      el.style.opacity = '0';
+      el.classList.remove('hot');
+      continue;
+    }
+
+    el.style.left = placed.x + 'px';
+    el.style.top = placed.y + 'px';
+    el.style.opacity = '1';
+    el.classList.toggle('hot', item.hot);
+    occupied.push(placed.r);
+  }
+}
+
+/* ── 面板 ───────────────────────────────── */
+async function showPanel(name) {
+  panel.innerHTML = '<h3>加载中…</h3>';
+  panel.classList.add('show');
+  try {
+    const r = await fetch('/api/chain?name=' + encodeURIComponent(name));
+    const c = await r.json();
+    const nodes = (c.nodes || []).slice(-12).reverse();
+    const nodeCount = (c.nodes || []).length;
+    const needHeader = nodeCount >= 5 && !c.header;
+    const needRefresh = !!c.header && c.headerBy !== 'manual' && (nodeCount - (c.headerNodeCount || 0)) >= 5;
+    panel.innerHTML = `
+      <h3>${esc(c.name)} <span class="tag">${nodeCount} 个节点</span></h3>
+      <div class="meta">父节点：${esc(c.parent || '—')} · 头部基于 ${c.headerNodeCount || 0} 个节点</div>
+      ${needHeader ? '<div class="meta" style="color:#e0b070">⚠ 节点 ≥5，还没有链头</div>' : ''}
+      ${needRefresh ? '<div class="meta" style="color:#c9a060">提示：链头之后又新增了 ≥5 个节点，可刷新</div>' : ''}
+      ${c.header ? `<div class="head">${esc(c.header)}</div>` : '<div class="meta">（还没有头部概览）</div>'}
+      ${nodes.length ? nodes.map((n) => `
+        <div class="node">
+          <span class="who">${esc(n.who || '·')}</span>
+          ${esc(n.text)}
+          ${n.superseded ? ' <span style="color:#c96">（已作废）</span>' : ''}
+          <div style="color:#3f4d6e;font-size:10px">${esc(n.t || '')}</div>
+        </div>`).join('') : '<div class="meta">（还没有节点）</div>'}
+    `;
+  } catch (e) {
+    panel.innerHTML = '<h3>读取出错</h3><div class="meta">' + esc(e.message) + '</div>';
+  }
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* ── 渲染循环 ───────────────────────────── */
+let lastT = 0;
+function animate(now) {
+  const t = now * .001;
+  if (!dragging) yaw += .00075;
+  updateCamera();
+
+  const pulse = 1 + Math.sin(t * 1.5) * .022;
+  if (rootBody) {
+    rootBody.mesh.scale.setScalar(rootBody.radius * pulse);
+    rootLight.intensity = 26 + Math.sin(t * 1.5) * 3;
+  }
+
+  for (const b of bodies) {
+    const hot = b === selected || b === hovered;
+    if (b.level > 0) b.mesh.scale.setScalar(b.radius * (hot ? 1.09 : 1));
+    if (b.glow) b.glow.material.opacity = b.glowBase * (hot ? 1.25 : 1);
+    if (b.indicator) b.indicator.material.opacity = (b.chain.needHeader ? .65 : .28) * (hot ? 1.4 : 1);
+  }
+
+  if (selected) {
+    selectionSprite.visible = true;
+    selectionSprite.position.copy(selected.pos);
+    selectionSprite.scale.setScalar(selected.radius * 5.4 * (1 + Math.sin(t * 2) * .04));
+    selectionSprite.material.opacity = .72 + Math.sin(t * 2) * .16;
+  } else {
+    selectionSprite.visible = false;
+  }
+
+  sky.rotation.y = t * .0015;
+  starsNear.rotation.y = t * .0008;
+  starsBright.rotation.y = t * .0005;
+
+  updateLabels();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+async function load() {
+  try {
+    const r = await fetch('/api/chains');
+    data = await r.json();
+    buildScene(data);
+    updateCamera();
+    requestAnimationFrame(animate);
+  } catch (e) {
+    fail('读取链网失败：' + (e && e.message ? e.message : e));
+  }
+}
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(W, H);
+  const fit = fitDistance();
+  if (distance < fit) distance = fit;
+}
+window.addEventListener('resize', resize);
+
+updateCamera();
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://xingxv.memory/schema/record.schema.json",
+  "title": "MemoryRecord",
+  "description": "开源记忆系统原始存档格式 v1。一行一条 JSONL。字段含义由项目方定义，使用者不得改动。",
+  "type": "object",
+  "required": ["t", "s", "c", "cid", "v"],
+  "additionalProperties": false,
+  "properties": {
+    "t": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}$",
+      "description": "原始时间（本地时区，精确到分）。格式：YYYY-MM-DD HH:MM"
+    },
+    "s": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "说话人原名，不翻译、不改写"
+    },
+    "c": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200000,
+      "description": "内容原文，一个字不改（错别字、语气词、重复都保留）"
+    },
+    "cid": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "会话 ID，同一次对话共用一个"
+    },
+    "mid": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "可选：平台侧消息唯一标识（如 DSH 的 source.rpcId）。同一分钟内重复说同一句话时用它区分两条记录"
+    },
+    "v": {
+      "type": "integer",
+      "const": 1,
+      "description": "格式版本，当前 1"
+    },
+    "id": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "可选全局唯一 ID；不填则由系统生成（时间+哈希）"
+    },
+    "src": {
+      "type": "string",
+      "maxLength": 32,
+      "description": "来源平台标识"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["human", "ai", "system", "tool"],
+      "description": "消息类型。系统/工具消息不混进正文语义"
+    },
+    "origin": {
+      "type": "string",
+      "enum": ["human", "ai", "recall_echo", "import"],
+      "description": "来源标记。recall_echo = 召回内容的复述，不参与后续召回"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+# 随包向量服务的 Python 依赖
+# 安装：pip install -r vector/requirements.txt
+sentence-transformers>=3.0
+numpy>=1.24
+psutil>=5.9

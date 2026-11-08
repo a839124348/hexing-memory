@@ -1,0 +1,10 @@
+{
+  "name": "hexing-onnx-embed",
+  "private": true,
+  "type": "module",
+  "description": "Zero-Python bge-small-zh vector service for 核星记忆 (ONNX Runtime)",
+  "dependencies": {
+    "@huggingface/tokenizers": "^0.2.0",
+    "onnxruntime-node": "^1.31.1"
+  }
+}
