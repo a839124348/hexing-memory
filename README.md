@@ -23,6 +23,8 @@
 
 ## 快速开始（DSH）
 
+> 下面写给能自己动手的人。**如果你是零技术用户，把这一节直接发给 DSH 模型**，让它替你改配置、装依赖、启动；你只需要点“允许”和确认路径。
+
 1. 装好 DSH（0.2.x），确认 `dsh web` 能启动。
 2. 把插件写进 `~/.dsh/profiles/web/cordis.patch.yml`：
 
@@ -139,7 +141,7 @@ node test/acceptance.js     # 全链路自动验收（生成 ACCEPTANCE-*.md）
 ## 文档
 
 - [规划书 v0.4](docs/规划书-v0.4.md)：设计、红线、13 项验收
-- [RULES.md](docs/RULES.md)：唯一说明书（写入规范 / 接入 / 迁移 / 日常操作 / 验收）
+- [RULES.md](docs/RULES.md)：**给模型看的操作手册**（写入规范 / 接入 / 迁移 / 日常操作 / 验收 / 用户沟通）；你不用读，模型首次使用会自己通读。
 - [TEST-REPORT.md](docs/TEST-REPORT.md)：测试结果与已知限制
 
 ## 署名与商业使用

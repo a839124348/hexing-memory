@@ -914,7 +914,7 @@ export function apply(ctx: Context) {
   // ── 工具 5：读说明书（首次安装/升级必须通读）──────────
   ctx.tools.register(defineTool({
     name: 'memory_manual',
-    description: '读唯一说明书 RULES.md。首次安装/升级必须从第一节读到最后一节，**不要只读开头和结尾**。action：toc（看目录和进度）／read（读一节；不带 section 读下一节没读的）／status（看已读/未读）／ack（全部读完后标记完成；没读完会被拒绝）。没读完时改链网/话题会被拦住。',
+    description: '读唯一操作手册 RULES.md（写给你这个模型的，不是给用户读的）。首次安装/升级必须从第一节读到最后一节，**不要只读开头和结尾**。action：toc（看目录和进度）／read（读一节；不带 section 读下一节没读的）／status（看已读/未读）／ack（全部读完后标记完成；没读完会被拒绝）。没读完时改链网/话题会被拦住。',
     parameters: {
       action: { type: 'string', required: true, description: 'toc / read / status / ack' },
       section: { type: 'string', description: 'read：节号 0 起（如 "3"）或标题片段（如 "迁移"）；不填 = 下一节' },
