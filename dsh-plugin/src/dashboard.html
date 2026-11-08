@@ -342,6 +342,9 @@
   }
   .boot.on { opacity: 1; visibility: visible; }
   .boot.done { opacity: 0; visibility: hidden; pointer-events: none; }
+  .boot.closing .boot-copy,
+  .boot.closing .boot-number,
+  .boot.closing .boot-skip { opacity: 0 !important; transition: opacity .4s ease; }
   body.boot-lock { overflow: hidden; }
   #bootCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   .boot-copy {
@@ -390,23 +393,34 @@
     transition: opacity .55s ease, transform .55s ease;
   }
   .boot-number.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .boot-number::before {
+    content: ""; position: absolute; inset: -60px -120px; z-index: -1;
+    background: radial-gradient(ellipse at center, rgba(4, 6, 13, .58), rgba(4, 6, 13, .22) 48%, transparent 72%);
+    pointer-events: none;
+  }
   .boot-number-kicker {
     font-size: 10px; letter-spacing: .52em; text-transform: uppercase;
     color: #7e93c4; margin-bottom: 14px;
   }
-  .boot-number-main {
+  .boot-number-line {
+    display: flex; align-items: baseline; justify-content: center; gap: 14px;
+    white-space: nowrap;
+  }
+  .boot-number-pre, .boot-number-unit {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: clamp(14px, 1.6vw, 19px); letter-spacing: .18em;
+    color: #d8c49a;
+  }
+  .boot-number-unit { margin-left: 2px; }
+  .boot-number-days {
     font-family: "Songti SC", "STSong", "Noto Serif SC", "SimSun", serif;
     font-size: clamp(96px, 16vw, 190px); line-height: .86; font-weight: 400;
     color: #f8f4e8; letter-spacing: .04em; font-variant-numeric: tabular-nums;
     text-shadow: 0 0 48px rgba(255, 214, 150, .30), 0 0 120px rgba(120, 150, 255, .18);
   }
-  .boot-number.show .boot-number-main { animation: bootNumberIn 1.15s ease-out both; }
-  .boot-number-main small {
-    font-size: clamp(15px, 1.8vw, 22px); letter-spacing: .22em;
-    color: #c9b58c; margin-left: 12px; font-family: inherit;
-  }
-  .boot-number.flip .boot-number-main { animation: bootNumberFlip .3s ease-in both; }
-  .boot-number.land .boot-number-main { animation: bootNumberLand .85s ease-out both; }
+  .boot-number.show .boot-number-line { animation: bootNumberIn 1.15s ease-out both; }
+  .boot-number.flip .boot-number-days { animation: bootNumberFlip .3s ease-in both; }
+  .boot-number.land .boot-number-days { animation: bootNumberLand .85s ease-out both; }
   .boot-number-sub {
     margin-top: 18px; font-size: 12px; letter-spacing: .18em; color: #8d9cc0;
   }
@@ -438,6 +452,11 @@
   @media (prefers-reduced-motion: reduce) {
     .boot { display: none !important; }
   }
+  @media (max-width: 520px) {
+    .boot-number-kicker { display: none; }
+    .boot-number-line { gap: 9px; }
+    .boot-number-pre, .boot-number-unit { letter-spacing: .10em; }
+  }
 </style>
 </head>
 <body>
@@ -450,7 +469,11 @@
   </div>
   <div class="boot-number" id="bootNumber">
     <div class="boot-number-kicker">C O M P A N I O N S H I P</div>
-    <div class="boot-number-main"><span id="bootDays">—</span><small>天</small></div>
+    <div class="boot-number-line">
+      <span class="boot-number-pre">陪伴你的第</span>
+      <span class="boot-number-days" id="bootDays">—</span>
+      <span class="boot-number-unit">天</span>
+    </div>
     <div class="boot-number-sub">从 <span id="bootFirstDay">—</span> 开始</div>
     <div class="boot-number-delta" id="bootDelta"></div>
   </div>
@@ -788,10 +811,16 @@ setInterval(load, 10000);
     finished = true;
     cancelAnimationFrame(raf);
     timers.forEach((id) => clearTimeout(id));
-    boot.classList.add('done');
-    document.body.classList.remove('boot-lock');
+    boot.classList.add('closing');
     try { localStorage.setItem(INTRO_KEY, todayKey); } catch (e) { /* ignore */ }
-    setTimeout(() => boot.remove(), 950);
+    // 先让数字/标题淡掉，再让整块黑场淡出，避免数字和总览页叠成双影
+    setTimeout(() => {
+      boot.classList.add('done');
+      setTimeout(() => {
+        boot.remove();
+        document.body.classList.remove('boot-lock');
+      }, 950);
+    }, 420);
   }
   boot.addEventListener('click', finish);
   boot.addEventListener('touchstart', finish, { passive: true });
@@ -811,7 +840,7 @@ setInterval(load, 10000);
       const deltaEl = document.getElementById('bootDelta');
       if (!copy || !number || !daysEl || !firstEl || !deltaEl) return;
 
-      const today = (s && s.today) || '';
+      const today = todayKey; // 时间自检：以本机本地日期为准，跨过 0 点才算新的一天
       const firstDay = comp.firstDay || (s.memory && s.memory.firstDay) || '—';
       let from = days;
       let delta = 0;
@@ -824,7 +853,7 @@ setInterval(load, 10000);
       daysEl.textContent = String(from);
       firstEl.textContent = firstDay;
       copy.classList.add('out');
-      number.classList.add('show');
+      later(() => number.classList.add('show'), 320);
       try {
         localStorage.setItem('hexing-last-companion', JSON.stringify({ day: today, days }));
       } catch (e) { /* ignore */ }
