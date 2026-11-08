@@ -63,6 +63,7 @@
     font-size: 11px; letter-spacing: 3.4px; text-transform: uppercase;
     color: #7185b4; margin-bottom: 8px;
   }
+  .eyebrow .ver { opacity: .55; margin-left: 6px; letter-spacing: .16em; }
   h1 {
     font-family: "Songti SC", "STSong", "Noto Serif SC", "SimSun", serif;
     font-size: clamp(28px, 3.4vw, 42px); font-weight: 400;
@@ -334,7 +335,7 @@
 <main>
   <header>
     <div>
-      <div class="eyebrow">HEXING MEMORY / OVERVIEW</div>
+      <div class="eyebrow">HEXING MEMORY / OVERVIEW <span id="appVersion" class="ver"></span></div>
       <h1>核星记忆</h1>
       <div class="sub">记忆总览 · <span id="statusDot" class="dot"></span> <span id="generated">正在读取…</span></div>
     </div>
@@ -579,6 +580,7 @@ function render(s) {
   text('serviceMode', mode);
 
   text('generated', '更新于 ' + time(s.generatedAt) + ' · ' + (s.today || ''));
+  if (s.version) text('appVersion', '· V' + s.version);
   renderBars(tokens.history);
 }
 

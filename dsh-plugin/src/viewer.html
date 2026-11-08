@@ -125,7 +125,7 @@
 <div id="nav"><a href="/">← 总览</a></div>
 
 <div id="hud">
-  <b>核星记忆</b> · 链网宇宙 · 以核星为心<br>
+  <b>核星记忆</b> · 链网宇宙 · 以核星为心<span id="ver" class="dim"></span><br>
   <span id="stat">正在读取链网…</span><br>
   <span class="dim">拖拽旋转 · 滚轮缩放 · 点击查看</span>
 </div>
@@ -875,6 +875,12 @@ async function load() {
     buildScene(data);
     updateCamera();
     requestAnimationFrame(animate);
+    fetch('/api/stats', { cache: 'no-store' }).then((r) => r.json()).then((s) => {
+      if (s && s.version) {
+        const el = document.getElementById('ver');
+        if (el) el.textContent = ' · v' + s.version;
+      }
+    }).catch(() => { /* 版本号读不到不影响链网 */ });
   } catch (e) {
     fail('读取链网失败：' + (e && e.message ? e.message : e));
   }

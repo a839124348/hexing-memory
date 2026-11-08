@@ -26,6 +26,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const APP_NAME = '核星记忆'
 const APP_NAME_EN = 'Hexing Memory'
+// 版本号单一来源：dsh-plugin/package.json；读不到再退回常量
+let APP_VERSION = '0.4.0'
+try {
+  const pkg = require(path.join(__dirname, '..', 'package.json'))
+  if (pkg && pkg.version) APP_VERSION = String(pkg.version)
+} catch (e) { /* 发布包里一定有 package.json；读不到不致命 */ }
 
 export const name = 'memory-system'
 export const inject = ['tools', 'llm']
@@ -209,7 +215,7 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any) {
   })
 
   server.listen(port, '127.0.0.1', () => {
-    console.log(`[memory-system] ${APP_NAME} / ${APP_NAME_EN} 总览/链网展示窗：http://127.0.0.1:${port}`)
+    console.log(`[memory-system] ${APP_NAME} v${APP_VERSION} / ${APP_NAME_EN} 总览/链网展示窗：http://127.0.0.1:${port}`)
   })
 
   ctx.effect(() => () => {
@@ -294,6 +300,7 @@ async function collectStats(app: MemoryApp, embedService?: any) {
 
   return {
     ok: true,
+    version: APP_VERSION,
     generatedAt,
     today,
     memory,
@@ -657,9 +664,9 @@ export function apply(ctx: Context) {
   // 启动就有回执——否则用户无法判断插件到底加载了没有（实测排查时吃过这个亏）
   try {
     const st = app.store.stats()
-    console.log(`[memory-system] ${APP_NAME} 已加载 | 数据目录 ${DATA_ROOT} | 存档 ${st.records} 条`)
+    console.log(`[memory-system] ${APP_NAME} v${APP_VERSION} 已加载 | 数据目录 ${DATA_ROOT} | 存档 ${st.records} 条`)
   } catch (e) {
-    console.log(`[memory-system] ${APP_NAME} 已加载（读取存档统计失败，不影响使用）`)
+    console.log(`[memory-system] ${APP_NAME} v${APP_VERSION} 已加载（读取存档统计失败，不影响使用）`)
   }
 
   // ── 向量服务：插件托管（v0.4）────────────────────────
