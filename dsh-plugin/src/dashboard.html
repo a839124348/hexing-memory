@@ -572,7 +572,8 @@
   /* ── 作者自述 · 故事书 ───────────────────────────── */
   .story-card {
     display: flex; flex-direction: column;
-    height: min(84vh, 640px);
+    height: min(88vh, 680px);
+    max-height: 88vh;
     padding: 0; overflow: hidden;
   }
   .story-head {
@@ -585,7 +586,7 @@
     font-size: clamp(24px, 3.2vw, 34px); font-weight: 400;
     letter-spacing: .08em; color: #f2f6ff;
   }
-  .story-sub { margin-top: 6px; font-size: 11px; letter-spacing: .16em; color: #5f7099; }
+  .story-sub { margin-top: 6px; font-size: 12px; letter-spacing: .14em; color: #6d80ab; }
   .story-stage {
     flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
     padding: 0 36px;
@@ -610,8 +611,8 @@
     color: rgba(150, 175, 255, .055); pointer-events: none;
   }
   .story-kicker {
-    font-size: 10px; letter-spacing: .30em; text-transform: uppercase;
-    color: #7e93c4; margin-bottom: 12px;
+    font-size: 14px; line-height: 1.5; letter-spacing: .10em; text-transform: uppercase;
+    color: #a9bce2; margin-bottom: 12px;
   }
   .story-slide h3 {
     margin: 0 0 12px;
@@ -630,7 +631,7 @@
   .story-fragment .frag-meta {
     margin-bottom: 5px;
     font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-    font-size: 9px; letter-spacing: .12em; color: #6f80a8;
+    font-size: 10.5px; letter-spacing: .12em; color: #7c8db4;
   }
   .story-fragment p {
     margin: 0; color: #e4d7b8;
@@ -709,7 +710,7 @@
     to { opacity: 1; }
   }
   @media (max-width: 620px) {
-    .story-card { height: min(90vh, 760px); }
+    .story-card { height: min(90vh, 760px); max-height: 90vh; }
     .story-head { padding: 22px 20px 9px; }
     .story-title { font-size: 22px; }
     .story-stage { padding: 0 20px; }
