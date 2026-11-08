@@ -599,9 +599,11 @@ const EMISSIVE = {
   leaf: 0x073a33,
 };
 
-function orbitPoint(center, radius, tilt, angle, roll = 0) {
-  const x = Math.cos(angle) * radius;
-  const z = Math.sin(angle) * radius;
+function orbitPoint(center, radius, tilt, angle, roll = 0, ecc = 0) {
+  const a = radius;
+  const b = radius * (1 - ecc);
+  const x = Math.cos(angle) * a;
+  const z = Math.sin(angle) * b;
   const y = z * Math.sin(tilt);
   const zt = z * Math.cos(tilt);
   const xr = x * Math.cos(roll) + zt * Math.sin(roll);
@@ -609,11 +611,11 @@ function orbitPoint(center, radius, tilt, angle, roll = 0) {
   return new THREE.Vector3(center.x + xr, center.y + y, center.z + zr);
 }
 
-function addOrbit(center, radius, tilt, color, opacity, roll = 0) {
+function addOrbit(center, radius, tilt, color, opacity, roll = 0, ecc = 0) {
   const pts = [];
   const seg = 168;
   for (let i = 0; i < seg; i++) {
-    pts.push(orbitPoint(ORIGIN, radius, tilt, (i / seg) * Math.PI * 2, roll));
+    pts.push(orbitPoint(ORIGIN, radius, tilt, (i / seg) * Math.PI * 2, roll, ecc));
   }
   const geo = new THREE.BufferGeometry().setFromPoints(pts);
   for (const p of pts) fitPoints.push(p.clone().add(center));
@@ -737,30 +739,30 @@ function buildScene(data) {
 
   const roots = data.树 || [];
   const ORBITS = [
-    { radius: 2.60, tilt: -0.10, roll: 0.12, color: 0x587cff, palette: 'branch' },
-    { radius: 3.30, tilt: 0.07, roll: -0.18, color: 0x6f8dff, palette: 'branch' },
-    { radius: 4.00, tilt: -0.04, roll: 0.22, color: 0x8f7bff, palette: 'branchViolet' },
-    { radius: 4.70, tilt: 0.12, roll: -0.08, color: 0x7aa2ff, palette: 'branch' },
-    { radius: 5.40, tilt: -0.09, roll: 0.16, color: 0x8f7bff, palette: 'branchViolet' },
-    { radius: 6.10, tilt: 0.05, roll: -0.24, color: 0x49d7c0, palette: 'branchTeal' },
-    { radius: 6.80, tilt: -0.13, roll: 0.06, color: 0x6f8dff, palette: 'branch' },
-    { radius: 7.50, tilt: 0.10, roll: -0.12, color: 0x8f7bff, palette: 'branchViolet' },
-    { radius: 8.20, tilt: -0.02, roll: 0.20, color: 0x49d7c0, palette: 'branchTeal' },
+    { radius: 2.80, tilt: -0.10, roll: 0.12, ecc: .10, color: 0x587cff, palette: 'branch' },
+    { radius: 3.70, tilt: 0.07, roll: -0.18, ecc: .12, color: 0x6f8dff, palette: 'branch' },
+    { radius: 4.60, tilt: -0.04, roll: 0.22, ecc: .14, color: 0x8f7bff, palette: 'branchViolet' },
+    { radius: 5.50, tilt: 0.12, roll: -0.08, ecc: .16, color: 0x7aa2ff, palette: 'branch' },
+    { radius: 6.40, tilt: -0.09, roll: 0.16, ecc: .10, color: 0x8f7bff, palette: 'branchViolet' },
+    { radius: 7.30, tilt: 0.05, roll: -0.24, ecc: .13, color: 0x49d7c0, palette: 'branchTeal' },
+    { radius: 8.20, tilt: -0.13, roll: 0.06, ecc: .17, color: 0x6f8dff, palette: 'branch' },
+    { radius: 9.10, tilt: 0.10, roll: -0.12, ecc: .11, color: 0x8f7bff, palette: 'branchViolet' },
+    { radius: 10.00, tilt: -0.02, roll: 0.20, ecc: .15, color: 0x49d7c0, palette: 'branchTeal' },
   ];
   orbitLines = [];
 
   roots.forEach((c, i) => {
     const o = ORBITS[i % ORBITS.length];
     const phase = i * 2.399963229728653 + 0.6;
-    const ppos = orbitPoint(origin, o.radius, o.tilt, phase, o.roll);
-    const line = addOrbit(origin, o.radius, o.tilt, o.color, .20, o.roll);
+    const ppos = orbitPoint(origin, o.radius, o.tilt, phase, o.roll, o.ecc);
+    const line = addOrbit(origin, o.radius, o.tilt, o.color, .20, o.roll, o.ecc);
     orbitLines.push(line);
 
     const weight = chainWeight(c);
-    const pr = 0.32 + Math.sqrt(Math.min(weight, 60) / 60) * 0.23;
+    const pr = 0.34 + Math.sqrt(Math.min(weight, 60) / 60) * 0.27;
     const body = createBody(c, 1, ppos, pr, rootName, null, o.palette);
     body.orbit = {
-      radius: o.radius, tilt: o.tilt, roll: o.roll,
+      radius: o.radius, tilt: o.tilt, roll: o.roll, ecc: o.ecc,
       phase, speed: 0.018 + (i % 4) * .003, parent: null,
     };
     body.orbitLine = line;
@@ -815,19 +817,20 @@ function buildScene(data) {
 
     kids.forEach((k, j2) => {
       const ringR = 0.84 + j2 * 0.17 + Math.min(kids.length, 4) * .02;
+      const mecc = 0.03 + (j2 % 3) * .02;
       const ma = (j2 / Math.max(1, kids.length)) * Math.PI * 2 + i * .55;
       const mt = o.tilt + (((j2 * 5) % 7) - 3) * .045;
-      const mpos = orbitPoint(ppos, ringR, mt, ma);
+      const mpos = orbitPoint(ppos, ringR, mt, ma, 0, mecc);
       const mWeight = 1 + (k.nodes || 0);
       const mrad = 0.09 + Math.sqrt(Math.min(mWeight, 20) / 20) * 0.04;
       const rockColor = new THREE.Color(0x8a99a8).lerp(new THREE.Color(o.color), .25);
       const rock = createBody(k, 2, mpos, mrad, c.name, rockColor.getHex());
       rock.solarVisible = false;
       rock.orbit = {
-        radius: ringR, tilt: mt, roll: 0,
+        radius: ringR, tilt: mt, roll: 0, ecc: mecc,
         phase: ma, speed: 0.30 - j2 * .03, parent: body,
       };
-      const mline = addOrbit(mpos, ringR, mt, 0x49d7c0, .07);
+      const mline = addOrbit(mpos, ringR, mt, 0x49d7c0, .07, 0, mecc);
       mline.userData.parentBody = body;
       rock.orbitLine = mline;
 
@@ -840,7 +843,7 @@ function buildScene(data) {
         const grandBody = createBody(gk, 3, gpos, 0.045 + Math.sqrt(Math.min(gWeight, 10) / 10) * 0.018, k.name, 0x7fd8c4);
         grandBody.solarVisible = false;
         grandBody.orbit = {
-          radius: .20, tilt: gt, roll: 0,
+          radius: .20, tilt: gt, roll: 0, ecc: 0,
           phase: ga, speed: 0.55 + gj * .04, parent: rock,
         };
         const gline = addOrbit(mpos, .20, gt, 0x49d7c0, .04);
@@ -1208,7 +1211,7 @@ function animate(now) {
   for (const b of bodies) {
     if (!b.orbit) continue;
     const center = b.orbit.parent ? b.orbit.parent.pos : ORIGIN;
-    b.pos.copy(orbitPoint(center, b.orbit.radius, b.orbit.tilt, b.orbit.phase + t * b.orbit.speed, b.orbit.roll));
+    b.pos.copy(orbitPoint(center, b.orbit.radius, b.orbit.tilt, b.orbit.phase + t * b.orbit.speed, b.orbit.roll, b.orbit.ecc || 0));
     b.mesh.position.copy(b.pos);
     if (b.glow) b.glow.position.copy(b.pos);
     if (b.indicator) b.indicator.position.copy(b.pos);
