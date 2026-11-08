@@ -59,15 +59,19 @@
 
   #nav {
     position: absolute; top: 22px; right: 26px; z-index: 10;
+    display: flex; align-items: center; gap: 8px;
   }
-  #nav a {
+  #nav a, #nav button {
     display: inline-flex; align-items: center; gap: 6px;
     color: #9fb4ff; text-decoration: none; font-size: 12px;
     border: 1px solid rgba(90,120,220,.25); border-radius: 999px;
     padding: 7px 13px; background: rgba(12,18,38,.55);
     backdrop-filter: blur(8px); transition: .2s ease;
+    font-family: inherit; cursor: pointer;
   }
-  #nav a:hover { color: #eaf2ff; border-color: rgba(122,162,255,.55); }
+  #nav button { display: none; color: #ffd479; border-color: rgba(255,212,121,.28); }
+  #nav button.show { display: inline-flex; }
+  #nav a:hover, #nav button:hover { color: #eaf2ff; border-color: rgba(122,162,255,.55); }
 
   #panel {
     position: absolute; right: 24px; bottom: 24px; z-index: 10;
@@ -110,6 +114,12 @@
     display: inline-block; width: 8px; height: 8px; border-radius: 50%;
     margin-right: 7px; vertical-align: middle;
   }
+  @media (max-width: 560px) {
+    #nav { top: 92px; right: 14px; }
+    #hud { font-size: 11px; }
+    #panel { left: 12px; right: 12px; width: auto; bottom: 12px; max-height: 42vh; }
+    body.panel-open #legend { display: none; }
+  }
 
   #loading {
     position: fixed; inset: 0; z-index: 20;
@@ -126,12 +136,15 @@
 <div id="vignette"></div>
 <div id="labels"></div>
 
-<div id="nav"><a href="/">← 总览</a></div>
+<div id="nav">
+  <button id="focusBack" type="button">← 返回太阳系</button>
+  <a href="/">← 总览</a>
+</div>
 
 <div id="hud">
   <b>核星记忆</b> · 链网宇宙 · 以核星为心<span id="ver" class="dim"></span><br>
   <span id="stat">正在读取链网…</span><br>
-  <span class="dim">拖拽旋转 · 滚轮缩放 · 点击查看</span>
+  <span class="dim" id="hint">拖拽旋转 · 滚轮缩放 · 点击查看</span>
 </div>
 
 <div id="legend">
@@ -164,6 +177,8 @@ import * as THREE from './vendor/three.module.min.js';
 
 const canvas = document.getElementById('c');
 const panel = document.getElementById('panel');
+const focusBackEl = document.getElementById('focusBack');
+const hintEl = document.getElementById('hint');
 const statEl = document.getElementById('stat');
 const labelsEl = document.getElementById('labels');
 const loadingEl = document.getElementById('loading');
@@ -192,6 +207,9 @@ const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 220);
 let yaw = 0.55;
 let pitch = 0.55;
 let distance = 15;
+let solarDistance = 15;
+let focusBody = null;
+let bandLines = [];
 let dragging = false;
 let lastX = 0, lastY = 0, moved = 0;
 let hovered = null;
@@ -656,10 +674,12 @@ function buildScene(data) {
   ];
   const bands = BANDS.map((band) => ({ ...band, chains: [] }));
   roots.forEach((c, i) => bands[i % bands.length].chains.push(c));
+  bandLines = [];
 
   bands.forEach((band, bi) => {
     if (!band.chains.length) return;
     const bandLine = addOrbit(origin, band.radius, band.tilt, band.color, band.opacity, band.roll);
+    bandLines.push(bandLine);
     band.chains.forEach((c, j) => {
       const phase = (j / band.chains.length) * Math.PI * 2 + bi * 1.05;
       const ppos = orbitPoint(origin, band.radius, band.tilt, phase, band.roll);
@@ -671,8 +691,27 @@ function buildScene(data) {
         phase, speed: 0.03 + bi * .006 + j * .002, parent: null,
       };
       body.orbitLine = bandLine;
+      body.solarVisible = true;
 
       const kids = c.children || [];
+      const primaryIdx = kids.reduce((best, k, i) => ((k.nodes || 0) > (kids[best].nodes || 0) ? i : best), 0);
+      if (kids.length > 1) {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(1.22, 1.46 + Math.min(kids.length, 6) * .015, 96),
+          new THREE.MeshBasicMaterial({
+            color: band.color, transparent: true,
+            opacity: .12 + Math.min(kids.length, 6) * .022,
+            side: THREE.DoubleSide, depthWrite: false,
+            blending: THREE.AdditiveBlending, toneMapped: false,
+          })
+        );
+        ring.rotation.x = -Math.PI / 2 + band.tilt * .4;
+        ring.rotation.z = band.roll;
+        ring.position.copy(ppos);
+        ring.renderOrder = 0;
+        body.dustRing = ring;
+        scene.add(ring);
+      }
       const moonR = 0.95 + Math.min(kids.length, 4) * .06;
       kids.forEach((k, j2) => {
         const ma = (j2 / Math.max(1, kids.length)) * Math.PI * 2 + bi * .55 + j * .9;
@@ -680,6 +719,7 @@ function buildScene(data) {
         const mpos = orbitPoint(ppos, moonR, mt, ma);
         const mWeight = 1 + (k.nodes || 0);
         const moonBody = createBody(k, 2, mpos, 0.10 + Math.sqrt(Math.min(mWeight, 20) / 20) * 0.05, c.name);
+        moonBody.solarVisible = (j2 === primaryIdx);
         moonBody.orbit = {
           radius: moonR, tilt: mt, roll: 0,
           phase: ma, speed: 0.22 + j2 * .025, parent: body,
@@ -696,6 +736,7 @@ function buildScene(data) {
           const gpos = orbitPoint(mpos, grandR, gt, ga);
           const gWeight = 1 + (gk.nodes || 0);
           const grandBody = createBody(gk, 3, gpos, 0.05 + Math.sqrt(Math.min(gWeight, 10) / 10) * 0.02, k.name);
+          grandBody.solarVisible = false;
           grandBody.orbit = {
             radius: grandR, tilt: gt, roll: 0,
             phase: ga, speed: 0.6 + gj * .04, parent: moonBody,
@@ -714,6 +755,7 @@ function buildScene(data) {
   statEl.textContent = `${roots.length} 个分支 · ${total.n} 条链 · ${total.nodes} 个节点 · 真 3D`;
   loadingEl.classList.add('hide');
   window.__viewerReady = true;
+  applyVisibility();
   resize();
 }
 
@@ -751,12 +793,15 @@ function fitDistance() {
 
 function updateCamera() {
   const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const tx = focusBody ? focusBody.pos.x : 0;
+  const ty = focusBody ? focusBody.pos.y : 0;
+  const tz = focusBody ? focusBody.pos.z : 0;
   camera.position.set(
-    distance * Math.cos(yaw) * cp,
-    distance * sp,
-    distance * Math.sin(yaw) * cp
+    tx + distance * Math.cos(yaw) * cp,
+    ty + distance * sp,
+    tz + distance * Math.sin(yaw) * cp
   );
-  camera.lookAt(0, 0, 0);
+  camera.lookAt(tx, ty, tz);
   camera.updateMatrixWorld();
 }
 
@@ -769,14 +814,89 @@ function pickAt(clientX, clientY) {
   return hits.length ? hits[0].object.userData.body : null;
 }
 
-function selectBody(body) {
-  selected = body || null;
-  if (body && body.chain) {
-    showPanel(body.chain.name);
-  } else {
-    panel.classList.remove('show');
+function isInFocus(b) {
+  let p = b;
+  while (p) {
+    if (p === focusBody) return true;
+    p = p.orbit ? p.orbit.parent : null;
+  }
+  return false;
+}
+
+function applyVisibility() {
+  const inFocus = !!focusBody;
+  if (rootBody) {
+    rootBody.mesh.visible = !inFocus;
+    if (rootBody.glow) rootBody.glow.visible = !inFocus;
+    rootBody.labelEl.style.display = inFocus ? 'none' : '';
+  }
+  if (sunFlare) sunFlare.visible = !inFocus;
+  if (sunDisk) sunDisk.visible = !inFocus;
+  bandLines.forEach((l) => { l.visible = !inFocus; });
+
+  for (const b of bodies) {
+    if (b === rootBody) continue;
+    const vis = inFocus ? isInFocus(b) : !!b.solarVisible;
+    b.mesh.visible = vis;
+    if (b.glow) b.glow.visible = vis;
+    if (b.indicator) b.indicator.visible = vis;
+    if (b.dustRing) b.dustRing.visible = !inFocus && (b.chain.children || []).length > 1;
+    b.labelEl.style.display = vis ? '' : 'none';
+    if (b.orbitLine && b.orbitLine.userData.parentBody) b.orbitLine.visible = vis;
   }
 }
+
+function enterFocus(body) {
+  if (!body || body.level !== 1) return;
+  const kids = body.chain.children || [];
+  if (!kids.length) return;
+  if (focusBody === body) { showPanel(body.chain.name); return; }
+  focusBody = body;
+  solarDistance = distance;
+  distance = camera.aspect < 0.8 ? 6.4 : 4.8;
+  selected = body;
+  applyVisibility();
+  if (focusBackEl) focusBackEl.classList.add('show');
+  if (hintEl) hintEl.textContent = '拖拽旋转 · 滚轮缩放 · 点击卫星查看 · 返回太阳系';
+  showPanel(body.chain.name);
+}
+
+function exitFocus() {
+  if (!focusBody) return;
+  focusBody = null;
+  distance = solarDistance || 15;
+  selected = null;
+  applyVisibility();
+  if (focusBackEl) focusBackEl.classList.remove('show');
+  if (hintEl) hintEl.textContent = '拖拽旋转 · 滚轮缩放 · 点击查看';
+  panel.classList.remove('show');
+  document.body.classList.remove('panel-open');
+}
+
+function selectBody(body) {
+  selected = body || null;
+  if (!body || !body.chain) {
+    panel.classList.remove('show');
+    document.body.classList.remove('panel-open');
+    return;
+  }
+  const kids = body.chain.children || [];
+  if (body.level === 1 && kids.length && focusBody !== body) {
+    enterFocus(body);
+  } else {
+    showPanel(body.chain.name);
+  }
+}
+
+if (focusBackEl) focusBackEl.addEventListener('click', exitFocus);
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (focusBody) exitFocus();
+  else {
+    panel.classList.remove('show');
+    document.body.classList.remove('panel-open');
+  }
+});
 
 canvas.addEventListener('pointerdown', (e) => {
   dragging = true;
@@ -820,17 +940,25 @@ canvas.addEventListener('pointerleave', () => {
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  distance = clamp(distance * Math.exp(e.deltaY * 0.0012), 6, 90);
+  const lo = focusBody ? 2.4 : 6;
+  const hi = focusBody ? 10 : 90;
+  distance = clamp(distance * Math.exp(e.deltaY * 0.0012), lo, hi);
 }, { passive: false });
 
 /* ── 标签布局 ───────────────────────────── */
 function updateLabels() {
   const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
   const narrow = W < 560;
+  const inFocus = !!focusBody;
   const projected = [];
   const bodyRects = [];
 
   for (const b of bodies) {
+    if (!b.mesh.visible) {
+      b.labelEl.style.opacity = '0';
+      b.labelEl.classList.remove('hot');
+      continue;
+    }
     const v = b.pos.clone().project(camera);
     if (v.z < -1 || v.z > 1) {
       b.labelEl.style.opacity = '0';
@@ -852,8 +980,8 @@ function updateLabels() {
     }
 
     let show = b.level <= 1
-      || (b.level === 2 && (!narrow && (b.chain.nodes || 0) >= 5 || hot))
-      || (b.level >= 3 && hot);
+      || (b.level === 2 && (inFocus || (!narrow && (b.chain.nodes || 0) >= 5) || hot))
+      || (b.level >= 3 && (inFocus || hot));
 
     if (show && b.level > 0) {
       labelPointer.set(v.x, v.y);
@@ -931,6 +1059,7 @@ function updateLabels() {
 async function showPanel(name) {
   panel.innerHTML = '<h3>加载中…</h3>';
   panel.classList.add('show');
+  document.body.classList.add('panel-open');
   try {
     const r = await fetch('/api/chain?name=' + encodeURIComponent(name));
     const c = await r.json();
@@ -982,6 +1111,7 @@ function animate(now) {
     b.mesh.position.copy(b.pos);
     if (b.glow) b.glow.position.copy(b.pos);
     if (b.indicator) b.indicator.position.copy(b.pos);
+    if (b.dustRing) b.dustRing.position.copy(b.pos);
     if (b.orbitLine && b.orbitLine.userData.parentBody) {
       b.orbitLine.position.copy(b.orbitLine.userData.parentBody.pos);
     }
@@ -994,7 +1124,7 @@ function animate(now) {
     if (b.indicator) b.indicator.material.opacity = (b.chain.needHeader ? .65 : .28) * (hot ? 1.4 : 1);
   }
 
-  if (selected) {
+  if (selected && focusBody !== selected) {
     selectionSprite.visible = true;
     selectionSprite.position.copy(selected.pos);
     selectionSprite.scale.setScalar(selected.radius * 5.4 * (1 + Math.sin(t * 2) * .04));
@@ -1039,7 +1169,9 @@ function resize() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(W, H);
   const fit = fitDistance();
-  if (distance < fit) distance = fit;
+  if (!focusBody && distance < fit) distance = fit;
+  if (focusBody) distance = clamp(distance, 2.4, 10);
+  if (focusBackEl) focusBackEl.textContent = W < 560 ? '← 返回' : '← 返回太阳系';
 }
 window.addEventListener('resize', resize);
 
