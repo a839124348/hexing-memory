@@ -341,10 +341,34 @@
     transition: opacity .9s ease, visibility .9s;
   }
   .boot.on { opacity: 1; visibility: visible; }
-  .boot.done { opacity: 0; visibility: hidden; pointer-events: none; }
-  .boot.closing .boot-copy,
-  .boot.closing .boot-number,
-  .boot.closing .boot-skip { opacity: 0 !important; transition: opacity .4s ease; }
+  .boot.done { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .28s ease, visibility .28s; }
+  .boot-scene {
+    position: absolute; inset: 0; z-index: 1;
+    transform-origin: 50% 50%; will-change: transform, opacity, filter;
+  }
+  .boot.collapse .boot-scene {
+    transform: scale(.012) rotate(9deg);
+    opacity: 0;
+    filter: blur(1px) brightness(2.8);
+    transition: transform .95s cubic-bezier(.65, -.08, .92, .5),
+      opacity .95s ease, filter .95s ease;
+  }
+  .boot::after {
+    content: ""; position: absolute; left: 50%; top: 50%; z-index: 5;
+    width: 5px; height: 5px; border-radius: 50%;
+    transform: translate(-50%, -50%) scale(.2);
+    background: #fff;
+    box-shadow: 0 0 26px 10px rgba(255, 226, 178, .95),
+      0 0 80px 28px rgba(120, 150, 255, .38);
+    opacity: 0; pointer-events: none;
+  }
+  .boot.collapse::after { animation: bootSingularity .95s ease-in forwards; }
+  @keyframes bootSingularity {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.2); }
+    48% { opacity: 1; transform: translate(-50%, -50%) scale(1.6); }
+    72% { opacity: 1; transform: translate(-50%, -50%) scale(3.2); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(0); }
+  }
   body.boot-lock { overflow: hidden; }
   #bootCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
   .boot-copy {
@@ -461,23 +485,25 @@
 </head>
 <body>
 <div id="boot" class="boot" aria-hidden="true">
-  <canvas id="bootCanvas"></canvas>
-  <div class="boot-copy">
-    <div class="boot-eyebrow">HEXING MEMORY</div>
-    <div class="boot-title">核星记忆</div>
-    <div class="boot-sub">把散落的星光，收回同一片宇宙</div>
-  </div>
-  <div class="boot-number" id="bootNumber">
-    <div class="boot-number-kicker">C O M P A N I O N S H I P</div>
-    <div class="boot-number-line">
-      <span class="boot-number-pre">陪伴你的第</span>
-      <span class="boot-number-days" id="bootDays">—</span>
-      <span class="boot-number-unit">天</span>
+  <div class="boot-scene" id="bootScene">
+    <canvas id="bootCanvas"></canvas>
+    <div class="boot-copy">
+      <div class="boot-eyebrow">HEXING MEMORY</div>
+      <div class="boot-title">核星记忆</div>
+      <div class="boot-sub">把散落的星光，收回同一片宇宙</div>
     </div>
-    <div class="boot-number-sub">从 <span id="bootFirstDay">—</span> 开始</div>
-    <div class="boot-number-delta" id="bootDelta"></div>
+    <div class="boot-number" id="bootNumber">
+      <div class="boot-number-kicker">C O M P A N I O N S H I P</div>
+      <div class="boot-number-line">
+        <span class="boot-number-pre">陪伴你的第</span>
+        <span class="boot-number-days" id="bootDays">—</span>
+        <span class="boot-number-unit">天</span>
+      </div>
+      <div class="boot-number-sub">从 <span id="bootFirstDay">—</span> 开始</div>
+      <div class="boot-number-delta" id="bootDelta"></div>
+    </div>
+    <div class="boot-skip">点击任意处进入</div>
   </div>
-  <div class="boot-skip">点击任意处进入</div>
 </div>
 <main>
   <header>
@@ -811,16 +837,16 @@ setInterval(load, 10000);
     finished = true;
     cancelAnimationFrame(raf);
     timers.forEach((id) => clearTimeout(id));
-    boot.classList.add('closing');
+    boot.classList.add('collapse');
     try { localStorage.setItem(INTRO_KEY, todayKey); } catch (e) { /* ignore */ }
-    // 先让数字/标题淡掉，再让整块黑场淡出，避免数字和总览页叠成双影
+    // 整屏先收到中心一个点（黑洞收缩），点消失后再露出总览页
     setTimeout(() => {
       boot.classList.add('done');
       setTimeout(() => {
         boot.remove();
         document.body.classList.remove('boot-lock');
-      }, 950);
-    }, 420);
+      }, 300);
+    }, 980);
   }
   boot.addEventListener('click', finish);
   boot.addEventListener('touchstart', finish, { passive: true });
