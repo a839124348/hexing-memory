@@ -11,6 +11,10 @@
     color: #c9d6ff;
     cursor: default;
     user-select: none;
+    background:
+      radial-gradient(ellipse at 50% 42%, #0b1733 0%, #060c1c 42%, #02040b 78%),
+      radial-gradient(ellipse at 18% 78%, rgba(44, 30, 92, .28) 0%, transparent 55%),
+      radial-gradient(ellipse at 82% 22%, rgba(20, 62, 92, .22) 0%, transparent 52%);
   }
   canvas {
     display: block;
@@ -39,9 +43,9 @@
     transition: color .18s ease;
     will-change: left, top, opacity;
   }
-  .label.root { font-size: 13px; color: rgba(255,240,200,.96); font-weight: 500; }
-  .label.branch { font-size: 12px; color: rgba(190,208,255,.94); }
-  .label.child { font-size: 10px; }
+  .label.root { font-size: 14px; color: rgba(255,240,200,.96); font-weight: 500; }
+  .label.branch { font-size: 13px; color: rgba(190,208,255,.94); }
+  .label.child { font-size: 11px; }
   .label.grand { font-size: 9px; color: rgba(140,210,195,.7); }
   .label.hot { color: #eaf4ff; text-shadow: 0 0 10px rgba(140,190,255,.8), 0 1px 8px #000; }
 
@@ -169,7 +173,7 @@ let H = window.innerHeight;
 
 let renderer;
 try {
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
 } catch (err) {
   loadingEl.textContent = 'WebGL 初始化失败：' + (err && err.message ? err.message : err);
   throw err;
@@ -178,15 +182,15 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(W, H);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
-renderer.setClearColor(0x02040b, 1);
+renderer.toneMappingExposure = 1.2;
+renderer.setClearColor(0x02040b, 0);
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x02040b, 0.006);
 const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 220);
 
-let yaw = 0.62;
-let pitch = 0.52;
+let yaw = 0.55;
+let pitch = 0.55;
 let distance = 15;
 let dragging = false;
 let lastX = 0, lastY = 0, moved = 0;
@@ -195,6 +199,7 @@ let selected = null;
 
 const bodies = [];
 const clickable = [];
+const fitPoints = [];
 let occluders = [];
 let rootBody = null;
 let data = null;
@@ -232,14 +237,16 @@ function nameSeed(name) {
 const PALETTES = {
   root:   { base: '#b96b1e', bands: ['#ffd37a', '#8f4510', '#ffe7ae', '#d47a1d'], spot: '#6e2c06' },
   branch: { base: '#304f96', bands: ['#8fb2ff', '#1e3470', '#b7cdff', '#4d72c4'], spot: '#14264f' },
+  branchViolet: { base: '#3b2f7a', bands: ['#b9a4ff', '#241a55', '#ded4ff', '#6f57c9'], spot: '#160f38' },
+  branchTeal: { base: '#155f57', bands: ['#8ff5dc', '#0b3f39', '#c8fff2', '#2aa892'], spot: '#062f2a' },
   leaf:   { base: '#176b60', bands: ['#7fe8d0', '#0d4d45', '#b8fff0', '#2ca38b'], spot: '#073c35' },
 };
 
 const texCache = new Map();
-function planetTexture(kind, name) {
-  const key = kind + ':' + name;
+function planetTexture(kind, name, paletteKey) {
+  const key = kind + ':' + (paletteKey || '') + ':' + name;
   if (texCache.has(key)) return texCache.get(key);
-  const pal = PALETTES[kind] || PALETTES.leaf;
+  const pal = PALETTES[paletteKey || kind] || PALETTES.leaf;
   const c = document.createElement('canvas');
   c.width = 512; c.height = 256;
   const g = c.getContext('2d');
@@ -291,51 +298,76 @@ function planetTexture(kind, name) {
   return tex;
 }
 
-function makeSkyTexture() {
+function makeSunTexture() {
   const c = document.createElement('canvas');
-  c.width = 1024; c.height = 512;
+  c.width = 512; c.height = 256;
   const g = c.getContext('2d');
-  g.fillStyle = '#02040b';
-  g.fillRect(0, 0, 1024, 512);
+  const base = g.createLinearGradient(0, 0, 0, 256);
+  base.addColorStop(0, '#fffef8');
+  base.addColorStop(.32, '#fff8d0');
+  base.addColorStop(.68, '#ffeb9a');
+  base.addColorStop(1, '#ffcf62');
+  g.fillStyle = base;
+  g.fillRect(0, 0, 512, 256);
 
-  const bg = g.createLinearGradient(0, 0, 0, 512);
-  bg.addColorStop(0, 'rgba(8,14,34,.8)');
-  bg.addColorStop(.45, 'rgba(5,10,25,.4)');
-  bg.addColorStop(1, 'rgba(1,3,10,.9)');
-  g.fillStyle = bg;
-  g.fillRect(0, 0, 1024, 512);
-
-  g.save();
-  g.translate(512, 256);
-  g.rotate(-.32);
-  g.scale(1, .34);
-  const band = g.createRadialGradient(0, 0, 40, 0, 0, 700);
-  band.addColorStop(0, 'rgba(120,140,220,.18)');
-  band.addColorStop(.35, 'rgba(55,80,170,.12)');
-  band.addColorStop(1, 'rgba(40,60,140,0)');
-  g.fillStyle = band;
-  g.beginPath();
-  g.arc(0, 0, 700, 0, Math.PI * 2);
-  g.fill();
-  g.restore();
-
-  const blobs = [
-    [180, 145, 260, 'rgba(50,80,190,.18)'],
-    [790, 100, 220, 'rgba(120,70,190,.13)'],
-    [720, 380, 300, 'rgba(30,100,150,.11)'],
-    [310, 430, 210, 'rgba(150,80,160,.08)'],
-  ];
-  for (const [x, y, r, color] of blobs) {
+  const rnd = rngFor(20260504);
+  for (let i = 0; i < 240; i++) {
+    const x = rnd() * 512, y = rnd() * 256;
+    const r = 5 + rnd() * 34;
     const grad = g.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, color);
+    const hot = rnd() > .42;
+    grad.addColorStop(0, hot ? 'rgba(255,255,236,.38)' : 'rgba(196,82,12,.10)');
     grad.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = grad;
-    g.fillRect(0, 0, 1024, 512);
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  for (let i = 0; i < 900; i++) {
+    g.fillStyle = 'rgba(255,250,220,' + (rnd() * .05).toFixed(3) + ')';
+    g.fillRect(rnd() * 512, rnd() * 256, 1, 1);
   }
 
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  return tex;
+}
+
+function makeFlareTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  const core = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  core.addColorStop(0, 'rgba(255,255,246,1)');
+  core.addColorStop(.10, 'rgba(255,242,196,.92)');
+  core.addColorStop(.34, 'rgba(255,196,98,.28)');
+  core.addColorStop(1, 'rgba(255,150,40,0)');
+  g.fillStyle = core;
+  g.fillRect(0, 0, 256, 256);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeDiskTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const g = c.getContext('2d');
+  const rg = g.createRadialGradient(256, 256, 0, 256, 256, 256);
+  rg.addColorStop(0, 'rgba(255,210,120,0)');
+  rg.addColorStop(.34, 'rgba(255,196,92,0)');
+  rg.addColorStop(.50, 'rgba(255,218,142,.46)');
+  rg.addColorStop(.63, 'rgba(255,174,66,.22)');
+  rg.addColorStop(.82, 'rgba(255,150,40,.06)');
+  rg.addColorStop(1, 'rgba(255,140,30,0)');
+  g.fillStyle = rg;
+  g.fillRect(0, 0, 512, 512);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
@@ -382,19 +414,6 @@ function makeRingTexture(dashed) {
 }
 
 /* ── 场景基础 ───────────────────────────── */
-const sky = new THREE.Mesh(
-  new THREE.SphereGeometry(92, 48, 24),
-  new THREE.MeshBasicMaterial({
-    map: makeSkyTexture(),
-    side: THREE.BackSide,
-    depthWrite: false,
-    fog: false,
-    toneMapped: false,
-  })
-);
-sky.renderOrder = -10;
-scene.add(sky);
-
 const starTex = makeStarTexture();
 function makeStars(count, size, rMin, rMax) {
   const positions = new Float32Array(count * 3);
@@ -428,18 +447,42 @@ function makeStars(count, size, rMin, rMax) {
   });
   return new THREE.Points(geo, mat);
 }
-const starsNear = makeStars(5200, .35, 42, 68);
-const starsBright = makeStars(280, .62, 48, 82);
+const starsNear = makeStars(6800, .35, 42, 68);
+const starsBright = makeStars(360, .62, 48, 82);
 scene.add(starsNear, starsBright);
 
 scene.add(new THREE.HemisphereLight(0x8fb4ff, 0x0a0618, 1.05));
 const sunLight = new THREE.DirectionalLight(0xe8f0ff, 2.4);
 sunLight.position.set(6, 9, 5);
 scene.add(sunLight);
-const rootLight = new THREE.PointLight(0xffb35c, 26, 32, 2);
+const rootLight = new THREE.PointLight(0xffb35c, 34, 40, 2);
 scene.add(rootLight);
 
 const glowTex = makeGlowTexture();
+const sunTex = makeSunTexture();
+const flareTex = makeFlareTexture();
+const diskTex = makeDiskTexture();
+
+function addNebula(x, y, z, scale, color, opacity) {
+  const mat = new THREE.SpriteMaterial({
+    map: glowTex,
+    color,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.set(x, y, z);
+  sprite.scale.setScalar(scale);
+  sprite.renderOrder = 0;
+  scene.add(sprite);
+  return sprite;
+}
+addNebula(-16, 7, -36, 46, 0x243b8f, .16);
+addNebula(18, -7, -42, 56, 0x4a246f, .13);
+addNebula(2, 15, -50, 40, 0x1d5a78, .10);
+
 const ringDashedTex = makeRingTexture(true);
 const ringSolidTex = makeRingTexture(false);
 const planetGeo = new THREE.SphereGeometry(1, 48, 32);
@@ -456,36 +499,70 @@ selectionSprite.visible = false;
 selectionSprite.renderOrder = 2;
 scene.add(selectionSprite);
 
+const sunFlare = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: flareTex,
+  color: 0xffd28a,
+  transparent: true,
+  opacity: .32,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+}));
+sunFlare.position.set(0, 0, 0);
+sunFlare.scale.setScalar(4.2);
+sunFlare.renderOrder = 2;
+scene.add(sunFlare);
+
+const sunDisk = new THREE.Mesh(
+  new THREE.CircleGeometry(2.5, 128),
+  new THREE.MeshBasicMaterial({
+    map: diskTex,
+    transparent: true,
+    opacity: .55,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  })
+);
+sunDisk.rotation.x = -Math.PI / 2 + 0.42;
+sunDisk.rotation.z = 0.28;
+sunDisk.renderOrder = 0;
+scene.add(sunDisk);
+
 const EMISSIVE = {
   root: 0xffb347,
   branch: 0x0e1d46,
   leaf: 0x073a33,
 };
 
-function orbitPoint(center, radius, tilt, angle) {
-  return new THREE.Vector3(
-    center.x + Math.cos(angle) * radius,
-    center.y + Math.sin(angle) * radius * Math.sin(tilt),
-    center.z + Math.sin(angle) * radius * Math.cos(tilt)
-  );
+function orbitPoint(center, radius, tilt, angle, roll = 0) {
+  const x = Math.cos(angle) * radius;
+  const z = Math.sin(angle) * radius;
+  const y = z * Math.sin(tilt);
+  const zt = z * Math.cos(tilt);
+  const xr = x * Math.cos(roll) + zt * Math.sin(roll);
+  const zr = -x * Math.sin(roll) + zt * Math.cos(roll);
+  return new THREE.Vector3(center.x + xr, center.y + y, center.z + zr);
 }
 
-function addOrbit(center, radius, tilt, color, opacity) {
+function addOrbit(center, radius, tilt, color, opacity, roll = 0) {
   const pts = [];
-  const seg = 144;
+  const seg = 168;
   for (let i = 0; i < seg; i++) {
-    pts.push(orbitPoint(center, radius, tilt, (i / seg) * Math.PI * 2));
+    pts.push(orbitPoint(center, radius, tilt, (i / seg) * Math.PI * 2, roll));
   }
   const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  for (const p of pts) fitPoints.push(p);
   const line = new THREE.LineLoop(geo, new THREE.LineBasicMaterial({
     color, transparent: true, opacity, depthWrite: false,
+    blending: THREE.AdditiveBlending,
   }));
   line.renderOrder = 1;
   scene.add(line);
   return line;
 }
 
-function createBody(chain, level, pos, radius, parentName) {
+function createBody(chain, level, pos, radius, parentName, tone, paletteKey) {
   const kind = level === 0 ? 'root' : (level === 1 ? 'branch' : 'leaf');
   const labelClass = level === 0 ? 'root' : (level === 1 ? 'branch' : (level === 2 ? 'child' : 'grand'));
   const body = {
@@ -497,14 +574,18 @@ function createBody(chain, level, pos, radius, parentName) {
     kind,
     seed: nameSeed(chain.name || ''),
   };
+  fitPoints.push(pos.clone());
 
-  const mat = new THREE.MeshStandardMaterial({
-    map: planetTexture(kind, chain.name + ':' + level + ':' + parentName),
-    roughness: .66,
-    metalness: .06,
-    emissive: new THREE.Color(EMISSIVE[kind]),
-    emissiveIntensity: level === 0 ? .38 : .035,
-  });
+  const mat = level === 0
+    ? new THREE.MeshBasicMaterial({ map: sunTex })
+    : new THREE.MeshStandardMaterial({
+      map: planetTexture(kind, chain.name + ':' + level + ':' + parentName, paletteKey),
+      color: new THREE.Color(tone || 0xffffff),
+      roughness: .66,
+      metalness: .06,
+      emissive: new THREE.Color(EMISSIVE[kind]),
+      emissiveIntensity: .035,
+    });
   const mesh = new THREE.Mesh(planetGeo, mat);
   mesh.position.copy(pos);
   mesh.scale.setScalar(radius);
@@ -517,13 +598,13 @@ function createBody(chain, level, pos, radius, parentName) {
     map: glowTex,
     color: level === 0 ? 0xffc46b : (level === 1 ? 0x7198ff : 0x66e4c8),
     transparent: true,
-    opacity: level === 0 ? .7 : (level === 1 ? .32 : .20),
+    opacity: level === 0 ? .85 : (level === 1 ? .5 : .3),
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
   const glow = new THREE.Sprite(glowMat);
   glow.position.copy(pos);
-  glow.scale.setScalar(radius * (level === 0 ? 3.2 : (level === 1 ? 3.2 : 3.0)));
+  glow.scale.setScalar(radius * (level === 0 ? 3.8 : (level === 1 ? 3.2 : 3.0)));
   body.glow = glow;
   body.glowBase = glowMat.opacity;
   scene.add(glow);
@@ -557,36 +638,44 @@ function createBody(chain, level, pos, radius, parentName) {
 function buildScene(data) {
   const rootName = (data.根 && data.根.name) || '核星';
   const origin = new THREE.Vector3(0, 0, 0);
-  rootBody = createBody({ name: rootName, nodes: 0 }, 0, origin, .8, '');
+  rootBody = createBody({ name: rootName, nodes: 0 }, 0, origin, .9, '');
 
   const roots = data.树 || [];
-  const ringRadii = [2.4, 3.2, 4.0, 4.8, 2.8, 3.6, 4.4, 3.0];
+  const BANDS = [
+    { radius: 3.15, tilt: -0.52, roll: 0.38, color: 0x587cff, opacity: .42, palette: 'branch' },
+    { radius: 4.75, tilt: 0.16, roll: -0.52, color: 0x8f7bff, opacity: .34, palette: 'branchViolet' },
+    { radius: 6.35, tilt: 0.58, roll: 0.82, color: 0x49d7c0, opacity: .26, palette: 'branchTeal' },
+  ];
+  const bands = BANDS.map((band) => ({ ...band, chains: [] }));
+  roots.forEach((c, i) => bands[i % bands.length].chains.push(c));
 
-  roots.forEach((c, i) => {
-    const radius = ringRadii[i % ringRadii.length];
-    const phase = i * 2.399963229728653 + 0.6;
-    const tilt = (((i * 7) % 9) - 4) * 0.06;
-    addOrbit(origin, radius, tilt, 0x587cff, .24);
-    const ppos = orbitPoint(origin, radius, tilt, phase);
-    createBody(c, 1, ppos, .42, rootName);
+  bands.forEach((band, bi) => {
+    if (!band.chains.length) return;
+    addOrbit(origin, band.radius, band.tilt, band.color, band.opacity, band.roll);
+    band.chains.forEach((c, j) => {
+      const phase = (j / band.chains.length) * Math.PI * 2 + bi * 1.05;
+      const ppos = orbitPoint(origin, band.radius, band.tilt, phase, band.roll);
+      const pr = 0.38 + Math.min(c.nodes || 0, 28) / 28 * 0.10;
+      createBody(c, 1, ppos, pr, rootName, null, band.palette);
 
-    const kids = c.children || [];
-    const moonR = .78 + Math.min(kids.length, 4) * .04;
-    kids.forEach((k, j) => {
-      const ma = (j / Math.max(1, kids.length)) * Math.PI * 2 + i * .55;
-      const mt = tilt + (((j * 5) % 7) - 3) * .03;
-      const mpos = orbitPoint(ppos, moonR, mt, ma);
-      addOrbit(ppos, moonR, mt, 0x49d7c0, .10);
-      createBody(k, 2, mpos, .16, c.name);
+      const kids = c.children || [];
+      const moonR = 0.95 + Math.min(kids.length, 4) * .06;
+      kids.forEach((k, j2) => {
+        const ma = (j2 / Math.max(1, kids.length)) * Math.PI * 2 + bi * .55 + j * .9;
+        const mt = band.tilt + (((j2 * 5) % 7) - 3) * .035;
+        const mpos = orbitPoint(ppos, moonR, mt, ma);
+        addOrbit(ppos, moonR, mt, 0x49d7c0, .13);
+        createBody(k, 2, mpos, .135, c.name);
 
-      const gkids = k.children || [];
-      const grandR = .42;
-      gkids.forEach((gk, gj) => {
-        const ga = (gj / Math.max(1, gkids.length)) * Math.PI * 2 + j * .6;
-        const gt = mt + (((gj * 3) % 5) - 2) * .04;
-        const gpos = orbitPoint(mpos, grandR, gt, ga);
-        addOrbit(mpos, grandR, gt, 0x49d7c0, .05);
-        createBody(gk, 3, gpos, .082, k.name);
+        const gkids = k.children || [];
+        const grandR = .34;
+        gkids.forEach((gk, gj) => {
+          const ga = (gj / Math.max(1, gkids.length)) * Math.PI * 2 + j2 * .6;
+          const gt = mt + (((gj * 3) % 5) - 2) * .04;
+          const gpos = orbitPoint(mpos, grandR, gt, ga);
+          addOrbit(mpos, grandR, gt, 0x49d7c0, .06);
+          createBody(gk, 3, gpos, .065, k.name);
+        });
       });
     });
   });
@@ -597,6 +686,7 @@ function buildScene(data) {
   statEl.textContent = `${roots.length} 个分支 · ${total.n} 条链 · ${total.nodes} 个节点 · 真 3D`;
   loadingEl.classList.add('hide');
   window.__viewerReady = true;
+  resize();
 }
 
 function countChains(list) {
@@ -614,8 +704,21 @@ function countChains(list) {
 /* ── 相机与交互 ─────────────────────────── */
 function fitDistance() {
   const tan = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  const sceneR = 5.15;
-  return Math.max(sceneR / tan, sceneR / (tan * camera.aspect)) * 1.08;
+  const aspect = camera.aspect || 1;
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const dir = new THREE.Vector3(Math.cos(yaw) * cp, sp, Math.sin(yaw) * cp);
+  const forward = dir.clone().negate();
+  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+  const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+  const margin = 0.9;
+  let need = 0;
+  for (const p of fitPoints) {
+    const proj = p.dot(dir);
+    const dx = Math.abs(p.dot(right)) / (margin * tan * aspect);
+    const dy = Math.abs(p.dot(up)) / (margin * tan);
+    need = Math.max(need, proj + dx, proj + dy);
+  }
+  return Math.max(8, need * 1.04);
 }
 
 function updateCamera() {
@@ -689,12 +792,13 @@ canvas.addEventListener('pointerleave', () => {
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  distance = clamp(distance * Math.exp(e.deltaY * 0.0012), 6, 40);
+  distance = clamp(distance * Math.exp(e.deltaY * 0.0012), 6, 90);
 }, { passive: false });
 
 /* ── 标签布局 ───────────────────────────── */
 function updateLabels() {
   const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const narrow = W < 560;
   const projected = [];
   const bodyRects = [];
 
@@ -720,7 +824,7 @@ function updateLabels() {
     }
 
     let show = b.level <= 1
-      || (b.level === 2 && ((b.chain.nodes || 0) > 0 || hot))
+      || (b.level === 2 && (!narrow && (b.chain.nodes || 0) >= 5 || hot))
       || (b.level >= 3 && hot);
 
     if (show && b.level > 0) {
@@ -773,7 +877,7 @@ function updateLabels() {
       placed = { x, y, r };
       break;
     }
-    if (!placed && (item.pri >= 3 || item.hot)) {
+    if (!placed && (item.hot || (!narrow && item.pri >= 3))) {
       const x = item.x;
       const y = item.y + item.screenR + gap + h / 2;
       placed = {
@@ -840,7 +944,7 @@ function animate(now) {
   const pulse = 1 + Math.sin(t * 1.5) * .022;
   if (rootBody) {
     rootBody.mesh.scale.setScalar(rootBody.radius * pulse);
-    rootLight.intensity = 26 + Math.sin(t * 1.5) * 3;
+    rootLight.intensity = 34 + Math.sin(t * 1.5) * 4;
   }
 
   for (const b of bodies) {
@@ -859,7 +963,6 @@ function animate(now) {
     selectionSprite.visible = false;
   }
 
-  sky.rotation.y = t * .0015;
   starsNear.rotation.y = t * .0008;
   starsBright.rotation.y = t * .0005;
 
@@ -889,7 +992,9 @@ async function load() {
 function resize() {
   W = window.innerWidth;
   H = window.innerHeight;
-  camera.aspect = W / H;
+  const aspect = W / H;
+  camera.aspect = aspect;
+  camera.fov = aspect < 0.8 ? 52 : 42;
   camera.updateProjectionMatrix();
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(W, H);

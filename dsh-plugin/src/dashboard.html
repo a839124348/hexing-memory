@@ -1116,7 +1116,7 @@ function render(s) {
   const companion = s.companion || {};
   text('companionDays', companion.days ? n(companion.days) : '—');
   text('companionFirstDay', companion.firstDay || mem.firstDay || '—');
-  text('companionToday', '今天 · ' + (s.today || '—'));
+    text('companionToday', '原始对话最早一天 · 今天 · ' + (s.today || '—'));
 
   text('tokenTotal', n((total.in || 0) + (total.out || 0)));
   text('tokenIn', n(total.in));
