@@ -208,6 +208,7 @@ class ManualReader {
       '- 当前 RULES 版本：' + s.version + '；进度：' + read + '/' + total + ' 节。',
       '- 在迁移旧数据、批量写入、改链网之前，必须先把 RULES.md 从头到尾读完；**不要只读开头和结尾**。',
       '- 读法：`memory_manual action=toc` 看目录 → `action=read`（不带 section 读下一节）→ 全部读完 `action=ack`。',
+      '- 用户要从旧平台迁移：**由你（模型）检查源格式、写字段映射、跑导入器**；不要让用户手写 JSONL。先读第十节。',
       '- 没读完时 `memory_chain append` / `memory_topic add` 会被拒绝；自动记录和检索不受影响。',
     ].join('\n');
   }
