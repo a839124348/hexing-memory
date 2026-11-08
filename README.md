@@ -120,7 +120,7 @@ common/    IDENTITY.md / identity.json / links.json / refine-state.json / topics
 node test/acceptance.js     # 全链路自动验收（生成 ACCEPTANCE-*.md）
 ```
 
-单元测试见 `docs/TEST-REPORT.md`：19 个文件、294 个用例。
+单元测试见 `docs/TEST-REPORT.md`：19 个文件、298 个用例。
 
 ## 已知限制
 

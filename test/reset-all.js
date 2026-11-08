@@ -11,6 +11,7 @@
  *   1. dsh-memory/{raw,draft,index}         我们的记忆库
  *   2. dsh-memory/common/{links,refine-state}.json   链网与提炼状态
  *   3. dsh-memory/links/*.json              链网文件（核星会在下次启动重建）
+ *   3b. dsh-memory/common/{topics,manual-state}.json  话题与说明书进度
  *   4. .dsh/sessions/*                        DSH 会话原文
  *   5. .dsh/storages/session_projcache/*      DSH 会话投影缓存  ← 元凶
  *   6. .dsh/storages/workspace.json           工作区状态
@@ -105,6 +106,8 @@ for (const f of ['links.json', 'refine-state.json']) {
   console.log(`[清空] dsh-memory/links : ${n} 个（核星会在下次启动重建）`);
   const tp = path.join(DATA, 'common', 'topics.json');
   if (fs.existsSync(tp)) { fs.rmSync(tp); console.log('[删除] dsh-memory/common/topics.json'); }
+  const mp = path.join(DATA, 'common', 'manual-state.json');
+  if (fs.existsSync(mp)) { fs.rmSync(mp); console.log('[删除] dsh-memory/common/manual-state.json'); }
 }
 
 // 3. DSH 会话原文

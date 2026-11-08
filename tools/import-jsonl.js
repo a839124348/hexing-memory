@@ -8,6 +8,13 @@
  *   node tools/import-jsonl.js --file old.jsonl              # 预检
  *   node tools/import-jsonl.js --file old.jsonl --apply      # 写入
  *   node tools/import-jsonl.js --file old.jsonl --data D:\dsh-memory --apply
+ *   node tools/import-jsonl.js --file old.jsonl --strict-similar   # 连近似重复也拦
+ *   node tools/import-jsonl.js --file old.jsonl --strict-duplicates # 完全重复也拦
+ *
+ * 默认不做近似判重：历史里“我今天很开心”/“我今天很开心啊”这种重复发言很正常，
+ * 开了会把整批历史打回。精确重复仍按 cid+t+s+mid+c 去重。
+ * 同一分钟同文、又没有 mid 的完全重复，默认自动补一个合成 mid 保留两条；
+ * 要拒绝导出事故，加 --strict-duplicates。
  *
  * 说明：
  * - 格式契约：t/s/c/cid/v 必填；mid/src/type/origin/id 可选（见 docs/RULES.md 第二节）。
@@ -28,8 +35,8 @@ function arg(name, def = '') {
 }
 
 function usage() {
-  console.log('用法：node tools/import-jsonl.js --file <old.jsonl> [--data <dsh-memory>] [--apply]');
-  console.log('默认 dry-run；确认无误后加 --apply 才会写入。');
+  console.log('用法：node tools/import-jsonl.js --file <old.jsonl> [--data <dsh-memory>] [--apply] [--strict-similar]');
+  console.log('默认 dry-run；确认无误后加 --apply 才会写入。默认不拦近似重复（历史重复发言正常）。');
 }
 
 function main() {
@@ -40,6 +47,8 @@ function main() {
   const dataDir = arg('data') || process.env.MEMORY_ROOT
     || path.join(process.env.APPDATA || process.env.HOME || '.', 'dsh-memory');
   const apply = process.argv.includes('--apply');
+  const strictSimilar = process.argv.includes('--strict-similar');
+  const strictDuplicates = process.argv.includes('--strict-duplicates');
 
   const raw = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
   const lines = raw.split(/\r?\n/);
@@ -67,12 +76,32 @@ function main() {
     process.exit(1);
   }
 
-  const v = validateRecords(records, { allowWarnings: true });
+  // 同一分钟同文、又没有 mid 的完全重复：默认补合成 mid 保留两条；
+  // --strict-duplicates 则原样交给校验器拒绝。
+  let synthesized = 0;
+  if (!strictDuplicates) {
+    const seen = new Set();
+    for (const r of records) {
+      const key = [r.cid || '', r.t || '', r.s || '', r.mid || '', r.c || ''].join('\u0000');
+      if (!seen.has(key)) { seen.add(key); continue; }
+      r.mid = (r.mid ? String(r.mid) + '-dup-' : 'import-dup-') + (++synthesized);
+    }
+  } else {
+    const seen = new Set();
+    for (const r of records) {
+      const key = [r.cid || '', r.t || '', r.s || '', r.mid || '', r.c || ''].join('\u0000');
+      if (seen.has(key)) { synthesized = -1; break; }
+      seen.add(key);
+    }
+  }
+
+  const v = validateRecords(records, { allowWarnings: true, checkSimilar: strictSimilar });
   const days = [...new Set(records.map((r) => String(r.t || '').slice(0, 10)))].sort();
   const speakers = [...new Set(records.map((r) => String(r.s || '')))];
   console.log('文件：' + file);
   console.log('数据目录：' + dataDir);
   console.log('记录：' + records.length + ' 条；' + days.length + ' 天（' + days[0] + ' ~ ' + days[days.length - 1] + '）；说话人 ' + speakers.length + ' 个');
+  if (synthesized > 0) console.log('完全重复：' + synthesized + ' 条，已补合成 mid 保留（要拒绝请加 --strict-duplicates）');
   console.log('警告：' + v.warnings.length + ' 条' + (v.warnings.length ? '（跨会话同文/时间顺序等，不阻断）' : ''));
   if (v.warnings.length) v.warnings.slice(0, 10).forEach((w) => console.log('  - ' + w));
 
@@ -108,7 +137,7 @@ function main() {
   }
   console.log('库里已存在：' + skipped + ' 条，本次将新增：' + fresh.length + ' 条');
 
-  const r = store.append(fresh, { allowWarnings: true });
+  const r = store.append(fresh, { allowWarnings: true, checkSimilar: strictSimilar });
   console.log('');
   if (!r.ok) {
     console.error('写入失败：' + JSON.stringify(r.errors || []).slice(0, 500));
@@ -131,6 +160,7 @@ function main() {
     total: records.length,
     added: r.added,
     skipped: skipped + (r.skipped || 0),
+    synthesizedMid: Math.max(0, synthesized),
     days,
     speakers,
     warnings: v.warnings.length,

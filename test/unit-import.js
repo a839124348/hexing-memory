@@ -58,6 +58,26 @@ check('坏数据不写入', rawCount() === 2, String(rawCount()));
 const m1 = run(['--file', path.join(TMP, 'none.jsonl')]);
 check('缺文件报错', m1.status !== 0);
 
+// 6. 近似重复：默认放行（历史重复发言正常），--strict-similar 才拦
+const NEAR = path.join(TMP, 'near.jsonl');
+fs.writeFileSync(NEAR, [
+  JSON.stringify({ t: '2026-11-08 11:00', s: '用户', c: '我今天很开心', cid: 'dsh:n', v: 1, mid: 'n1' }),
+  JSON.stringify({ t: '2026-11-08 11:01', s: '用户', c: '我今天很开心啊', cid: 'dsh:n', v: 1, mid: 'n2' }),
+].join('\n') + '\n', 'utf8');
+const n1 = run(['--file', NEAR, '--data', path.join(TMP, 'near1'), '--apply']);
+check('默认放行近似重复', n1.status === 0 && n1.stdout.includes('新增 2 条'), n1.stdout + n1.stderr);
+const n2 = run(['--file', NEAR, '--data', path.join(TMP, 'near2'), '--strict-similar', '--apply']);
+check('strict 拦近似重复', n2.status !== 0, n2.stdout);
+
+// 7. 完全重复：默认补合成 mid 保留两条，--strict-duplicates 拒绝
+const DUP = path.join(TMP, 'dup.jsonl');
+const dupRow = JSON.stringify({ t: '2026-11-08 12:00', s: '用户', c: '同一句话', cid: 'dsh:d', v: 1 });
+fs.writeFileSync(DUP, dupRow + '\n' + dupRow + '\n', 'utf8');
+const du1 = run(['--file', DUP, '--data', path.join(TMP, 'dup1'), '--apply']);
+check('完全重复默认保留两条', du1.status === 0 && du1.stdout.includes('新增 2 条'), du1.stdout + du1.stderr);
+const du2 = run(['--file', DUP, '--data', path.join(TMP, 'dup2'), '--strict-duplicates', '--apply']);
+check('strict-duplicates 拒绝', du2.status !== 0, du2.stdout);
+
 console.log('');
 console.log('结果：' + pass + '/' + (pass + fails.length) + ' 通过');
 fs.rmSync(TMP, { recursive: true, force: true });
