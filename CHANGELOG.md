@@ -25,6 +25,7 @@
 - 链网体检 `memory_chain action=audit`：孤儿链/空链/重复节点/待补链头。
 - 只读诊断 `tools/diagnose.js`：版本、环境、各层条数、链网/话题统计、提炼错误、服务健康；不含记忆原文。
 - 可移植安装：`dsh-plugin/cordis.example.yml` + `tools/make-patch.js` 按本机仓库位置生成 `cordis.local.yml`，不写死任何人的绝对路径；插件启动时自检 `src/`、`docs/RULES.md` 是否存在，缺失时明确停用/告警。
+- 路径自检 `tools/check-paths.js`：下载/换机器后只读检查仓库结构、数据目录、向量模型、DSH profile 里的插件绝对路径、环境变量、Node/DSH 版本。
 - MIT 许可；`AUTHORS.md` 署名请求；`NOTICE.md` 第三方组件。
 
 ### Changed

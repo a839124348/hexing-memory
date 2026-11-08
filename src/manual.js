@@ -14,7 +14,7 @@ const crypto = require('crypto');
 const { withWriteLock } = require('./lock');
 
 const NUM = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
-  '十一', '十二', '十三', '十四', '十五', '十六', '十七'];
+  '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八'];
 const NUM_ALT = NUM.slice().sort((a, b) => b.length - a.length).join('|');
 const SECTION_RE = new RegExp('^##\\s+(' + NUM_ALT + ')、');
 
@@ -210,6 +210,7 @@ class ManualReader {
       '- 读法：`memory_manual action=toc` 看目录 → `action=read`（不带 section 读下一节）→ 全部读完 `action=ack`。',
       '- 用户要从旧平台迁移：**由你（模型）检查源格式、写字段映射、跑导入器**；不要让用户手写 JSONL。先读第十节。',
       '- 用户可能第一次用 AI：不要让他跑命令/写 JSONL；你来做，只问“授权、点击、确认”。分工见第十七节。',
+      '- 下载/换机器后先跑 `node tools/check-paths.js`；profile 里的插件路径必须是本机绝对路径。见第十八节。',
       '- 没读完时 `memory_chain append` / `memory_topic add` 会被拒绝；自动记录和检索不受影响。',
     ].join('\n');
   }
