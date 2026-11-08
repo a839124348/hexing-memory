@@ -344,7 +344,13 @@
   .boot.done { opacity: 0; visibility: hidden; pointer-events: none; }
   body.boot-lock { overflow: hidden; }
   #bootCanvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .boot-copy { position: relative; z-index: 2; text-align: center; padding: 0 24px; }
+  .boot-copy {
+    position: absolute; left: 50%; top: 50%; z-index: 2;
+    transform: translate(-50%, -50%);
+    text-align: center; padding: 0 24px;
+    transition: opacity .55s ease, transform .55s ease;
+  }
+  .boot-copy.out { opacity: 0; transform: translate(-50%, -56%); }
   .boot-copy::before {
     content: ""; position: absolute; inset: -70px -130px; z-index: -1;
     background: radial-gradient(ellipse at center, rgba(4, 6, 13, .62), rgba(4, 6, 13, .28) 45%, transparent 72%);
@@ -374,6 +380,61 @@
   }
   @keyframes bootFade { to { opacity: 1; } }
   @keyframes bootTitle { to { opacity: 1; filter: blur(0); } }
+
+  /* 收尾：陪伴天数从画面中心闪出来 */
+  .boot-number {
+    position: absolute; left: 50%; top: 50%; z-index: 3;
+    transform: translate(-50%, -50%) scale(.96);
+    text-align: center; padding: 0 24px;
+    opacity: 0; pointer-events: none;
+    transition: opacity .55s ease, transform .55s ease;
+  }
+  .boot-number.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .boot-number-kicker {
+    font-size: 10px; letter-spacing: .52em; text-transform: uppercase;
+    color: #7e93c4; margin-bottom: 14px;
+  }
+  .boot-number-main {
+    font-family: "Songti SC", "STSong", "Noto Serif SC", "SimSun", serif;
+    font-size: clamp(96px, 16vw, 190px); line-height: .86; font-weight: 400;
+    color: #f8f4e8; letter-spacing: .04em; font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 48px rgba(255, 214, 150, .30), 0 0 120px rgba(120, 150, 255, .18);
+  }
+  .boot-number.show .boot-number-main { animation: bootNumberIn 1.15s ease-out both; }
+  .boot-number-main small {
+    font-size: clamp(15px, 1.8vw, 22px); letter-spacing: .22em;
+    color: #c9b58c; margin-left: 12px; font-family: inherit;
+  }
+  .boot-number.flip .boot-number-main { animation: bootNumberFlip .3s ease-in both; }
+  .boot-number.land .boot-number-main { animation: bootNumberLand .85s ease-out both; }
+  .boot-number-sub {
+    margin-top: 18px; font-size: 12px; letter-spacing: .18em; color: #8d9cc0;
+  }
+  .boot-number-delta {
+    margin-top: 10px; font-size: 12px; letter-spacing: .16em; color: #ffd479;
+    opacity: 0; transform: translateY(4px);
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  .boot-number-delta.on { opacity: 1; transform: translateY(0); }
+  @keyframes bootNumberIn {
+    0% { opacity: 0; filter: blur(14px); transform: scale(.82); }
+    18% { opacity: .55; }
+    28% { opacity: .12; }
+    40% { opacity: 1; filter: blur(0); }
+    50% { opacity: .62; }
+    62% { opacity: 1; }
+    72% { opacity: .86; }
+    100% { opacity: 1; filter: blur(0); transform: scale(1); }
+  }
+  @keyframes bootNumberFlip {
+    0% { opacity: 1; filter: blur(0); transform: translateY(0) scale(1); }
+    100% { opacity: 0; filter: blur(8px); transform: translateY(-14px) scale(1.04); }
+  }
+  @keyframes bootNumberLand {
+    0% { opacity: 0; filter: blur(10px); transform: translateY(12px) scale(1.06); }
+    45% { opacity: 1; filter: blur(0); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
   @media (prefers-reduced-motion: reduce) {
     .boot { display: none !important; }
   }
@@ -386,6 +447,12 @@
     <div class="boot-eyebrow">HEXING MEMORY</div>
     <div class="boot-title">核星记忆</div>
     <div class="boot-sub">把散落的星光，收回同一片宇宙</div>
+  </div>
+  <div class="boot-number" id="bootNumber">
+    <div class="boot-number-kicker">C O M P A N I O N S H I P</div>
+    <div class="boot-number-main"><span id="bootDays">—</span><small>天</small></div>
+    <div class="boot-number-sub">从 <span id="bootFirstDay">—</span> 开始</div>
+    <div class="boot-number-delta" id="bootDelta"></div>
   </div>
   <div class="boot-skip">点击任意处进入</div>
 </div>
@@ -667,9 +734,16 @@ setInterval(load, 10000);
   if (!boot) return;
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const q = new URLSearchParams(location.search).get('intro');
-  let seen = false;
-  try { seen = sessionStorage.getItem('hexing-intro-v040') === '1'; } catch (e) { /* 隐私模式 */ }
-  if (reduce || q === '0' || (seen && q !== '1')) { boot.remove(); return; }
+  function localDay() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+  const todayKey = localDay();
+  const INTRO_KEY = 'hexing-intro-day-v040';
+  let seenDay = '';
+  try { seenDay = localStorage.getItem(INTRO_KEY) || ''; } catch (e) { /* 隐私模式 */ }
+  if (reduce || q === '0' || (seenDay === todayKey && q !== '1')) { boot.remove(); return; }
 
   const canvas = document.getElementById('bootCanvas');
   const ctx = canvas.getContext('2d');
@@ -698,22 +772,79 @@ setInterval(load, 10000);
   }));
 
   const start = performance.now();
-  const DUR = 4600;
+  const DUR = 5600;
   let finished = false;
   let raf = 0;
+
+  // 陪伴天数：开场收尾用。优先 /api/stats，读不到就不出数字。
+  const statsPromise = fetch('/api/stats', { cache: 'no-store' }).then((r) => r.json()).catch(() => null);
+  let lastSeen = null;
+  try { lastSeen = JSON.parse(localStorage.getItem('hexing-last-companion') || 'null'); } catch (e) { /* 隐私模式 */ }
+  const timers = [];
+  function later(fn, ms) { const id = setTimeout(fn, ms); timers.push(id); return id; }
 
   function finish() {
     if (finished) return;
     finished = true;
     cancelAnimationFrame(raf);
+    timers.forEach((id) => clearTimeout(id));
     boot.classList.add('done');
     document.body.classList.remove('boot-lock');
-    try { sessionStorage.setItem('hexing-intro-v040', '1'); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(INTRO_KEY, todayKey); } catch (e) { /* ignore */ }
     setTimeout(() => boot.remove(), 950);
   }
   boot.addEventListener('click', finish);
   boot.addEventListener('touchstart', finish, { passive: true });
   window.addEventListener('keydown', finish, { once: true });
+
+  function showNumber() {
+    statsPromise.then((s) => {
+      if (finished) return;
+      const comp = s && s.companion ? s.companion : null;
+      const days = comp ? Number(comp.days) || 0 : 0;
+      if (!days) return; // 没有天数就保持标题，直接淡出
+
+      const copy = document.querySelector('.boot-copy');
+      const number = document.getElementById('bootNumber');
+      const daysEl = document.getElementById('bootDays');
+      const firstEl = document.getElementById('bootFirstDay');
+      const deltaEl = document.getElementById('bootDelta');
+      if (!copy || !number || !daysEl || !firstEl || !deltaEl) return;
+
+      const today = (s && s.today) || '';
+      const firstDay = comp.firstDay || (s.memory && s.memory.firstDay) || '—';
+      let from = days;
+      let delta = 0;
+      if (lastSeen && lastSeen.day && today && lastSeen.day < today
+        && Number(lastSeen.days) > 0 && Number(lastSeen.days) < days) {
+        from = Number(lastSeen.days);
+        delta = days - from;
+      }
+
+      daysEl.textContent = String(from);
+      firstEl.textContent = firstDay;
+      copy.classList.add('out');
+      number.classList.add('show');
+      try {
+        localStorage.setItem('hexing-last-companion', JSON.stringify({ day: today, days }));
+      } catch (e) { /* ignore */ }
+
+      if (delta > 0) {
+        later(() => {
+          number.classList.add('flip');
+          later(() => {
+            daysEl.textContent = String(days);
+            number.classList.remove('flip');
+            number.classList.add('land');
+            deltaEl.textContent = '又多陪伴了 ' + delta + ' 天';
+            deltaEl.classList.add('on');
+          }, 280);
+        }, 900);
+      } else {
+        later(() => number.classList.add('land'), 1100);
+      }
+    }).catch(() => { /* 数字不出，标题正常收尾 */ });
+  }
 
   function frame(now) {
     const t = now - start;
@@ -767,6 +898,7 @@ setInterval(load, 10000);
 
   boot.classList.add('on');
   document.body.classList.add('boot-lock');
+  later(showNumber, 2850);
   raf = requestAnimationFrame(frame);
 })();
 </script>
