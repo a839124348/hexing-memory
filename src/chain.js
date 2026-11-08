@@ -22,8 +22,11 @@ const fs = require('fs');
 const path = require('path');
 const { withWriteLock } = require('./lock');
 
-const MAX_HEADER = 500;          // 头部硬上限（常识层才是 200，链可以宽一些）
+const MAX_HEADER = 500;          // 头部硬上限（建议 ≤200；常识层索引只取头部）
 const MAX_NODES_PER_APPEND = 50; // 单次追加上限，防一次灌爆
+
+// 顶层根固定九条；工具/LLM 只能挂到这些根或已有链，不能自己造新根。
+const DEFAULT_ROOTS = new Set(['身份', '项目', '学习', '关系', '避坑', '存储', '想法', '日常', '约定链']);
 
 class ChainStore {
   constructor(dataDir) {
@@ -109,6 +112,43 @@ class ChainStore {
   /** 读一条链（含头部和节点） */
   get(name) {
     return this._read(name);
+  }
+
+  /**
+   * 校验“把新链挂到 parent 下”是否合法。
+   * 只允许核星或已有链；深度按 核星=0、默认根=1 计算，新链最多第 4 层。
+   * @returns {{ok:boolean, parent?:string, depth?:number, error?:string, hint?:string}}
+   */
+  checkParent(parent = '核星', maxDepth = 4) {
+    const p = String(parent || '核星').trim() || '核星';
+    if (p === '核星') return { ok: true, parent: p, depth: 1 };
+    let cur = this._read(p);
+    if (!cur) {
+      return {
+        ok: false,
+        parent: p,
+        error: '父链不存在：' + p,
+        hint: '只能挂到「核星」、九个默认根或已有链；不要新建顶层根。',
+      };
+    }
+    let d = 0;
+    let guard = 0;
+    while (cur && guard++ < 10) {
+      d++;
+      if (!cur.parent || cur.parent === '核星') break;
+      cur = this._read(cur.parent);
+    }
+    const depth = d + 1;
+    if (depth > maxDepth) {
+      return {
+        ok: false,
+        parent: p,
+        depth,
+        error: '链层级超过 ' + maxDepth + ' 层',
+        hint: '把新内容并入已有子链，不要再往下挂。',
+      };
+    }
+    return { ok: true, parent: p, depth };
   }
 
   /** 列出某个父节点下的子链；不传 parent 就列全部 */
@@ -250,4 +290,4 @@ class ChainStore {
   }
 }
 
-module.exports = { ChainStore, MAX_HEADER };
+module.exports = { ChainStore, MAX_HEADER, DEFAULT_ROOTS };

@@ -25,8 +25,10 @@ function monthOf(t) {
   return TIME_RE.test(s) ? s.slice(0, 7) : new Date().toISOString().slice(0, 7);
 }
 
+// 幂等键只认时间和原文：LLM 同一批想法可能一次给 who=""、一次给 who="你"，
+// 带上 who 会把同一个想法记两遍（真机创意池 10 条 = 5 条想法 × 2）。
 function itemKey(it) {
-  return [it.t, it.who || '', it.text].join('\u0000');
+  return [it.t, it.text].join('\u0000');
 }
 
 class TopicStore {
@@ -75,7 +77,7 @@ class TopicStore {
     };
   }
 
-  /** 把话题里的想法追加到链；已存在的节点按 (t,who,text) 跳过 */
+  /** 把话题里的想法追加到链；已存在的节点按 (t,text) 跳过（who 不参与，理由见 itemKey） */
   _appendToChain(topic, chainStore, chainName, header) {
     if (!chainStore.get(chainName)) {
       chainStore.create(chainName, topic.type, header);
@@ -83,10 +85,10 @@ class TopicStore {
       chainStore.setHeader(chainName, header, { by: 'source' });
     }
     const chain = chainStore.get(chainName);
-    const seen = new Set(((chain && chain.nodes) || []).map((n) => [n.t, n.who || '', n.text].join('\u0000')));
+    const seen = new Set(((chain && chain.nodes) || []).map((n) => [n.t, n.text].join('\u0000')));
     const fresh = [];
     for (const it of topic.items) {
-      const k = [it.t, it.who || '', it.text].join('\u0000');
+      const k = itemKey(it);
       if (seen.has(k)) continue;
       seen.add(k);
       fresh.push({

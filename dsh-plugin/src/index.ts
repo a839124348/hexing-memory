@@ -383,6 +383,12 @@ function buildCommonText(app: MemoryApp): string {
   })
 }
 
+// 顶层根固定九条；memory_chain append 只允许挂到这些根或已有链。
+// 与 src/chain.js 的 DEFAULT_ROOTS 保持一致（同一份设计，别各写各的）。
+const CHAIN_ROOTS = new Set(['身份', '项目', '学习', '关系', '避坑', '存储', '想法', '日常', '约定链'])
+// memory_topic 的 add 只收这些类型；否则 type 会变成新的顶层根。
+const TOPIC_TYPES = ['想法', '学习', '避坑', '关系', '项目', '日常']
+
 /**
  * 工具返回值必须是**严格 JSON**：undefined / NaN / Infinity / Date / Buffer 都会被 DSH 拒收
  * （报 `value is not lossless JSON`）。这里统一过一遍 JSON 往返，把脏值清掉。
@@ -987,15 +993,15 @@ export function apply(ctx: Context) {
   // 链负责"直接给出答案"，不让人每次都去翻原文。
   ctx.tools.register(defineTool({
     name: 'memory_chain',
-    description: '访问链网（以「核星」为中心的树）。用户问"我喜欢什么/我们经历过什么/这个项目怎么样"之类，先看链——链里常常直接有答案。action：tree（看全貌）／get（读一条链；大链默认前3后3+中间抽样，可用 offset/limit/full）／append（往链里加节点）／header（写链头概览）。**get 返回 needHeader=true 时，读完顺手用 header 写一段 ≤200 字概览。**',
+    description: '访问链网（以「核星」为中心的树）。用户问"我喜欢什么/我们经历过什么/这个项目怎么样"之类，先看链——链里常常直接有答案。action：tree（看全貌）／get（读一条链；大链默认前3后3+中间抽样，可用 offset/limit/full）／append（往链里加节点；链不存在时建链，父链只能是核星、九个默认根或已有链，最多 4 层）／header（写链头概览，建议 ≤200 字，硬上限 500）／audit（体检：孤儿链、空链、重复节点、待补链头）。**get 返回 needHeader=true 时，读完顺手用 header 写一段 ≤200 字概览。**',
     parameters: {
-      action: { type: 'string', required: true, description: 'tree / get / append / header' },
+      action: { type: 'string', required: true, description: 'tree / get / append / header / audit' },
       name: { type: 'string', description: '链名，如「身份链」「项目链-xxx」（get/append/header 必填）' },
-      text: { type: 'string', description: 'append：节点正文；header：新的头部概览（≤500 字）' },
+      text: { type: 'string', description: 'append：节点正文；header：新的头部概览（建议 ≤200 字，硬上限 500）' },
       who: { type: 'string', description: 'append：这条属于谁——我 / 你 / 我们' },
       type: { type: 'string', description: 'append：event（事件，永不推翻）或 state（状态，可被推翻）' },
       supersedes: { type: 'string', description: 'append 状态节点时：被推翻的旧状态关键词（如"西瓜"）' },
-      parent: { type: 'string', description: 'append 时链不存在：挂在哪个父节点下（默认「身份」）' },
+      parent: { type: 'string', description: 'append 时链不存在：挂在哪个父节点下（默认「身份」；只能是核星、九个默认根或已有链）' },
       offset: { type: 'number', description: 'get：从第几个节点开始（0 起）' },
       limit: { type: 'number', description: 'get：取几个节点（offset 模式默认 10，最大 50）' },
       full: { type: 'boolean', description: 'get：true 才返回全部节点（大链慎用）' },
@@ -1009,6 +1015,28 @@ export function apply(ctx: Context) {
 
       if (action === 'tree') {
         return cleanJson(app.chain.tree())
+      }
+
+      if (action === 'audit') {
+        const rows = app.chain.list()
+        const dup: any[] = []
+        for (const r of rows) {
+          const c = app.chain.get(r.name)
+          if (!c || !Array.isArray(c.nodes)) continue
+          const seen = new Set<string>()
+          for (const n of c.nodes) {
+            const k = [n.t, n.text].join('\u0000')
+            if (seen.has(k)) dup.push({ 链: r.name, t: n.t, text: String(n.text).slice(0, 80) })
+            else seen.add(k)
+          }
+        }
+        return cleanJson({
+          ...app.chain.audit(),
+          待补链头: rows.filter((r: any) => r.needHeader).map((r: any) => r.name),
+          待刷新链头: rows.filter((r: any) => r.needRefresh).map((r: any) => r.name),
+          重复节点: dup.slice(0, 20),
+          重复总数: dup.length,
+        })
       }
 
       if (action === 'get') {
@@ -1035,11 +1063,28 @@ export function apply(ctx: Context) {
       }
 
       if (action === 'append') {
-        // 链不存在就自动建（挂到 parent，默认「身份」下）
-        if (!app.chain.get(args.name)) {
-          app.chain.create(args.name, args.parent || '身份', '')
+        const chainName = String(args.name || '').trim()
+        if (!chainName) return { ok: false, error: 'append 需要 name' }
+        // 链不存在就自动建：父链只允许核星 / 九个默认根 / 已有链，且最多 4 层。
+        // 以前这里直接 create，父链不存在会在核星下悄悄造出新的顶层根。
+        if (!app.chain.get(chainName)) {
+          const parent = String(args.parent || '身份').trim() || '身份'
+          if (parent === chainName) return { ok: false, error: '链名不能和父链同名：' + parent }
+          if (!app.chain.get(parent)) {
+            if (!CHAIN_ROOTS.has(parent)) {
+              return {
+                ok: false,
+                error: '父链不存在：' + parent,
+                hint: '只能挂到「核星」、九个默认根或已有链；不要新建顶层根。',
+              }
+            }
+            app.chain.create(parent, '核星', '')
+          }
+          const chk = app.chain.checkParent(parent)
+          if (!chk.ok) return { ok: false, error: chk.error, hint: chk.hint }
+          app.chain.create(chainName, chk.parent, '')
         }
-        return cleanJson(app.chain.append(args.name, {
+        return cleanJson(app.chain.append(chainName, {
           text: args.text,
           who: args.who,
           type: args.type,
@@ -1047,7 +1092,7 @@ export function apply(ctx: Context) {
         }))
       }
 
-      return { ok: false, error: '未知 action：' + action + '（可用：tree / get / append / header）' }
+      return { ok: false, error: '未知 action：' + action + '（可用：tree / get / append / header / audit）' }
     },
   }))
 
@@ -1093,11 +1138,15 @@ export function apply(ctx: Context) {
 
       if (action === 'add') {
         if (!args.text) return { ok: false, error: 'add 需要 text' }
+        const type = String(args.type || '想法')
+        if (!TOPIC_TYPES.includes(type)) {
+          return { ok: false, error: 'type 不合法：' + type, allowed: TOPIC_TYPES }
+        }
         const now = new Date()
         const p2 = (n: number) => String(n).padStart(2, '0')
         const t = args.t || `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())} ${p2(now.getHours())}:${p2(now.getMinutes())}`
         const r = app.topic.apply([{
-          type: args.type || '想法', title: args.title || '', summary: args.summary || '',
+          type, title: args.title || '', summary: args.summary || '',
           t, who: args.who || '', text: args.text,
         }], app.chain)
         return cleanJson({ ok: r.ok, added: r.added, promoted: r.promoted, topics: r.topics })

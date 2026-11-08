@@ -179,7 +179,8 @@ function parseRefineResponse(text, opt = {}) {
 
 /**
  * 把解析后的链更新应用到 ChainStore。
- * 幂等：已存在的同名链不重建；已存在的节点按 (t,who,type,text) 跳过。
+ * 幂等：已存在的同名链不重建；已存在的节点按 (t,type,text) 跳过。
+ * who 不参与幂等键：LLM 同一节点可能一次给空、一次给“你”，带上 who 会重复写。
  * @returns {{chains:number, nodes:number}}
  */
 /** 链的深度：核星=0，默认根=1，子链=2…… 最多 MAX_DEPTH */
@@ -222,10 +223,10 @@ function applyChainUpdates(chainStore, parsed) {
 
     const current = chainStore.get(u.name);
     if (!current) continue;
-    const seen = new Set((current.nodes || []).map((n) => [n.t, n.who, n.type, n.text].join('\u0000')));
+    const seen = new Set((current.nodes || []).map((n) => [n.t, n.type, n.text].join('\u0000')));
     const fresh = [];
     for (const n of u.nodes || []) {
-      const key = [n.t, n.who, n.type, n.text].join('\u0000');
+      const key = [n.t, n.type, n.text].join('\u0000');
       if (seen.has(key)) continue;
       seen.add(key);
       fresh.push(n);

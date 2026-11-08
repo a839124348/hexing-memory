@@ -1,5 +1,8 @@
 /**
- * reset-all.js — 完全重置（测试前必跑）
+ * reset-all.js — 完全重置（只给开发机用）
+ *
+ * ⚠️ 危险：会清空 raw 原文、DSH 会话和投影缓存。真实记忆库禁止运行。
+ * 必须显式加 --yes 才会执行；默认先整目录备份（--no-backup 可跳过）。
  *
  * 为什么必须"完全"：2026-11-06 的教训——只清记忆库不清理 DSH 缓存，
  * 模型会从缓存里"记得"已删的内容，导致排查方向全错（以为是幻觉，其实是 projcache）。
@@ -7,23 +10,34 @@
  * 清：
  *   1. dsh-memory/{raw,draft,index}         我们的记忆库
  *   2. dsh-memory/common/{links,refine-state}.json   链网与提炼状态
- *   3. .dsh/sessions/*                        DSH 会话原文
- *   4. .dsh/storages/session_projcache/*      DSH 会话投影缓存  ← 元凶
- *   5. .dsh/storages/workspace.json           工作区状态
+ *   3. dsh-memory/links/*.json              链网文件（核星会在下次启动重建）
+ *   4. .dsh/sessions/*                        DSH 会话原文
+ *   5. .dsh/storages/session_projcache/*      DSH 会话投影缓存  ← 元凶
+ *   6. .dsh/storages/workspace.json           工作区状态
  *
  * 保留：
  *   - dsh-memory/common/IDENTITY.md          身份（用户设定的，不是测试数据）
  *   - dsh-memory/common/identity.json        结构化身份
+ *   - dsh-memory/common/stats.json           token 用量（不是测试内容）
  *
- * 用法：node test/reset-all.js [--backup]
+ * 用法：node test/reset-all.js --yes [--no-backup]
  */
 const fs = require('fs');
 const path = require('path');
 
-const BACKUP_FLAG = process.argv.includes('--backup');
+const CONFIRM = process.argv.includes('--yes');
+const BACKUP_FLAG = !process.argv.includes('--no-backup');
 const DATA = path.join(process.env.APPDATA, 'dsh-memory');
 const DSH = path.join(process.env.USERPROFILE, '.dsh');
 const BACKUP = path.join(__dirname, '..', '_backup', 'reset-' + new Date().toISOString().replace(/[:.]/g, '-'));
+
+if (!CONFIRM) {
+  console.log('拒绝执行：这个脚本会清空 raw 原文、DSH 会话和投影缓存。');
+  console.log('确认是开发机、且已不再需要这些数据，再加 --yes：');
+  console.log('  node test/reset-all.js --yes');
+  console.log('默认会先备份；不想备份再加 --no-backup（不建议）。');
+  process.exit(1);
+}
 
 function copyDir(src, dst) {
   if (!fs.existsSync(src)) return 0;
@@ -76,6 +90,21 @@ for (const f of ['links.json', 'refine-state.json']) {
   if (f === 'links.json') fs.writeFileSync(p, JSON.stringify({ sessions: [], events: [] }, null, 1), 'utf8');
   else fs.writeFileSync(p, JSON.stringify({ runs: 0, lastRunAt: null, lastError: null, deadLetters: [] }, null, 1), 'utf8');
   console.log(`[重置] dsh-memory/common/${f}`);
+}
+
+// 2b. 链网文件 + 话题栈（之前漏了，测试链会残留）
+{
+  const dir = path.join(DATA, 'links');
+  let n = 0;
+  if (fs.existsSync(dir)) {
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.endsWith('.json')) continue;
+      try { fs.unlinkSync(path.join(dir, f)); n++; } catch (e) { /* 占用就跳过 */ }
+    }
+  }
+  console.log(`[清空] dsh-memory/links : ${n} 个（核星会在下次启动重建）`);
+  const tp = path.join(DATA, 'common', 'topics.json');
+  if (fs.existsSync(tp)) { fs.rmSync(tp); console.log('[删除] dsh-memory/common/topics.json'); }
 }
 
 // 3. DSH 会话原文

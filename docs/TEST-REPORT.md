@@ -1,7 +1,7 @@
 # 开源记忆系统 · 测试报告
 
-> 测试日期：2026-11-08
-> 被测版本：MVP v0.4（全链路）
+> 测试日期：2026-11-09（v0.4.0 修订）
+> 被测版本：MVP v0.4.0（全链路）
 > 运行环境：Node.js v24 / Windows / 本地 bge-small-zh-v1.5（512 维）
 > 数据目录：单元/验收全部使用临时目录；真机数据在 `%APPDATA%\dsh-memory`
 
@@ -14,21 +14,21 @@
 | `unit-mid` 消息唯一 ID | 12 | 12 |
 | `unit-store` 存档层 | 15 | 15 |
 | `unit-validate` 校验器 | 21 | 21 |
-| `unit-chain` 链网 | 23 | 23 |
+| `unit-chain` 链网 | 29 | 29 |
 | `unit-refine-dedup` 提炼去重 | 11 | 11 |
 | `unit-stripnoise` 注入剥离 | 8 | 8 |
 | `unit-identity-rules` 身份规则 | 19 | 19 |
 | `unit-lock` 跨进程写锁 | 5 | 5 |
 | `unit-append` 真追加 + 多进程 | 10 | 10 |
-| `unit-llm-refine` LLM 纯函数 | 25 | 25 |
+| `unit-llm-refine` LLM 纯函数 | 26 | 26 |
 | `unit-refine-llm` LLM 提炼管线 | 16 | 16 |
 | `unit-service` 向量服务生命周期 | 8 | 8 |
 | `unit-adapter-pure` 适配层纯函数 | 25 | 25 |
-| `unit-topics` 创意池/话题栈 | 24 | 24 |
+| `unit-topics` 创意池/话题栈 | 25 | 25 |
 | `unit-topic-llm` LLM → 创意池 | 7 | 7 |
 | `unit-chain-view` 链头状态/大链 digest | 14 | 14 |
 | `unit-chain-search` 链节点语义检索 | 9 | 9 |
-| **合计** | **252** | **252** |
+| **合计** | **260** | **260** |
 
 ---
 

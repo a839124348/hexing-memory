@@ -75,6 +75,11 @@ check('头部已更新', c1.header === '用户的偏好与约定', c1.header);
 const applied2 = applyChainUpdates(chain, parsed);
 check('重复应用 0 个节点', applied2.nodes === 0, JSON.stringify(applied2));
 
+// 5b. who 变了（"" vs "你"）仍是同一节点
+const noWho = JSON.parse(JSON.stringify(parsed));
+for (const n of noWho.chains[0].nodes) n.who = '';
+check('who 不同仍幂等', applyChainUpdates(chain, noWho).nodes === 0);
+
 const newer = parseRefineResponse(JSON.stringify({
   chains: [{
     name: '身份链', parent: '身份', nodes: [

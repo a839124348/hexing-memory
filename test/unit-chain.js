@@ -127,6 +127,23 @@ const cs = new ChainStore(TMP);
   check('空文本不写入', r.added === 0);
 }
 
+// 13. 父链校验（工具 append 的护栏）
+{
+  check('父链=核星 → 第 1 层', cs.checkParent('核星').ok && cs.checkParent('核星').depth === 1);
+  check('父链=已有根 → 第 2 层', cs.checkParent('身份').ok && cs.checkParent('身份').depth === 2);
+  check('父链=已有子链 → 第 3 层', cs.checkParent('身份链').ok && cs.checkParent('身份链').depth === 3);
+  const bad = cs.checkParent('不存在的父链');
+  check('不存在的父链被拒绝', bad.ok === false && /父链不存在/.test(bad.error), JSON.stringify(bad));
+
+  cs.create('层级A', '核星', '');
+  cs.create('层级B', '层级A', '');
+  cs.create('层级C', '层级B', '');
+  cs.create('层级D', '层级C', '');
+  check('第 4 层还能挂', cs.checkParent('层级C').ok && cs.checkParent('层级C').depth === 4);
+  const deep = cs.checkParent('层级D');
+  check('超过 4 层被拒绝', deep.ok === false && /超过/.test(deep.error), JSON.stringify(deep));
+}
+
 console.log('');
 console.log('结果：' + pass + '/' + (pass + fails.length) + ' 通过');
 fs.rmSync(TMP, { recursive: true, force: true });

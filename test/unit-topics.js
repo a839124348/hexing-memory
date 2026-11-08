@@ -57,6 +57,10 @@ const rdup = topics.apply([idea(5)], chain);
 check('重复想法 added=0', rdup.added === 0);
 check('重复后仍 6 节点', chain.get('创意池-2026-11').nodes.length === 6);
 
+// 4b. 同一条想法 who 不同（"" vs "你"）也不能重复计数
+const rwho = topics.apply([{ ...idea(5), who: '' }], chain);
+check('who 不同仍算重复', rwho.added === 0 && chain.get('创意池-2026-11').nodes.length === 6, JSON.stringify(rwho));
+
 // 5. 跨月新池
 topics.apply([idea(0, '12')], chain);
 const dec = topics.list().find((t) => t.title === '创意池-2026-12');
