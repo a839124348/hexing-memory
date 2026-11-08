@@ -12,6 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execFileSync } = require('child_process');
 
 function arg(name, def = '') {
   const i = process.argv.indexOf('--' + name);
@@ -40,6 +41,21 @@ function listFiles(dir, ext) {
   try {
     return fs.readdirSync(dir).filter((f) => f.endsWith(ext));
   } catch (e) { return []; }
+}
+
+function dshVersion() {
+  // 1) 全局 npm 包路径（Windows 默认）
+  try {
+    const p = path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@deepseek-ai', 'dsh', 'package.json');
+    const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (j && j.version) return String(j.version);
+  } catch (e) { /* 继续试命令 */ }
+  // 2) dsh --version（跨平台兜底）
+  try {
+    return String(execFileSync('dsh', ['--version'], {
+      encoding: 'utf8', shell: true, timeout: 3000,
+    })).trim();
+  } catch (e) { return ''; }
 }
 
 async function serviceHealth(url) {
@@ -108,6 +124,7 @@ async function serviceHealth(url) {
 
   const report = {
     version,
+    dsh: dshVersion(),
     node: process.version,
     os: process.platform + ' ' + process.arch + ' ' + os.release(),
     dataDir: DATA,
@@ -141,6 +158,7 @@ async function serviceHealth(url) {
   const line = (k, v) => console.log(k.padEnd(12, ' ') + v);
   console.log('=== 核星记忆诊断 ===');
   line('版本', 'v' + report.version);
+  line('DSH', report.dsh ? 'v' + report.dsh : '未检测到');
   line('Node', report.node);
   line('系统', report.os);
   line('数据目录', report.dataDir);

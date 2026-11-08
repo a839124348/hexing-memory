@@ -286,6 +286,8 @@
 4. 问“我叫什么 / 我们是什么关系” → 不调工具也能从常识层答出来（身份填过之后）。
 5. 打开 `http://127.0.0.1:3099/`，记忆数、草稿、向量、链网数字在动；`/universe` 能拖拽旋转。
 
+**DSH 升级时**：先备份 `%APPDATA%\dsh-memory`；升级后把这 5 项再跑一遍。如果工具不出现、常识层不注入、token 归零，先看 DSH 版本（`node tools/diagnose.js` 会带 `DSH v...`），再从 `cordis.patch.yml` 移除 `memory-system` 的 insert 停用插件，让 DSH 本体先恢复；不要改 DSH 源码、不要硬猜接口。把 diagnose 输出和 `[memory-system]` 日志发 issue。
+
 ---
 
 ## 十、迁移历史数据

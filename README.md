@@ -122,6 +122,19 @@ common/    IDENTITY.md / identity.json / links.json / refine-state.json / topics
 
 备份就是整目录复制；恢复后从原文重建索引。
 
+## DSH 兼容性
+
+- 本版在 **DSH 0.2.2-rc.1 + Node 24** 实测；目标系列是 DSH 0.2.x。
+- 插件**不修改 DSH 源码**，通过 `~/.dsh/profiles/web/cordis.patch.yml` 的 `insert` 加载；停用就是删掉这段 insert。
+- 依赖的宿主接口：`agent/pre-step`、`llm/stream`、`ctx.tools.register`、`ctx.llm`、`agent.session.surface`、`usage` chunk。DSH 升级若改这些接口的名字/结构，插件可能加载失败、常识层不注入、工具不出现或 token 统计归零。
+- **升级 DSH 前**：备份 `%APPDATA%\dsh-memory`；升级后跑一遍 5 项冒烟：
+  1. `memory_common` 有身份/规范/目录/链网四块；
+  2. 说一句独特的话 → `memory_draft` 能看到原文；
+  3. 新会话问这句话 → `memory_search` 能召回；
+  4. `memory_chain action=tree` 结构正常；
+  5. `/api/stats` 数字和版本对得上。
+- 不兼容时先把 insert 从 profile 移除，DSH 本体照常启动；把 `node tools/diagnose.js` 输出和 `[memory-system]` 日志发 issue。
+
 ## 测试
 
 ```sh
