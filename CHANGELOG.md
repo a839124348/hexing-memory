@@ -18,6 +18,7 @@
 - 语义召回：512 维 bge-small-zh-v1.5；XVEC v1（int8 + per-vector scale + 模型 SHA 头）。
 - 总览页：陪伴天数主视觉、记忆/草稿/向量/链网/服务/token、14 天柱状图。
 - 真 3D 链网：Three.js r180 本地 vendor，真实深度/遮挡、球面光照/贴图、星空/星云、点选看链。
+- 总览页开机动画：4.6 秒「核星收束」开场，星尘向核星收拢；可点击跳过，`?intro=1` 重播、`?intro=0` 关闭，尊重 reduced-motion。
 - P0 跨进程写锁：`.write/.refine/.refine-links/.vectors/.chain-vectors/.topics/.stats/.manual`。
 - 随包向量服务：Python 版 + 零 Python ONNX 版，自动拉起/健康复用/崩溃重启/降级关键词。
 - `memory_manual`：18 节说明书分节阅读、进度落盘；未读完 `ack` 失败，并拦住链网/话题写入。
