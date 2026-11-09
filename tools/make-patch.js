@@ -13,6 +13,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const entry = path.join(ROOT, 'dsh-plugin', 'src', 'index.ts').replace(/\\/g, '/');
+const entryUi = path.join(ROOT, 'dsh-plugin-ui', 'lib', 'index.js').replace(/\\/g, '/');
 const out = path.join(ROOT, 'dsh-plugin', 'cordis.local.yml');
 
 const yaml = [
@@ -21,6 +22,8 @@ const yaml = [
   '- insert:',
   '    - id: memory-system',
   "      name: '" + entry + "'",
+  '    - id: memory-system-ui',
+  "      name: '" + entryUi + "'",
   '',
 ].join('\n');
 
@@ -30,6 +33,7 @@ if (process.argv.includes('--print')) {
   fs.writeFileSync(out, yaml, 'utf8');
   console.log('已生成：' + out);
   console.log('插件入口：' + entry);
+  console.log('侧边栏入口：' + entryUi);
   console.log('');
   console.log('启动：dsh --profile web --patch ./dsh-plugin/cordis.local.yml');
 }

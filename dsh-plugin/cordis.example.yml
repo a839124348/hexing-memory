@@ -10,3 +10,5 @@
 - insert:
     - id: memory-system
       name: '__PLUGIN_ENTRY__'
+    - id: memory-system-ui
+      name: '__PLUGIN_UI_ENTRY__'

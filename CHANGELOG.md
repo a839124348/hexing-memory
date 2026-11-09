@@ -1,7 +1,29 @@
 # Changelog
 
 本项目遵循 [SemVer](https://semver.org/)；每个版本记录新增、变更、修复和**已知问题**。
-用户反馈时，请带上启动日志或诊断报告里的版本号（`v0.4.0`）。
+用户反馈时，请带上启动日志或诊断报告里的版本号（`v0.4.1`）。
+
+## [0.4.1] - 2026-11-09
+
+安装体验版，功能与 0.4.0 一致；重点是“把仓库链接发给 DSH，让模型自己装”。
+
+### Added
+
+- `INSTALL-FOR-AI.md`：写给 DSH 模型的安装 runbook（环境检查、下载固定 tag、模型 SHA256、DryRun/Apply、备份、重启、验证、失败分支、回滚）。
+- `install.ps1`：默认 DryRun；`-Apply` 才写入。自动检查仓库/Node/DSH/profile，备份 `cordis.patch.yml`，幂等插入 `memory-system`，检查/下载模型并校验 SHA256，尝试安装 ONNX 依赖，跑路径自检。
+- **DSH 左侧栏入口**：`dsh-plugin-ui` 注册「记忆总览」按钮，点开在 DSH 内直接显示 3099 总览页；不用记地址，也不用来问模型。
+- `hexing-memory-v0.4.1-full.zip`：把源码和两个向量模型打成一个包，网络打不开 GitHub 时可直接解压安装。
+
+### Changed
+
+- README 顶部新增“让 DSH 自己装（推荐）”：用户只需把仓库链接发给 DSH，附一句安装指令。
+- 版本号统一为 `0.4.1`。
+
+### Known issues
+
+- 链接安装需要能访问 GitHub；否则用 full zip。
+- `install.ps1` 目前只覆盖 Windows PowerShell；macOS/Linux 仍按 README 手动安装。
+- 其余已知问题与 0.4.0 相同。
 
 ## [0.4.0] - 2026-11-09
 

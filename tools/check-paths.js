@@ -43,6 +43,8 @@ add('核心引擎', exists('src/store.js'), path.join(ROOT, 'src', 'store.js'),
 add('说明书', exists('docs/RULES.md'), path.join(ROOT, 'docs', 'RULES.md'),
   '设置 MEMORY_RULES 指向 RULES.md');
 add('插件 package.json', exists('dsh-plugin/package.json'));
+add('侧边栏入口包', exists('dsh-plugin-ui/lib/client.js'), path.join(ROOT, 'dsh-plugin-ui', 'lib', 'client.js'),
+  '缺 dsh-plugin-ui 时插件本体仍能用，但 DSH 左侧栏不会有「记忆总览」入口');
 
 // 2. 版本
 let pluginVersion = '';
@@ -91,6 +93,22 @@ try {
         const same = path.resolve(entry) === here;
         add('profile 指向当前仓库', same, same ? '' : 'profile 指向 ' + entry + '，当前仓库是 ' + here,
           same ? '' : '如果这是另一份副本，请对当前仓库重新生成 patch；不要同时跑两份');
+      }
+
+      const uiM = /id:\s*['"]?memory-system-ui['"]?[\s\S]{0,300}?name:\s*['"]?([^'"\n]+)/.exec(yml);
+      if (!uiM) {
+        add('侧边栏入口', false, 'profile 没有 memory-system-ui', '重新跑 install.ps1，或 node tools/make-patch.js --print 后补第二段');
+      } else {
+        const uiEntry = uiM[1].trim();
+        const uiOk = path.isAbsolute(uiEntry) && fs.existsSync(uiEntry);
+        add('侧边栏入口', uiOk, uiEntry || '没解析到 name',
+          uiOk ? '' : '侧边栏入口路径不存在：重新跑 install.ps1 或 make-patch.js');
+        if (uiOk) {
+          const uiHere = path.resolve(ROOT, 'dsh-plugin-ui', 'lib', 'index.js');
+          const uiSame = path.resolve(uiEntry) === uiHere;
+          add('侧边栏指向当前仓库', uiSame, uiSame ? '' : 'profile 指向 ' + uiEntry + '，当前仓库是 ' + uiHere,
+            uiSame ? '' : '如果这是另一份副本，请重新生成 patch');
+        }
       }
     }
   }

@@ -27,7 +27,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const APP_NAME = '核星记忆'
 const APP_NAME_EN = 'Hexing Memory'
 // 版本号单一来源：dsh-plugin/package.json；读不到再退回常量
-let APP_VERSION = '0.4.0'
+let APP_VERSION = '0.4.1'
 try {
   const pkg = require(path.join(__dirname, '..', 'package.json'))
   if (pkg && pkg.version) APP_VERSION = String(pkg.version)
