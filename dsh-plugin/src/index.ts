@@ -27,7 +27,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const APP_NAME = '核星记忆'
 const APP_NAME_EN = 'Hexing Memory'
 // 版本号单一来源：dsh-plugin/package.json；读不到再退回常量
-let APP_VERSION = '0.4.1'
+let APP_VERSION = '0.4.2'
 try {
   const pkg = require(path.join(__dirname, '..', 'package.json'))
   if (pkg && pkg.version) APP_VERSION = String(pkg.version)
@@ -298,6 +298,12 @@ async function collectStats(app: MemoryApp, embedService?: any) {
   let tokens: any = { today: null, history: [], updatedAt: null }
   try { tokens = app.usage.snapshot(14) } catch (e) { /* ignore */ }
 
+  // 总览页用：没选迁移模式且没有任何原文时，显示“还没开始”的引导，而不是一排 0。
+  let onboarding: any = { mode: null }
+  try {
+    if (app.onboarding) onboarding = { mode: app.onboarding.status().mode || null }
+  } catch (e) { /* ignore */ }
+
   let service: any = {
     status: embedService && typeof embedService.status === 'function' ? embedService.status() : null,
     health: { ok: false, error: 'not checked' },
@@ -319,6 +325,7 @@ async function collectStats(app: MemoryApp, embedService?: any) {
     topics,
     refine,
     tokens,
+    onboarding,
     service,
   }
 }

@@ -27,6 +27,13 @@ const DATA = arg('data') || process.env.MEMORY_ROOT
 const PROFILE = arg('profile') || path.join(os.homedir(), '.dsh', 'profiles', 'web', 'cordis.patch.yml');
 const JSON_OUT = process.argv.includes('--json');
 
+// 迁移模式：没选之前安装器不会装侧边栏入口，避免用户先点开一个全 0 的总览页。
+let onboardingMode = null;
+try {
+  const ob = path.join(DATA, 'common', 'onboarding.json');
+  if (fs.existsSync(ob)) onboardingMode = JSON.parse(fs.readFileSync(ob, 'utf8')).mode || null;
+} catch (e) { onboardingMode = null; }
+
 const checks = [];
 function add(name, ok, detail, hint) {
   checks.push({ name, ok, detail: detail || '', hint: hint || '' });
@@ -59,6 +66,7 @@ try {
   else { dataOk = true; dataDetail = DATA + '（不存在，首次启动会创建）'; }
 } catch (e) { dataDetail = DATA + '（不可写：' + e.message + '）'; }
 add('数据目录可写', dataOk, dataDetail);
+add('迁移模式', true, onboardingMode || '未选择（首次启动后让模型问用户三选一）');
 
 // 4. 向量模型
 const onnx = path.join(ROOT, 'vector', 'onnx');
@@ -97,7 +105,13 @@ try {
 
       const uiM = /id:\s*['"]?memory-system-ui['"]?[\s\S]{0,300}?name:\s*['"]?([^'"\n]+)/.exec(yml);
       if (!uiM) {
-        add('侧边栏入口', false, 'profile 没有 memory-system-ui', '重新跑 install.ps1，或 node tools/make-patch.js --print 后补第二段');
+        if (onboardingMode) {
+          add('侧边栏入口', false, '已选迁移模式（' + onboardingMode + '），但 profile 没有 memory-system-ui',
+            '运行 install.ps1 -Phase ui -Apply，再重启 DSH');
+        } else {
+          add('侧边栏入口（待安装）', true, '还没选迁移模式，安装器不会提前装',
+            '让模型跑 memory_onboarding 三选一并完成迁移/初始化后，再运行 install.ps1 -Phase ui -Apply');
+        }
       } else {
         const uiEntry = uiM[1].trim();
         const uiOk = path.isAbsolute(uiEntry) && fs.existsSync(uiEntry);

@@ -1,7 +1,7 @@
 # 开源记忆系统 · 测试报告
 
-> 测试日期：2026-11-09（v0.4.1 修订）
-> 被测版本：MVP v0.4.1（全链路 + 链接安装）
+> 测试日期：2026-11-09（v0.4.2 修订）
+> 被测版本：MVP v0.4.2（全链路 + 链接安装）
 > 运行环境：Node.js v24 / Windows / 本地 bge-small-zh-v1.5（512 维）
 > 数据目录：单元/验收全部使用临时目录；真机数据在 `%APPDATA%\dsh-memory`
 
@@ -32,6 +32,18 @@
 | `unit-import` 迁移导入器 | 17 | 17 |
 | `unit-onboarding` 迁移问卷/相处方式 | 29 | 29 |
 | **合计** | **327** | **327** |
+
+### v0.4.2 安装阶段手工验证
+
+| 场景 | 命令 | 结果 |
+|:--|:--|:--|
+| 只装本体 | `install.ps1 -Phase core -DryRun` → `-Apply` | 只插入 `memory-system`；路径自检「侧边栏入口（待安装）」为绿 |
+| 未选模式装 UI | `install.ps1 -Phase ui -DryRun` | 警告“还没选迁移模式”，不写 profile |
+| 已选 fresh 装 UI | `MEMORY_ROOT=<临时目录，含 onboarding.json>` + `-Phase ui -DryRun` | 只插入 `memory-system-ui` |
+| 幂等 | 再次 `-Phase all -Apply` | 提示“已满足当前阶段”，不重复插入；备份仍生成 |
+| 空库总览 | 假 `/api/stats`（`memory.total=0`, `onboarding.mode=null`） | 显示“还没有开始记住任何对话”；主视觉为“从今天开始 / 0 天”；1280×720 无溢出 |
+| 选模式后路径自检 | 临时 `onboarding.json` mode=fresh，profile 无 UI | 「侧边栏入口」变红并提示 `-Phase ui -Apply` |
+| ONNX 首次安装 | 删掉 `vector/onnx/.ready` 后 `-Phase core -Apply` | npm 依赖已存在时补写 `.ready`；路径自检「向量服务」变绿 |
 
 ---
 

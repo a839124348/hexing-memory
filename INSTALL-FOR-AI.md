@@ -9,6 +9,7 @@
 > - 不删任何东西；不改 DSH 源码；不把密码、token、API key 写进文件或聊天。
 > - 改 `cordis.patch.yml` 前必须备份；已经有 `id: memory-system` / `id: memory-system-ui` 就跳过。
 > - 不替用户决定迁移模式；装完后问，不替用户选。
+> - **侧边栏入口分两步装**：先只装插件本体（`-Phase core`）；等用户选完迁移模式、导入/初始化完成，再装侧边栏（`-Phase ui`）。不要一上来就把两段都写进 profile。
 > - 不承诺“和旧平台完全一样”；只承诺记忆/档案可带走。
 
 ---
@@ -46,7 +47,7 @@ dsh --version
 2. 下载固定 tag 的源码包（**不要装 main**）：
 
 ```powershell
-$Tag = 'v0.4.1'
+$Tag = 'v0.4.2'
 $InstallDir = Join-Path $env:USERPROFILE 'hexing-memory'
 $Zip = Join-Path $env:TEMP "hexing-memory-$Tag.zip"
 Invoke-WebRequest "https://github.com/a839124348/hexing-memory/archive/refs/tags/$Tag.zip" -OutFile $Zip
@@ -73,7 +74,7 @@ bge-small-zh-v1.5.onnx.data 02A5F74BE93B625908C7AE11B04042C21F06864E9A439605D304
 
 不一致就停下，别继续装。
 
-> 如果 GitHub 打不开：让用户下载 Release 的 `hexing-memory-v0.4.1-full.zip`（已含模型），解压后把文件夹路径给你；从第 2 步的 `install.ps1` 开始。
+> 如果 GitHub 打不开：让用户下载 Release 的 `hexing-memory-v0.4.2-full.zip`（已含模型），解压后把文件夹路径给你；从第 2 步的 `install.ps1` 开始。
 
 ### B. 用户给了 full zip
 
@@ -83,11 +84,11 @@ bge-small-zh-v1.5.onnx.data 02A5F74BE93B625908C7AE11B04042C21F06864E9A439605D304
 
 ---
 
-## 2. 先 DryRun，再 Apply
+## 2. 第一步：只装插件本体（Phase core）
 
 ```powershell
 cd $InstallDir
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -DryRun
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Phase core -DryRun
 ```
 
 DryRun 只打印：
@@ -101,27 +102,28 @@ DryRun 只打印：
 **把要改的 profile 和插入内容给用户看，得到确认后**再：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1 -Apply
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Phase core -Apply
 ```
 
 脚本会：
 
 - 备份 `cordis.patch.yml` 到 `.bak-<时间>`
-- 幂等插入两段：
+- 幂等插入插件本体：
 
 ```yaml
 - insert:
     - id: memory-system
       name: '<安装目录>/dsh-plugin/src/index.ts'
-    - id: memory-system-ui
-      name: '<安装目录>/dsh-plugin-ui/lib/index.js'
 ```
 
-- 已有 `id: memory-system` / `id: memory-system-ui` 就跳过，不重复插
-- 第二个是 DSH 左侧栏的「记忆总览」入口，不是可选项；缺了它，用户只能记 3099 地址
+- 已有 `id: memory-system` 就跳过，不重复插
 - 检查模型文件；缺了就报错，不会静默装一个没有向量的版本
-- 尝试 `npm install`（`vector/onnx`）；失败只警告，检索会降级关键词
+- 尝试 `npm install`（`vector/onnx`）；成功后写 `vector/onnx/.ready`，插件才会自动拉起向量服务；失败只警告，检索会降级关键词
 - 跑 `node tools/check-paths.js`
+
+> `-Phase core` **不会**装侧边栏入口。此时路径自检里的「侧边栏入口（待安装）」是正常状态，不是错误。
+>
+> 不要用 `-Phase all` 跳过首次迁移；那是给已经完成 onboarding、只想一次重装两段的老用户。
 
 ---
 
@@ -153,7 +155,7 @@ memory_common
 3. 说明书索引
 4. 链网索引
 
-左侧栏应该出现「记忆总览」按钮，点开直接显示 3099 总览页。
+**左侧栏现在不应该有「记忆总览」**——这是故意的，入口要等迁移/初始化完成后才装。用户若自己打开 `http://127.0.0.1:3099/`，总览页会显示“还没有开始记住任何对话”的引导，而不是一排 0。
 
 再调用：
 
@@ -165,8 +167,8 @@ memory_onboarding action=status
 
 如果工具不存在：
 
-1. 看 `cordis.patch.yml` 里有没有 `id: memory-system` 和 `id: memory-system-ui`
-2. 看启动日志有没有 `[memory-system] 核星记忆 v0.4.1 已加载`
+1. 看 `cordis.patch.yml` 里有没有 `id: memory-system`
+2. 看启动日志有没有 `[memory-system] 核星记忆 v0.4.2 已加载`
 3. 跑 `node tools/check-paths.js`，按红项修
 4. 仍不行：把 profile 备份恢复，保留数据，把日志给用户/开发者
 
@@ -182,11 +184,53 @@ memory_onboarding action=status
    - 全新开始（不导入）
 3. 用 `memory_onboarding action=save` 记录；`inherit/memory` 需要 `consent=true`
 4. 全继承再按 RULES 第 10.0 节提炼 `common/voice-habits.md`，必须有 `## 常驻核心`（≤800 字）
-5. 不替用户选，不承诺“完全一样”
+5. 迁移完成后用 `memory_search` 验证旧对话能搜到；全新开始则先正常聊一句
+6. 不替用户选，不承诺“完全一样”
+
+**做完这一步，才去第 6 节装侧边栏入口。**
 
 ---
 
-## 6. 失败分支
+## 6. 迁移/初始化完成后：装侧边栏入口（Phase ui）
+
+满足任一条件才做：
+
+- 全继承 / 只继承记忆：旧对话已导入，`memory_search` 能搜到；
+- 全新开始：`memory_onboarding action=save` 已保存，且已经有过至少一句对话。
+
+先 DryRun：
+
+```powershell
+cd $InstallDir
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Phase ui -DryRun
+```
+
+确认后：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Phase ui -Apply
+```
+
+脚本会：
+
+- 检查 `%APPDATA%\dsh-memory\common\onboarding.json` 里有没有 `mode`；没有就**拒绝安装**并提示先做 onboarding（防呆，不是故障）
+- 幂等插入：
+
+```yaml
+- insert:
+    - id: memory-system-ui
+      name: '<安装目录>/dsh-plugin-ui/lib/index.js'
+```
+
+- 备份 profile，再跑路径自检；此时「侧边栏入口」应该变绿
+
+装完重启 DSH，左侧栏才会出现「记忆总览」。如果用户已经手动收藏了 `http://127.0.0.1:3099/`，不装入口也能看；但入口是给零技术用户准备的，迁移完成后应该补上。
+
+> 如果用户明确要求先装入口（例如他要先看空界面再决定迁不迁），才加 `-Force`。默认不要替用户做这个决定。
+
+---
+
+## 7. 失败分支
 
 | 现象 | 处理 |
 |---|---|
@@ -198,10 +242,12 @@ memory_onboarding action=status
 | `npm install` 失败 | 继续；向量服务会降级关键词；告诉用户“能用，但语义召回弱” |
 | 端口 3080/3099 被占 | 先停旧 DSH；不要杀未知进程 |
 | 权限不足 | 让用户把仓库放到用户目录，不要写 `C:\Program Files` |
+| `-Phase ui` 提示“还没选迁移模式” | 正常防呆；先完成第 5 节 onboarding，不要用 `-Force` 绕过 |
+| 侧边栏入口没出现 | 确认 profile 有 `memory-system-ui`、路径存在、DSH 已重启；跑 `check-paths.js` |
 
 ---
 
-## 7. 停用 / 回滚
+## 8. 停用 / 回滚
 
 - 停用：从 `cordis.patch.yml` 删除 `memory-system` 那一段，重启 DSH；数据目录保留。
 - 回滚安装：恢复 `cordis.patch.yml` 的 `.bak-<时间>`，重启。
@@ -209,12 +255,17 @@ memory_onboarding action=status
 
 ---
 
-## 8. 给用户的汇报模板
+## 9. 给用户的汇报模板
 
-装完后只说人话：
+装完插件本体后只说人话：
 
-> 装好了。现在 DSH 已经能记住我们说过的话；总览页在 http://127.0.0.1:3099/。
+> 装好了。现在 DSH 已经能记住我们说过的话。
 > 如果你要导入以前的对话，我先问你三个选项：把以前的它尽量带回来 / 只带记忆 / 全新开始。
-> 不导入也能正常用；以后想导入随时可以。
+> 不导入也能正常用；等这边安顿好，我再把左侧栏的「记忆总览」按钮装上。
+
+迁移/初始化完成、入口装好后：
+
+> 左侧栏现在有「记忆总览」了，点开就能看我们记住的第几天、多少条原文和链网。
+> 总览页是 http://127.0.0.1:3099/ ，不想点按钮也可以直接开。
 
 不要把命令、YAML、错误码甩给用户。

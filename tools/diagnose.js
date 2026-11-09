@@ -73,7 +73,7 @@ async function serviceHealth(url) {
 
 (async () => {
   const pkg = readJson(path.join(ROOT, 'dsh-plugin', 'package.json'), {});
-  const version = pkg.version || '0.4.1';
+  const version = pkg.version || '0.4.2';
 
   // raw
   const rawDir = path.join(DATA, 'raw');

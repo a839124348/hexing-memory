@@ -317,6 +317,15 @@
     color: #ffb6be; font-size: 12px;
   }
   .error.show { display: block; }
+  .setup-hint {
+    display: none; margin-bottom: 16px; padding: 16px 18px; border-radius: 12px;
+    border: 1px solid rgba(122,162,255,.22);
+    background: linear-gradient(135deg, rgba(88,120,255,.08), rgba(110,231,199,.04));
+    color: #d3deff; font-size: 13px; line-height: 1.75;
+  }
+  .setup-hint.show { display: block; }
+  .setup-hint b { color: #eef2ff; font-weight: 600; }
+  .setup-hint span { color: #8fa3cc; font-size: 12px; }
   @media (max-width: 980px) {
     .hero { grid-template-columns: 1fr; }
     .grid { grid-template-columns: repeat(2, 1fr); }
@@ -761,6 +770,7 @@
   </header>
 
   <div id="error" class="error"></div>
+  <div id="setupHint" class="setup-hint"></div>
 
   <section class="hero">
     <div class="hero-card companion-card">
@@ -1109,14 +1119,30 @@ function render(s) {
   const service = s.service || {};
   const health = service.health || {};
   const status = service.status || {};
+  const onboarding = s.onboarding || {};
+  const setup = $('setupHint');
+  if (mem.total) {
+    setup.classList.remove('show');
+  } else {
+    setup.innerHTML = onboarding.mode
+      ? '迁移模式已保存，但记忆库还是空的。<br><span>完成旧对话导入，或先在 DSH 里聊一句；原文进来后，这里才会出现陪伴天数、记忆和链网（链网还要等自动提炼）。</span>'
+      : '还没有开始记住任何对话。<br><span>先回到 DSH，让模型完成首次设置（全继承 / 只继承记忆 / 全新开始）；设置并导入完成后，这里才会出现陪伴天数、记忆和链网。</span>';
+    setup.classList.add('show');
+  }
 
   text('memTotal', n(mem.total));
   text('memToday', n(mem.today));
   text('memDays', n(mem.days));
   const companion = s.companion || {};
-  text('companionDays', companion.days ? n(companion.days) : '—');
-  text('companionFirstDay', companion.firstDay || mem.firstDay || '—');
+  if (mem.total) {
+    text('companionDays', companion.days ? n(companion.days) : '—');
+    text('companionFirstDay', companion.firstDay || mem.firstDay || '—');
     text('companionToday', '原始对话最早一天 · 今天 · ' + (s.today || '—'));
+  } else {
+    text('companionDays', '0');
+    text('companionFirstDay', '今天');
+    text('companionToday', '还没有第一条记忆 · 今天 · ' + (s.today || '—'));
+  }
 
   text('tokenTotal', n((total.in || 0) + (total.out || 0)));
   text('tokenIn', n(total.in));

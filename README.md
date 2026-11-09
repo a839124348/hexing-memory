@@ -1,9 +1,9 @@
-# 核星记忆 / Hexing Memory · 开源版（v0.4.1）
+# 核星记忆 / Hexing Memory · 开源版（v0.4.2）
 
 给个人用户用的 AI 长期记忆：**实时跨会话 + 自动 LLM 提炼建链 + 完整向量库**。
 当前以 DSH（DeepSeek Harness）插件形式交付；核心引擎是纯 JS，可接其他平台。
 
-**版本：v0.4.1**（MVP 全链路 + 链接安装）。
+**版本：v0.4.2**（MVP 全链路 + 链接安装 + 迁移后再装侧边栏）。
 
 **设计给完全不懂技术的用户**：不需要会命令行、JSONL、路径、权限；安装、迁移、排错由 DSH 里的模型代做，用户只需要会说话、点授权。
 
@@ -15,7 +15,7 @@
 
 模型会下载固定 tag、校验模型、备份 `cordis.patch.yml`、写入插件、装依赖、重启并验证。**不要自己手写路径，也不要改 DSH 源码。**
 
-如果网络打不开 GitHub：下载 Release 里的 `hexing-memory-v0.4.1-full.zip`（已含两个向量模型），解压后把文件夹路径发给 DSH，还是同一句话。
+如果网络打不开 GitHub：下载 Release 里的 `hexing-memory-v0.4.2-full.zip`（已含两个向量模型），解压后把文件夹路径发给 DSH，还是同一句话。
 
 ## 它能做什么
 
@@ -29,7 +29,7 @@
 - **常识层**：身份 + 常驻规范摘要 + 说明书目录 + 链网索引，压缩后自动补回，≤4000 字符。
 - **链网宇宙**：`http://127.0.0.1:3099/universe` 是本地 Three.js 真 3D 链网：九条独立椭圆轨道像太阳系一样分层，轨道间距拉开，分支按蓝/紫/青三色区分，**星球大小随链量增长**；行星持续公转，太阳系总览不显示卫星，子链用环状吸积盘/陨石带表示；**点击父星进入该链的「地月系」**，子链变成一颗颗小陨石环绕，可返回太阳系。中央恒星带光晕与吸积盘，行星带真实遮挡；星空/星云、标签避让、拖拽旋转、滚轮缩放、点击看链；节点 ≥5 还没链头的链带虚线圈。Three.js 随包放在 `vendor/`，不联网、不引 CDN。
 - **总览页**：`http://127.0.0.1:3099/` 的主视觉是「陪伴第几天」，下面才是记忆条数、草稿、向量库、链网/话题池、最近提炼、`llmPending`、向量服务健康，以及今日/近 14 天 token。页脚藏着十一段故事书「作者自述 · 我们为什么这样记住」：按三步展开——为什么做记忆系统、是什么决定了我和你、为什么选择逆行（不遗忘）；正文引用 2026-04 ~ 2026-11 的当时原话，不出现用户与 AI 的名字；结尾致谢并放 B 站 MV 一键跳转。`?about=1` 可直达。
-- **左侧栏入口**：DSH 左侧栏有「记忆总览」按钮，点开直接显示总览页；不用记 3099，也不用来问模型。
+- **左侧栏入口**：DSH 左侧栏有「记忆总览」按钮，点开直接显示总览页；不用记 3099，也不用来问模型。**入口在迁移/初始化完成后才装**，避免第一次打开只看到一排 0。
 - **开机动画**：总览页**每天第一次**打开会播「核星收束」开场（星尘向核星收拢），收尾闪出整行「陪伴你的第 X 天」；播放前按本机日期自检，只有跨过 0 点才从昨天的数字翻到今天（如 3 → 4），并显示“又多陪伴了 N 天”。结尾整屏像黑洞一样收缩成一个点（星尘继续向内流），点消失后再露出总览页。可点击跳过，`?intro=1` 重播、`?intro=0` 关闭，尊重系统「减少动态效果」。
 - **记忆不可删除**：原文是存证；状态可被推翻，事件永存。
 - **首次使用先通读**：`memory_manual` 把说明书切成 19 节并记录进度；没读完不让改链网/话题，常识层会一直提示——防止模型只读开头和结尾就上手。
@@ -41,20 +41,24 @@
 > 下面写给能自己动手的人。**如果你是零技术用户，把这一节直接发给 DSH 模型**，让它替你改配置、装依赖、启动；你只需要点“允许”和确认路径。
 
 1. 装好 DSH（0.2.x），确认 `dsh web` 能启动。
-2. 把插件写进 `~/.dsh/profiles/web/cordis.patch.yml`：
+2. 先只装插件本体（命令默认 DryRun，只打印计划）：
 
-```yaml
-- insert:
-    - id: memory-system
-      name: '<你解压的绝对路径>/dsh-plugin/src/index.ts'
-    - id: memory-system-ui
-      name: '<你解压的绝对路径>/dsh-plugin-ui/lib/index.js'
+```sh
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Phase core -DryRun
 ```
 
-> 第二段是 DSH 左侧栏的「记忆总览」入口，不要漏。路径必须是你机器上的绝对路径，不能照抄别人的。不知道写什么就先跑 `node tools/make-patch.js --print`，它会按当前仓库位置打印两段；或者让 DSH 模型帮你改。
+确认要改的 profile 和 YAML 后：
 
-3. 配置向量服务（按需选一）：
-   - **零 Python（推荐发行版）**：运行 `powershell -ExecutionPolicy Bypass -File .\vector\onnx\install.ps1`，Node 直接加载 ONNX；不需要 Python，但要 npm 依赖和约 96MB 模型；
+```sh
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Phase core -Apply
+```
+
+它会备份 `~/.dsh/profiles/web/cordis.patch.yml`，幂等写入 `id: memory-system`，检查模型、装 ONNX 依赖并跑路径自检。**这一步不会装侧边栏入口**——入口要等迁移/初始化完成后才有意义。
+
+> 路径必须是你机器上的绝对路径，脚本会按当前仓库位置生成，不用手写。想先看路径可跑 `node tools/make-patch.js --print`：默认只输出本体入口，侧边栏入口以注释给出，等迁移完成后再启用。
+
+3. 向量服务：`install.ps1` 已检查模型、装 ONNX 依赖并写 `.ready`，通常不用再手动配。按需选一：
+   - **零 Python（推荐发行版）**：Node 直接加载 ONNX；如果第 2 步用了 `-SkipDeps` 或 npm 失败，再运行 `powershell -ExecutionPolicy Bypass -File .\vector\onnx\install.ps1`；不需要 Python，但要 npm 依赖和约 96MB 模型；
    - **Python 随包服务**：`vector\install.ps1`，装 `sentence-transformers` + bge 模型；
    - 已有本地 bge 服务在 `127.0.0.1:16891`：直接复用；
    - 自定义：设置 `MEMORY_EMBED_CMD`。
@@ -73,11 +77,19 @@ dsh web
 
 能看到身份 / 常驻规范 / 说明书索引 / 链网索引，说明插件已生效。
 
-6. 打开 `http://127.0.0.1:3099/` 看记忆总览；右上角「链网宇宙」进真 3D 链网。
+6. 打开 `http://127.0.0.1:3099/` 可以看总览；还没迁移时它会显示“还没开始记住任何对话”的引导。右上角「链网宇宙」进真 3D 链网。
 
 **第一次装好后，先让模型通读说明书**：`memory_manual action=toc` → 逐节 `read` → `ack`。没读完时链网/话题写入会被拦住，常识层也会一直提示——这是故意的，防止模型只读开头结尾就上手改数据。
 
 **如果要迁移旧记忆，先让模型跑 `memory_onboarding` 三选一**，再导入；不要先导后问。全继承会多提炼一页 `common/voice-habits.md`，只继承记忆会明确“不模仿旧语气”。
+
+7. 迁移/初始化完成、`memory_search` 能搜到旧对话后，再装侧边栏入口：
+
+```sh
+powershell -ExecutionPolicy Bypass -File .\install.ps1 -Phase ui -Apply
+```
+
+重启 DSH，左侧栏才会出现「记忆总览」。**没选迁移模式时脚本会拒绝装入口**（除非 `-Force`），这是首体验防呆：先有数据，再给入口。
 
 ## 下载后第一步：路径自检
 
@@ -87,13 +99,13 @@ dsh web
 node tools/check-paths.js
 ```
 
-它会检查插件入口、核心引擎、`docs/RULES.md`、数据目录、向量模型、profile 里的路径、环境变量、Node/DSH 版本。哪项红，按提示修；路径不知道怎么写就跑：
+它会检查插件入口、核心引擎、`docs/RULES.md`、数据目录、向量模型、profile 里的路径、环境变量、Node/DSH 版本。**没选迁移模式时，「侧边栏入口（待安装）」是绿色的正常状态**；选完模式还没装，才会变红提醒你跑 `-Phase ui`。哪项红，按提示修；路径不知道怎么写就跑：
 
 ```sh
 node tools/make-patch.js --print
 ```
 
-把打印出的路径写进 `~/.dsh/profiles/web/cordis.patch.yml` 的 `name`。**不要照抄 README 或发行说明里的示例路径，也不要改 DSH 源码。**
+把打印出的路径写进 `~/.dsh/profiles/web/cordis.patch.yml` 的 `name`。**首次安装只写 `memory-system` 那一段，`memory-system-ui` 等迁移/初始化完成后再补。不要照抄 README 或发行说明里的示例路径，也不要改 DSH 源码。**
 
 ## 迁移旧记忆
 
@@ -113,6 +125,7 @@ node tools/make-patch.js --print
    只追加、不重写；重复导入同一文件不会翻倍；报告在 `common/import-report-*.json`。
 6. 启动 DSH，等 5 秒补原文索引，再用 `memory_search` 验证。**旧历史不会自动建链**——导入的是 raw + 向量，链网从新对话积累；不要手工导入链。
 7. 全继承模式：用 `node tools/voice-sample.js --file old.jsonl` 抽样，写完 `voice-habits.md`（必须有 `## 常驻核心`）后用 `memory_onboarding action=voice` 保存；第一次会话校准“像不像”。
+8. 验证旧对话能搜到后，装侧边栏入口：`install.ps1 -Phase ui -Apply`，重启 DSH。
 
 详见 [RULES.md 第十节](docs/RULES.md)。
 
@@ -186,7 +199,7 @@ node test/acceptance.js     # 全链路自动验收（生成 ACCEPTANCE-*.md）
 
 ## 反馈问题
 
-1. 先记下**版本号**：启动日志、总览页右上角、或诊断报告里的 `v0.4.1`。
+1. 先记下**版本号**：启动日志、总览页右上角、或诊断报告里的 `v0.4.2`。
 2. 在项目目录运行只读诊断：
 
    ```sh
