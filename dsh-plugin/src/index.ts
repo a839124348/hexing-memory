@@ -972,7 +972,7 @@ export function apply(ctx: Context) {
   // 只记录模式、存一页相处方式；不训练、不改权重。
   ctx.tools.register(defineTool({
     name: 'memory_onboarding',
-    description: '首次迁移问卷。**先问用户三选一，不要替用户选**：inherit=把以前的它尽量带回来（记忆+称呼+语气+习惯）；memory=只继承记忆（语气重新长）；fresh=全新开始（不导入旧数据）。action：status（看当前模式）／check（看该模式检查清单）／save（保存选择；inherit/memory 需要 consent=true）／voice（保存一页相处方式，仅 inherit）／voice_get（读完整相处方式）。',
+    description: '首次迁移问卷。**先问用户三选一，不要替用户选**：inherit=把以前的它尽量带回来（记忆+称呼+语气+习惯）；memory=只继承记忆（语气重新长）；fresh=全新开始（不导入旧数据）。action：status（看当前模式）／check（看该模式检查清单）／save（保存选择；inherit/memory 需要 consent=true）／voice（保存一页相处方式 + 常驻核心，仅 inherit）／voice_get（读完整相处方式）。',
     parameters: {
       action: { type: 'string', required: true, description: 'status / check / save / voice / voice_get' },
       mode: { type: 'string', description: 'save：inherit / memory / fresh' },
@@ -982,8 +982,9 @@ export function apply(ctx: Context) {
       keepNames: { type: 'boolean', description: 'save：是否保留旧名字/称呼' },
       exclusions: { type: 'string', description: 'save：用户不想带回来的时期/话题/相处模式' },
       notes: { type: 'string', description: 'save：其他说明' },
-      text: { type: 'string', description: 'voice：相处方式全文（称呼用法/语气/习惯/隐性边界 + 5–8 段示例）' },
-      summary: { type: 'string', description: 'voice：可选，280 字内的摘要；不填则自动取摘要段/首段' },
+      text: { type: 'string', description: 'voice：相处方式全文（称呼用法/语气/习惯/隐性边界 + 5–8 段示例）；里面必须有「## 常驻核心」' },
+      core: { type: 'string', description: 'voice：常驻核心（≤800 字，每轮注入；不填则从 text 的「## 常驻核心」提取）' },
+      summary: { type: 'string', description: 'voice：可选，280 字内的状态摘要；不填则自动取摘要段/核心首段' },
     } as any,
     output: {
       schema: { type: 'object', additionalProperties: true },
@@ -1009,7 +1010,7 @@ export function apply(ctx: Context) {
             notes: args.notes,
           }))
         }
-        if (action === 'voice') return cleanJson(app.onboarding.setVoice(args.text, args.summary))
+        if (action === 'voice') return cleanJson(app.onboarding.setVoice(args.text, args.summary, args.core))
         if (action === 'voice_get') return cleanJson(app.onboarding.voice())
       } catch (e: any) {
         return { ok: false, error: '迁移问卷操作失败：' + (e && e.message) }

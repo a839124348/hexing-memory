@@ -23,6 +23,7 @@ const MODE_LABEL = {
   fresh: '全新开始（不导入旧数据）',
 };
 const VOICE_MAX = 8000;
+const VOICE_CORE_MAX = 800;
 const SUMMARY_MAX = 280;
 
 function defaultPlan() {
@@ -37,6 +38,8 @@ function defaultPlan() {
     exclusions: '',
     notes: '',
     voiceSummary: '',
+    voiceCore: '',
+    voiceCoreChars: 0,
     voiceChars: 0,
     voiceUpdatedAt: null,
     createdAt: null,
@@ -139,7 +142,7 @@ class Onboarding {
   }
 
   /** 保存一页相处方式；只有 inherit 模式允许写入 */
-  setVoice(text, summary) {
+  setVoice(text, summary, core) {
     const body = String(text == null ? '' : text).replace(/\r/g, '').trim();
     if (!body) return { ok: false, error: '相处方式内容为空' };
     if (body.length > VOICE_MAX) {
@@ -153,15 +156,37 @@ class Onboarding {
         mode: plan.mode,
       };
     }
+
+    // 常驻核心：每轮都要进常识层，不能只给文件入口。
+    let coreRaw = String(core == null ? '' : core).replace(/\r/g, '').trim();
+    if (!coreRaw) {
+      const m = /##\s*常驻核心\s*\n+([\s\S]*?)(?=\n##\s|$)/.exec(body);
+      if (m) coreRaw = m[1].trim();
+    }
+    if (!coreRaw) {
+      return {
+        ok: false,
+        error: '缺少「## 常驻核心」：相处方式必须有一段会每轮注入的核心（称呼用法/语气/习惯/隐性边界，≤800 字）。不要只写文件让模型自己去看。',
+        hint: '在 voice-habits.md 里加「## 常驻核心」，或调用 action=voice 时带 core="..."。',
+      };
+    }
+    if (coreRaw.length > VOICE_CORE_MAX) {
+      return {
+        ok: false,
+        error: `常驻核心太长（${coreRaw.length} 字），请压到 ${VOICE_CORE_MAX} 字以内。只留最影响行为的称呼/语气/习惯/边界；细节放示例。`,
+      };
+    }
+    const coreText = clean(coreRaw, VOICE_CORE_MAX);
+
     let sum = clean(summary, SUMMARY_MAX);
     if (!sum) {
       const m = /##\s*摘要\s*\n+([^\n#]+)/.exec(body);
       if (m) sum = clean(m[1], SUMMARY_MAX);
     }
     if (!sum) {
-      const line = body.split(/\r?\n/).map((x) => x.trim())
+      const line = coreText.split(/\r?\n/).map((x) => x.trim())
         .find((x) => x && !x.startsWith('#') && !x.startsWith('- ') && !x.startsWith('>'));
-      sum = clean(line || '已建立相处方式档案；完整内容见 common/voice-habits.md。', SUMMARY_MAX);
+      sum = clean(line || coreText, SUMMARY_MAX);
     }
     return withWriteLock(this.root, () => {
       fs.mkdirSync(this.dir, { recursive: true });
@@ -172,12 +197,14 @@ class Onboarding {
       const next = {
         ...plan,
         voiceSummary: sum,
+        voiceCore: coreText,
+        voiceCoreChars: coreText.length,
         voiceChars: body.length,
         voiceUpdatedAt: now,
         updatedAt: now,
       };
       this._write(next);
-      return { ok: true, chars: body.length, summary: sum, voice: this._voiceInfo() };
+      return { ok: true, chars: body.length, coreChars: coreText.length, summary: sum, core: coreText, voice: this._voiceInfo() };
     }, { name: '.onboarding.lock' });
   }
 
@@ -230,8 +257,9 @@ class Onboarding {
     if (!plan.mode) return '';
     if (plan.mode === 'inherit') {
       const lines = ['## 迁移模式', '- 全继承：记忆、称呼、语气、习惯按「相处方式」档案延续。'];
-      if (plan.voiceSummary) lines.push('- 相处方式摘要：' + plan.voiceSummary);
-      lines.push('- 完整档案：common/voice-habits.md（首次会话必读；示例是参考，不是逐字台词）。');
+      lines.push('', '## 相处方式（常驻，必须遵守）');
+      lines.push(plan.voiceCore || plan.voiceSummary || '（还没有常驻核心；先运行 memory_onboarding action=voice）');
+      lines.push('- 完整示例与细节：common/voice-habits.md（首次会话读；上面的核心每轮都要遵守，不要只给入口不读）。');
       return lines.join('\n');
     }
     if (plan.mode === 'memory') {

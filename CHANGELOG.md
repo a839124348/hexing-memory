@@ -23,7 +23,7 @@
 - P0 跨进程写锁：`.write/.refine/.refine-links/.vectors/.chain-vectors/.topics/.stats/.manual/.onboarding`。
 - 随包向量服务：Python 版 + 零 Python ONNX 版，自动拉起/健康复用/崩溃重启/降级关键词。
 - `memory_manual`：19 节说明书分节阅读、进度落盘；未读完 `ack` 失败，并拦住链网/话题写入。
-- **迁移问卷 `memory_onboarding`**：导入前先让用户三选一——全继承 / 只继承记忆 / 全新开始；全继承可写 `common/voice-habits.md`（称呼用法、语气、习惯、隐性边界 + 5–8 段示例），只继承记忆会在常识层注入“不要模仿旧语气”，全新开始下导入器拒绝 `--apply`。不改权重、不训练。
+- **迁移问卷 `memory_onboarding`**：导入前先让用户三选一——全继承 / 只继承记忆 / 全新开始；全继承可写 `common/voice-habits.md`（**≤800 字常驻核心，每轮注入** + 5–8 段示例），只继承记忆会在常识层注入“不要模仿旧语气”，全新开始下导入器拒绝 `--apply`。不改权重、不训练。
 - **相处方式抽样 `tools/voice-sample.js`**：按月份/场景从旧 JSONL 抽一份样本，供模型提炼主观层；不写记忆库。
 - 迁移导入器 `tools/import-jsonl.js`：dry-run/apply、15 项校验、整批拒绝、按 `cid+t+s+mid+c` 去重、导入报告；读取 `onboarding.json` 打印迁移模式，`fresh` 模式拒绝写入。
 - 链网体检 `memory_chain action=audit`：孤儿链/空链/重复节点/待补链头。

@@ -337,16 +337,27 @@ node tools/voice-sample.js --file old.jsonl --limit 60
 3. **习惯**：早晚安、报备、沉默代表什么、难受时先做什么、争执后怎么修复。
 4. **隐性边界**：不是明文规则、但会让用户不舒服的话/玩笑/话题。
 
-再加 **5–8 段原文示例**，每段带日期和场景；标注“参考，不是逐字台词”。不要 15 段，不要每句都抄——原文还在 raw，需要时能检索。
+文件必须分成两层，**不能只给一个文件入口**——模型会偷懒，不一定会去读：
+
+```md
+## 常驻核心
+（≤800 字：称呼用法 / 语气 / 习惯 / 隐性边界，压缩到每轮都能注入）
+
+## 示例
+（5–8 段原文，带日期和场景；标注“参考，不是逐字台词”）
+```
+
+`## 常驻核心` 会**整段进常识层，每轮都生效**；`## 示例` 只在首次会话/语气拿不准时读。不要 15 段，不要每句都抄——原文还在 raw，需要时能检索。
 
 保存：
 
 ```text
-memory_onboarding action=voice text="<整页 Markdown>" summary="<280 字内摘要>"
+memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，≤800 字>" summary="<280 字内摘要>"
 ```
 
 - 只有 `inherit` 模式能写；写到 `common/voice-habits.md`。
-- 摘要会进常识层；完整档案首次会话读，不要把全文塞进常识层。
+- `core` 不填就从 text 的 `## 常驻核心` 提取；**没有核心会被拒绝**。
+- 常识层注入完整 `core`；完整档案首次会话读，但核心每轮都在，不能只给指针。
 - 写之前先给用户看，允许他否决“不像/不想带回来”的部分。
 - 身份链只放**称呼/关系/边界结论**；约定链只放**明确约定**；示例不要塞进链节点。
 - 第一次会话问一句“像不像、哪里过了”，再校准；模型升级后也要重新校准。
@@ -518,7 +529,7 @@ memory_onboarding action=voice text="<整页 Markdown>" summary="<280 字内摘�
 | `memory_draft` | `cid`（只看某会话）、`minutes`（最近 N 分钟）、`limit`（每会话 1–200，默认 30） | 跨会话草稿板：覆盖范围、会话分组、时间线、每条“距今多久” | 只读；不要反复全量拉；它是“未提炼”，不是结论 |
 | `memory_common` | 无 | 身份 + 常驻规范 + 说明书目录 + 链网索引（≤4000 字符） | 只读；压缩后系统会自动注入，不要每轮重复调 |
 | `memory_manual` | `action`：`toc` / `read` / `status` / `ack`；`section`（节号 0 起或标题片段，不填=下一节） | 分节读 RULES.md，记录已读进度；全部读完 `ack` 才能解除链网/话题闸门 | **首次安装/升级必须通读，不要只读开头结尾**；版本一换进度归零；没读完时 `memory_chain append` / `memory_topic add` 会被拒绝 |
-| `memory_onboarding` | `action`：`status` / `check` / `save` / `voice` / `voice_get`；`save` 用 `mode=inherit/memory/fresh`、`source`、`dateRange`、`consent`、`keepNames`、`exclusions`、`notes`；`voice` 用 `text`、`summary` | 记录迁移模式；`inherit` 模式可写 `common/voice-habits.md`（一页相处方式）；`memory` 模式在常识层注入“不要模仿旧语气”；`fresh` 下导入器拒绝 `--apply` | 导入前**先问用户三选一，不要替用户选**；`inherit/memory` 必须 `consent=true`；`voice` 只收主观层（称呼用法/语气/习惯/隐性边界 + 5–8 段示例），不要把约定/故事/事实抄进来；不改权重 |
+| `memory_onboarding` | `action`：`status` / `check` / `save` / `voice` / `voice_get`；`save` 用 `mode=inherit/memory/fresh`、`source`、`dateRange`、`consent`、`keepNames`、`exclusions`、`notes`；`voice` 用 `text`、`core`、`summary` | 记录迁移模式；`inherit` 模式可写 `common/voice-habits.md`（完整档案 + 常驻核心）；**常驻核心每轮注入常识层**；`memory` 模式在常识层注入“不要模仿旧语气”；`fresh` 下导入器拒绝 `--apply` | 导入前**先问用户三选一，不要替用户选**；`inherit/memory` 必须 `consent=true`；`voice` 只收主观层（称呼用法/语气/习惯/隐性边界 + 5–8 段示例），`core` ≤800 字且必须存在；不要把约定/故事/事实抄进来；不改权重 |
 | `memory_identity` | `aiName/aiSelf/userTitle/userInfo/relation/style`，加 `confirmed` | **空字段直接填**；已有值只在 `confirmed:true` 时改；写 `IDENTITY.md` + `identity.json` | 不要自己设计结构；不要写项目/路径/账户；已有值没确认就静默忽略，不要追问；`confirmed:true` 只能由用户明确要求触发；多开 DSH 时只在一个会话改身份 |
 | `memory_chain` | `action`：`tree` / `get` / `append` / `header` / `audit`；`name`、`text`、`who`、`type`、`supersedes`、`parent`、`offset/limit/full` | `tree` 看全貌；`get` 默认前3后3+中间抽样，带 `needHeader/needRefresh`；`append` 加节点，链不存在时建链；`header` 写概览；`audit` 返回孤儿链/空链/重复节点/待补链头 | `append` 新链只能挂核星/九个默认根/已有链，最多 4 层；一次 ≤50 节点；**没有 `t` 参数**，节点时间=现在，不能拿它导入历史 |
 | `memory_topic` | `action`：`list/get/add/promote/close/merge`；`id`、`index`、`project`、`type`、`title`、`text`、`who`、`summary`、`into`、`reason` | `add` 进话题池，想法同月 ≥5 成链；`promote` 从池里升格项目链；`close/merge` 只改状态 | `add` 的 `type` 只允许 `想法/学习/避坑/关系/项目/日常`；`promote` 前先 `get` 确认 `index`（去重后顺序会变）；不物理删除 |

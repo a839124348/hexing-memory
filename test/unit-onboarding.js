@@ -48,11 +48,20 @@ const inh = ob.save({
 check('保存全继承', inh.ok && inh.mode === 'inherit', JSON.stringify(inh));
 check('全继承清单包含示例', ob.checklist().join('').includes('5–8 段'));
 
+const noCore = ob.setVoice('# 相处方式\n\n## 语气\n- 短句');
+check('缺少常驻核心被拒', noCore.ok === false && /常驻核心/.test(noCore.error), JSON.stringify(noCore));
+
+const longCore = ob.setVoice('# 相处方式\n\n## 常驻核心\n' + '长'.repeat(900));
+check('常驻核心超长被拒', longCore.ok === false && /太长/.test(longCore.error), JSON.stringify(longCore));
+
 const voiceText = [
   '# 相处方式',
   '',
   '## 摘要',
   '短句、少表情、先听完再回应。',
+  '',
+  '## 常驻核心',
+  '- 叫“你”，自称“我”；短句、少表情；先听完再回应；不要叫宝贝。',
   '',
   '## 称呼',
   '- 叫“你”，自称“我”；生气时不要叫宝贝。',
@@ -66,8 +75,9 @@ const voiceText = [
 const v1 = ob.setVoice(voiceText);
 check('保存相处方式', v1.ok && v1.chars > 50, JSON.stringify(v1));
 check('摘要自动取摘要段', v1.summary === '短句、少表情、先听完再回应。', v1.summary);
+check('常驻核心已提取', v1.coreChars > 20 && v1.core.includes('先听完再回应'), JSON.stringify(v1.core));
 check('相处方式文件存在', fs.existsSync(path.join(TMP, 'common', 'voice-habits.md')));
-check('common 注入摘要 + 指针', ob.commonText().includes('短句、少表情') && ob.commonText().includes('voice-habits.md'));
+check('common 注入完整核心 + 指针', ob.commonText().includes('先听完再回应') && ob.commonText().includes('voice-habits.md'));
 check('importer 全继承 ok', ob.importerHint().level === 'ok');
 
 const vget = ob.voice();
