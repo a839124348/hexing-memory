@@ -122,6 +122,14 @@ async function serviceHealth(url) {
   const embedUrl = process.env.EMBED_URL || 'http://127.0.0.1:16891';
   const service = await serviceHealth(embedUrl);
 
+  // 迁移问卷 / 相处方式（不含内容，只看模式和是否存在）
+  let onboarding = { mode: null, modeLabel: '', voice: false };
+  try {
+    const { Onboarding } = require('../src/onboarding');
+    const st = new Onboarding(DATA).status();
+    onboarding = { mode: st.mode || null, modeLabel: st.modeLabel || '', voice: !!(st.voice && st.voice.exists) };
+  } catch (e) { /* 诊断失败不报错 */ }
+
   const report = {
     version,
     dsh: dshVersion(),
@@ -129,6 +137,7 @@ async function serviceHealth(url) {
     os: process.platform + ' ' + process.arch + ' ' + os.release(),
     dataDir: DATA,
     rules: manual,
+    onboarding,
     raw: { files: rawFiles.length, records: rawRecords },
     draft: { pending: draftPending },
     vectors: {
@@ -165,6 +174,9 @@ async function serviceHealth(url) {
   line('RULES', report.rules.found
     ? `${report.rules.total} 节 / 已读 ${report.rules.read} / ${report.rules.completed ? '已完成' : '未完成'}`
     : '未找到');
+  line('迁移模式', report.onboarding.mode
+    ? `${report.onboarding.modeLabel} / ${report.onboarding.voice ? '已有相处方式' : '无相处方式'}`
+    : '未选');
   line('raw', `${report.raw.files} 个文件 / ${report.raw.records} 条`);
   line('draft', `${report.draft.pending} 条待提炼`);
   line('vectors', report.vectors.model

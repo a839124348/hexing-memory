@@ -4,8 +4,8 @@
  *
  * 架构：插件外壳（本文件）+ 核心引擎（../../src/*.js，纯 JS，与平台无关）
  *
- * 七件事：
- * 1. 七个工具：memory_write / memory_search / memory_draft / memory_common / memory_identity / memory_chain / memory_topic
+ * 八件事：
+ * 1. 九个工具：memory_write / memory_search / memory_draft / memory_common / memory_manual / memory_onboarding / memory_identity / memory_chain / memory_topic
  * 2. 常识层自动注入：挂 `agent/pre-step`，身份 + RULES 常驻摘要 + 说明书索引 + 链网索引；压缩后自动补
  * 3. 自动记录：挂 `llm/stream` 旁听用户消息与 AI 回复
  * 4. 向量策略：插件托管的本地 bge 服务（16891），失败显式降级关键词
@@ -70,6 +70,7 @@ interface MemoryApp {
   chainSearch: any
   topic: any
   usage: any
+  onboarding: any
 }
 
 function initCore(): MemoryApp {
@@ -90,7 +91,14 @@ function initCore(): MemoryApp {
   const chainSearch = new ChainSearch(DATA_ROOT, chain)
   const topic = new TopicStore(DATA_ROOT)
   const usage = new UsageStore(DATA_ROOT)
-  return { store, draft, refiner, search, chain, chainSearch, topic, usage }
+  let onboarding: any = null
+  try {
+    const { Onboarding } = require(path.join(CORE_DIR, 'onboarding.js'))
+    onboarding = new Onboarding(DATA_ROOT)
+  } catch (e: any) {
+    console.warn('[memory-system] 迁移问卷模块未加载：' + (e && e.message))
+  }
+  return { store, draft, refiner, search, chain, chainSearch, topic, usage, onboarding }
 }
 
 /**
@@ -389,6 +397,8 @@ function buildCommonText(app: MemoryApp): string {
   } catch (e) { /* 空数据也要能启动 */ }
   let onboarding = ''
   try { if (manualReader) onboarding = manualReader.onboardingText() } catch (e) { /* 说明书读不到就不拦 */ }
+  let inheritance = ''
+  try { if (app.onboarding) inheritance = app.onboarding.commonText() } catch (e) { /* 迁移档案读不到不阻塞 */ }
   return pure.composeCommonText({
     profile,
     resident: readResidentSpec(),
@@ -396,6 +406,7 @@ function buildCommonText(app: MemoryApp): string {
     chains: buildChainIndex(app),
     topics,
     onboarding,
+    inheritance,
   })
 }
 
@@ -954,6 +965,56 @@ export function apply(ctx: Context) {
         return { ok: false, error: '读说明书失败：' + (e && e.message) }
       }
       return { ok: false, error: '未知 action：' + action + '（可用：toc / read / status / ack）' }
+    },
+  }))
+
+  // ── 工具 5.5：迁移问卷（继承 / 只继承记忆 / 全新开始）────
+  // 只记录模式、存一页相处方式；不训练、不改权重。
+  ctx.tools.register(defineTool({
+    name: 'memory_onboarding',
+    description: '首次迁移问卷。**先问用户三选一，不要替用户选**：inherit=把以前的它尽量带回来（记忆+称呼+语气+习惯）；memory=只继承记忆（语气重新长）；fresh=全新开始（不导入旧数据）。action：status（看当前模式）／check（看该模式检查清单）／save（保存选择；inherit/memory 需要 consent=true）／voice（保存一页相处方式，仅 inherit）／voice_get（读完整相处方式）。',
+    parameters: {
+      action: { type: 'string', required: true, description: 'status / check / save / voice / voice_get' },
+      mode: { type: 'string', description: 'save：inherit / memory / fresh' },
+      source: { type: 'string', description: 'save：旧数据来源（平台/导出文件）' },
+      dateRange: { type: 'string', description: 'save：旧数据时间范围' },
+      consent: { type: 'boolean', description: 'save：用户确认有权使用这些对话，并知道记忆库是明文存储' },
+      keepNames: { type: 'boolean', description: 'save：是否保留旧名字/称呼' },
+      exclusions: { type: 'string', description: 'save：用户不想带回来的时期/话题/相处模式' },
+      notes: { type: 'string', description: 'save：其他说明' },
+      text: { type: 'string', description: 'voice：相处方式全文（称呼用法/语气/习惯/隐性边界 + 5–8 段示例）' },
+      summary: { type: 'string', description: 'voice：可选，280 字内的摘要；不填则自动取摘要段/首段' },
+    } as any,
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args: any, value: any) => [{ type: 'text', text: JSON.stringify(value, null, 1) }],
+    },
+    async execute(args: any) {
+      if (!app.onboarding) return { ok: false, error: '迁移问卷模块未加载（检查 src/onboarding.js）' }
+      const action = String(args.action || '').trim()
+      try {
+        if (action === 'status') return cleanJson(app.onboarding.status())
+        if (action === 'check') {
+          const s = app.onboarding.status()
+          return cleanJson({ ok: true, mode: s.mode, modeLabel: s.modeLabel, checklist: s.checklist })
+        }
+        if (action === 'save') {
+          return cleanJson(app.onboarding.save({
+            mode: args.mode,
+            source: args.source,
+            dateRange: args.dateRange,
+            consent: args.consent === true || String(args.consent) === 'true',
+            keepNames: typeof args.keepNames === 'boolean' ? args.keepNames : undefined,
+            exclusions: args.exclusions,
+            notes: args.notes,
+          }))
+        }
+        if (action === 'voice') return cleanJson(app.onboarding.setVoice(args.text, args.summary))
+        if (action === 'voice_get') return cleanJson(app.onboarding.voice())
+      } catch (e: any) {
+        return { ok: false, error: '迁移问卷操作失败：' + (e && e.message) }
+      }
+      return { ok: false, error: '未知 action：' + action + '（可用：status / check / save / voice / voice_get）' }
     },
   }))
 

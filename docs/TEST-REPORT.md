@@ -30,7 +30,8 @@
 | `unit-chain-search` 链节点语义检索 | 9 | 9 |
 | `unit-manual` 说明书通读/闸门 | 19 | 19 |
 | `unit-import` 迁移导入器 | 17 | 17 |
-| **合计** | **298** | **298** |
+| `unit-onboarding` 迁移问卷/相处方式 | 26 | 26 |
+| **合计** | **324** | **324** |
 
 ---
 
@@ -110,7 +111,7 @@
 ## 五、怎么复跑
 
 ```sh
-# 单元测试（17 个文件）
+# 单元测试（20 个文件）
 node test/unit-mid.js
 node test/unit-store.js
 node test/unit-validate.js
@@ -128,6 +129,9 @@ node test/unit-topics.js
 node test/unit-topic-llm.js
 node test/unit-chain-view.js
 node test/unit-chain-search.js
+node test/unit-manual.js
+node test/unit-import.js
+node test/unit-onboarding.js
 
 # 全链路自动验收（会生成 ACCEPTANCE-*.md）
 node test/acceptance.js

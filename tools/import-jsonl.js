@@ -26,6 +26,7 @@ const fs = require('fs');
 const path = require('path');
 const { Store } = require('../src/store');
 const { validateRecords, contentHash } = require('../src/validate');
+const { Onboarding } = require('../src/onboarding');
 
 function arg(name, def = '') {
   const i = process.argv.indexOf('--' + name);
@@ -101,6 +102,16 @@ function main() {
   console.log('文件：' + file);
   console.log('数据目录：' + dataDir);
   console.log('记录：' + records.length + ' 条；' + days.length + ' 天（' + days[0] + ' ~ ' + days[days.length - 1] + '）；说话人 ' + speakers.length + ' 个');
+  let onboardHint = null;
+  try { onboardHint = new Onboarding(dataDir).importerHint(); } catch (e) { /* 问卷模块读不到不阻塞导入 */ }
+  if (onboardHint) {
+    console.log('迁移模式：' + (onboardHint.mode || '未设置') + ' — ' + onboardHint.message);
+    if (onboardHint.level === 'error' && apply) {
+      console.error('');
+      console.error('已拒绝写入：当前是「全新开始」模式。要导入旧数据，先用 memory_onboarding 改成 memory 或 inherit。');
+      process.exit(1);
+    }
+  }
   if (synthesized > 0) console.log('完全重复：' + synthesized + ' 条，已补合成 mid 保留（要拒绝请加 --strict-duplicates）');
   console.log('警告：' + v.warnings.length + ' 条' + (v.warnings.length ? '（跨会话同文/时间顺序等，不阻断）' : ''));
   if (v.warnings.length) v.warnings.slice(0, 10).forEach((w) => console.log('  - ' + w));
@@ -165,6 +176,7 @@ function main() {
     speakers,
     warnings: v.warnings.length,
     errors: [],
+    onboarding: onboardHint ? { mode: onboardHint.mode, level: onboardHint.level, message: onboardHint.message } : null,
   }, null, 1), 'utf8');
   console.log('报告：' + report);
   console.log('');

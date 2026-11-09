@@ -22,7 +22,7 @@ const check = (n, c, d) => {
 };
 
 console.log('【1】模块加载');
-for (const m of ['store', 'draft', 'refine', 'search', 'validate', 'api', 'embed']) {
+for (const m of ['store', 'draft', 'refine', 'search', 'validate', 'api', 'embed', 'onboarding']) {
   try {
     require(path.join(ROOT, 'src', m + '.js'));
     check(m + '.js', true);
@@ -42,7 +42,7 @@ try {
 
 console.log('');
 console.log('【3】单元测试');
-const tests = ['unit-validate.js', 'unit-store.js', 'unit-refine-dedup.js', 'unit-identity-rules.js', 'unit-stripnoise.js', 'unit-chain.js', 'unit-manual.js', 'unit-import.js'];
+const tests = ['unit-validate.js', 'unit-store.js', 'unit-refine-dedup.js', 'unit-identity-rules.js', 'unit-stripnoise.js', 'unit-chain.js', 'unit-manual.js', 'unit-import.js', 'unit-onboarding.js'];
 for (const t of tests) {
   try {
     const out = execSync(`node "${path.join(__dirname, t)}"`, { encoding: 'utf8', stdio: 'pipe' });

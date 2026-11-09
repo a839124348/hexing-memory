@@ -22,6 +22,7 @@
 - **开机动画**：总览页**每天第一次**打开会播「核星收束」开场（星尘向核星收拢），收尾闪出整行「陪伴你的第 X 天」；播放前按本机日期自检，只有跨过 0 点才从昨天的数字翻到今天（如 3 → 4），并显示“又多陪伴了 N 天”。结尾整屏像黑洞一样收缩成一个点（星尘继续向内流），点消失后再露出总览页。可点击跳过，`?intro=1` 重播、`?intro=0` 关闭，尊重系统「减少动态效果」。
 - **记忆不可删除**：原文是存证；状态可被推翻，事件永存。
 - **首次使用先通读**：`memory_manual` 把说明书切成 19 节并记录进度；没读完不让改链网/话题，常识层会一直提示——防止模型只读开头和结尾就上手。
+- **迁移前先问清楚**：`memory_onboarding` 三选一——**全继承**（记忆 + 称呼 + 语气 + 相处习惯）/ **只继承记忆**（语气重新长）/ **全新开始**（不导入旧数据）。全继承会用 `tools/voice-sample.js` 抽样，提炼一页 `common/voice-habits.md`；只改档案，不训练、不微调、不改模型权重。
 - **多进程写锁**：草稿、存档、链网、提炼状态、向量索引都走跨进程锁；多开 DSH 不会互相覆盖。
 
 ## 快速开始（DSH）
@@ -63,6 +64,8 @@ dsh web
 
 **第一次装好后，先让模型通读说明书**：`memory_manual action=toc` → 逐节 `read` → `ack`。没读完时链网/话题写入会被拦住，常识层也会一直提示——这是故意的，防止模型只读开头结尾就上手改数据。
 
+**如果要迁移旧记忆，先让模型跑 `memory_onboarding` 三选一**，再导入；不要先导后问。全继承会多提炼一页 `common/voice-habits.md`，只继承记忆会明确“不模仿旧语气”。
+
 ## 下载后第一步：路径自检
 
 每个人把仓库解压到哪都不一样；插件在 DSH profile 里的 `name` **必须是你机器上的绝对路径**。先跑：
@@ -84,17 +87,19 @@ node tools/make-patch.js --print
 **迁移由 DSH 里的模型执行**：它负责检查你的旧数据格式、写字段映射、跑导入器；你只需要提供有权限导出的文件，并确认“一条 = 一次发言”。插件不知道对面平台的数据长什么样，所以不提供平台专用适配器。
 
 1. 先完成上面的说明书通读（`memory_manual` 19 节 + `ack`）。
-2. 把旧平台对话导出成 JSONL：一条 = 一次发言，`t/s/c/cid/v` 必填；不要总结、合并、改写。
-3. 预检（不写库）：
+2. **先选迁移模式**：让模型调用 `memory_onboarding`，在「全继承 / 只继承记忆 / 全新开始」里三选一。全继承会额外提炼一页 `common/voice-habits.md`（称呼用法、语气、习惯、隐性边界 + 5–8 段示例）；只继承记忆则明确“不模仿旧语气”；全新开始不导入。
+3. 把旧平台对话导出成 JSONL：一条 = 一次发言，`t/s/c/cid/v` 必填；不要总结、合并、改写。
+4. 预检（不写库）：
    ```sh
    node tools/import-jsonl.js --file old.jsonl
    ```
-4. 停 DSH，确认预检无误后写入：
+5. 停 DSH，确认预检无误后写入：
    ```sh
    node tools/import-jsonl.js --file old.jsonl --apply
    ```
    只追加、不重写；重复导入同一文件不会翻倍；报告在 `common/import-report-*.json`。
-5. 启动 DSH，等 5 秒补原文索引，再用 `memory_search` 验证。**旧历史不会自动建链**——导入的是 raw + 向量，链网从新对话积累；不要手工导入链。
+6. 启动 DSH，等 5 秒补原文索引，再用 `memory_search` 验证。**旧历史不会自动建链**——导入的是 raw + 向量，链网从新对话积累；不要手工导入链。
+7. 全继承模式：用 `node tools/voice-sample.js --file old.jsonl` 抽样，写完 `voice-habits.md` 后用 `memory_onboarding action=voice` 保存；第一次会话校准“像不像”。
 
 详见 [RULES.md 第十节](docs/RULES.md)。
 
@@ -118,10 +123,11 @@ src/               核心引擎（纯 JS，与平台无关）
   topics.js        创意池/话题栈：同一月想法 ≥5 成链，立项升格项目链
   service.js       向量服务生命周期（复用/拉起/重启/降级）
   usage.js         每日 token 累计（对话/提炼分开，common/stats.json）
+  onboarding.js    迁移问卷/相处方式档案（inherit/memory/fresh）
   adapter_pure.js  适配层纯函数（选真话/剥注入/常识层组装）
 docs/              规划书 v0.4、RULES 唯一说明书、测试报告
 test/              单元测试 + 全链路验收
-tools/             迁移导入器、patch 生成器、路径自检、只读诊断
+tools/             迁移导入器、相处方式抽样、patch 生成器、路径自检、只读诊断
 vector/            随包向量服务
   embed_server.py  Python 版（sentence-transformers）
   onnx/            零 Python 版（ONNX Runtime + tokenizer）
@@ -136,7 +142,7 @@ raw/       按天 JSONL 原文
 draft/     待提炼草稿
 index/     向量索引（XVEC v1：vectors.xvec + vectors.meta.json；旧 vectors.json 只作备份）
 links/     链网（一条链一个 JSON）
-common/    IDENTITY.md / identity.json / links.json / refine-state.json / topics.json / stats.json
+common/    IDENTITY.md / identity.json / onboarding.json / voice-habits.md / links.json / refine-state.json / topics.json / stats.json
 ```
 
 备份就是整目录复制；恢复后从原文重建索引。
@@ -160,7 +166,7 @@ common/    IDENTITY.md / identity.json / links.json / refine-state.json / topics
 node test/acceptance.js     # 全链路自动验收（生成 ACCEPTANCE-*.md）
 ```
 
-单元测试见 `docs/TEST-REPORT.md`：19 个文件、298 个用例。
+单元测试见 `docs/TEST-REPORT.md`：20 个文件、324 个用例。
 
 ## 反馈问题
 

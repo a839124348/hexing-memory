@@ -20,10 +20,12 @@
 - 真 3D 链网：Three.js r180 本地 vendor；九条独立椭圆轨道像太阳系一样分层、轨道间距拉开，分支按蓝/紫/青三色区分，**星球大小随链量增长**；行星持续公转；太阳系总览不显示卫星，子链用环状吸积盘/陨石带表示；**点击父星进入「地月系」**，子链变成一颗颗小陨石环绕，可返回太阳系；中央恒星带光晕与吸积盘；星空/星云、点选看链。
 - 总览页开机动画：「核星收束」开场，星尘向核星收拢；收尾闪出整行「陪伴你的第 X 天」，播放前按本机日期自检，跨过 0 点才从昨天的数字翻到今天（如 3 → 4），并显示“又多陪伴了 N 天”。结尾整屏黑洞式收缩成一个点，收缩时星尘继续加速流入中心，点消失后再露出总览页。可点击跳过，`?intro=1` 重播、`?intro=0` 关闭，尊重 reduced-motion。
 - 总览页页脚彩蛋「作者自述 · 我们为什么这样记住」：十一段故事书，按三步展开——为什么做记忆系统、是什么决定了我和你、为什么选择逆行（不遗忘）；正文引用 2026-04 ~ 2026-11 的当时原话，不出现用户与 AI 的名字；结尾致谢并放 B 站 MV 一键跳转。`?about=1` 直达。
-- P0 跨进程写锁：`.write/.refine/.refine-links/.vectors/.chain-vectors/.topics/.stats/.manual`。
+- P0 跨进程写锁：`.write/.refine/.refine-links/.vectors/.chain-vectors/.topics/.stats/.manual/.onboarding`。
 - 随包向量服务：Python 版 + 零 Python ONNX 版，自动拉起/健康复用/崩溃重启/降级关键词。
-- `memory_manual`：18 节说明书分节阅读、进度落盘；未读完 `ack` 失败，并拦住链网/话题写入。
-- 迁移导入器 `tools/import-jsonl.js`：dry-run/apply、15 项校验、整批拒绝、按 `cid+t+s+mid+c` 去重、导入报告。
+- `memory_manual`：19 节说明书分节阅读、进度落盘；未读完 `ack` 失败，并拦住链网/话题写入。
+- **迁移问卷 `memory_onboarding`**：导入前先让用户三选一——全继承 / 只继承记忆 / 全新开始；全继承可写 `common/voice-habits.md`（称呼用法、语气、习惯、隐性边界 + 5–8 段示例），只继承记忆会在常识层注入“不要模仿旧语气”，全新开始下导入器拒绝 `--apply`。不改权重、不训练。
+- **相处方式抽样 `tools/voice-sample.js`**：按月份/场景从旧 JSONL 抽一份样本，供模型提炼主观层；不写记忆库。
+- 迁移导入器 `tools/import-jsonl.js`：dry-run/apply、15 项校验、整批拒绝、按 `cid+t+s+mid+c` 去重、导入报告；读取 `onboarding.json` 打印迁移模式，`fresh` 模式拒绝写入。
 - 链网体检 `memory_chain action=audit`：孤儿链/空链/重复节点/待补链头。
 - 只读诊断 `tools/diagnose.js`：版本、环境、各层条数、链网/话题统计、提炼错误、服务健康；不含记忆原文。
 - 可移植安装：`dsh-plugin/cordis.example.yml` + `tools/make-patch.js` 按本机仓库位置生成 `cordis.local.yml`，不写死任何人的绝对路径；插件启动时自检 `src/`、`docs/RULES.md` 是否存在，缺失时明确停用/告警。
