@@ -75,6 +75,9 @@ git branch -M main
 
 ## 5. GitHub
 
+> Release 正文格式：开头先写 **「本版卖点」3–6 条**（用户能感知的价值），再写技术新增/修复/安装/测试/已知问题；
+> 技术明细同步 `CHANGELOG.md`。版本卖点总表维护在 `docs/版本卖点.md`。
+
 ```powershell
 git push -u origin main
 ```
