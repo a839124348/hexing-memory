@@ -72,18 +72,27 @@ if ($script:Failed) { exit 1 }
 $nodeVersion = $null
 try { $nodeVersion = (& node -v 2>$null) } catch { }
 if (-not $nodeVersion) {
-  Bad '找不到 node。先安装 Node.js >= 20。'
+  Bad '找不到 node。先安装 Node.js >= 24.9（DSH 0.2.2 自身要求）。'
 } else {
-  $major = 0
-  [void][int]::TryParse(($nodeVersion.TrimStart('v').Split('.')[0]), [ref]$major)
-  if ($major -lt 20) { Bad ('Node 版本过低：' + $nodeVersion + '；需要 >= 20') }
-  else { Good ('OK   Node ' + $nodeVersion) }
+  $nv = $null
+  try { $nv = [version](($nodeVersion -join '').TrimStart('v').Trim()) } catch { }
+  if (-not $nv -or $nv -lt [version]'24.9.0') {
+    Bad ('Node 版本过低：' + ($nodeVersion -join ' ') + '；DSH 0.2.2 需要 >= 24.9.0（Node 20/22 不支持）')
+  } else {
+    Good ('OK   Node ' + ($nodeVersion -join ' '))
+  }
 }
 
 $dshVersion = $null
 try { $dshVersion = (& dsh --version 2>$null) } catch { }
-if (-not $dshVersion) { Warn '找不到 dsh 命令；如果你用的是 DSH Desktop，可忽略，只要 profile 存在。' }
-else { Good ('OK   DSH ' + ($dshVersion -join ' ')) }
+$dshVerText = (($dshVersion -join ' ') -replace '\s+', ' ').Trim()
+if (-not $dshVerText) { Warn '找不到 dsh 命令；如果你用的是 DSH Desktop，可忽略，只要 profile 存在。' }
+else {
+  Good ('OK   DSH ' + $dshVerText)
+  if ($dshVerText -notmatch '0\.2\.2') {
+    Warn ('DSH ' + $dshVerText + ' 未逐一验证；本版按 0.2.2-rc.1 适配，跑完 5 项冒烟再长期用')
+  }
+}
 
 # ── 3. profile ─────────────────────────────────────
 if (-not $ProfilePath) {
