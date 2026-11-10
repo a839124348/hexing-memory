@@ -1,7 +1,34 @@
 # Changelog
 
 本项目遵循 [SemVer](https://semver.org/)；每个版本记录新增、变更、修复和**已知问题**。
-用户反馈时，请带上启动日志或诊断报告里的版本号（`v0.4.2`）。
+用户反馈时，请带上启动日志或诊断报告里的版本号（`v0.4.3`）。
+
+## [0.4.3] - 2026-11-10
+
+压缩认知 + 本地时间戳 + 老用户修复包；QQ 桥作为可选功能收录（不提供底座/账号/OneBot WS）。
+
+### Added
+
+- 常驻规范第 10 条改成：压缩只影响上下文，不影响原文；`<compacted-summary>` 是线索不是证据。
+- 第三方平台规则 16.3.1：QQ 桥只提供桥代码和说明书，不代下载/安装/登录/扫码/开端口。
+- `repair/` 老用户修复包：`check-chain-time.js` 只读诊断、`fix-chain-time.js` 按确认映射修（默认 dry-run、写前备份 links、幂等）。
+- 可选 QQ 桥：OneBot 11 收发、DSH session 接入、群友 24h 分板、出站闸门；群模式默认关闭。
+
+### Fixed
+
+- `chain.append` 不传 `t` 时改用本地时间，并写 `tSource`（local/explicit/llm/fallback），不再用 UTC 截断。
+- `topics.monthOf` 改用本地月份，月初不再掉到上个月。
+- `parseRefineResponse` 给 LLM/回退节点标 `tSource`；`topics` 写链时保留。
+
+### Tests
+
+- 新增 `test/unit-time.test.js` 5 项，`TZ=Asia/Shanghai` / `America/New_York` 均通过。
+- 回归：chain 29/29、topics 25/25、refine 26/26；QQ 桥 24 + DSH 插件 5。
+
+### Known
+
+- QQ 群模式代码在，但未做真实群测试，默认 `groupEnabled: false`。
+- 自动唤醒兼容、老用户日节点重建顺延到 v0.4.4。
 
 ## [0.4.2] - 2026-11-09
 

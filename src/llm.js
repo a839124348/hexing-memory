@@ -139,12 +139,14 @@ function parseRefineResponse(text, opt = {}) {
       if (!n || typeof n !== 'object') continue;
       const body = String(n.text || '').trim().slice(0, MAX_TEXT);
       if (!body) continue;
-      const t = TIME_RE.test(String(n.t || '')) ? String(n.t) : String(opt.fallbackT || '');
+      const rawT = String(n.t || '');
+      const t = TIME_RE.test(rawT) ? rawT : String(opt.fallbackT || '');
       if (!TIME_RE.test(t)) continue;
+      const tSource = TIME_RE.test(rawT) ? 'llm' : 'fallback';
       const who = ['你', '我', '我们'].includes(n.who) ? n.who : '';
       const type = n.type === 'state' ? 'state' : 'event';
       const supersedes = n.supersedes ? String(n.supersedes).trim().slice(0, 64) : '';
-      nodes.push({ t, who, type, text: body, supersedes });
+      nodes.push({ t, tSource, who, type, text: body, supersedes });
     }
 
     // 允许“只有 header 的父链”，用于先建父节点再挂子链
@@ -166,10 +168,12 @@ function parseRefineResponse(text, opt = {}) {
       if (!n || typeof n !== 'object') continue;
       const body = String(n.text || '').trim().slice(0, MAX_TEXT);
       if (!body) continue;
-      const t = TIME_RE.test(String(n.t || '')) ? String(n.t) : String(opt.fallbackT || '');
+      const rawT = String(n.t || '');
+      const t = TIME_RE.test(rawT) ? rawT : String(opt.fallbackT || '');
       if (!TIME_RE.test(t)) continue;
+      const tSource = TIME_RE.test(rawT) ? 'llm' : 'fallback';
       const who = ['你', '我', '我们'].includes(n.who) ? n.who : '';
-      items.push({ t, who, text: body });
+      items.push({ t, tSource, who, text: body });
     }
     if (items.length) topics.push({ type, title, summary, items });
   }

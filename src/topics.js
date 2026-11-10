@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { withWriteLock } = require('./lock');
+const { localMonth } = require('./time');
 
 const TIME_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 const THRESHOLD = 5;
@@ -21,8 +22,10 @@ function safeName(s) {
 }
 
 function monthOf(t) {
-  const s = String(t || '');
-  return TIME_RE.test(s) ? s.slice(0, 7) : new Date().toISOString().slice(0, 7);
+  const s = String(t || '').trim();
+  if (TIME_RE.test(s)) return s.slice(0, 7);
+  const d = t ? new Date(t) : new Date();
+  return Number.isNaN(d.getTime()) ? localMonth() : localMonth(d.getTime());
 }
 
 // 幂等键只认时间和原文：LLM 同一批想法可能一次给 who=""、一次给 who="你"，
@@ -92,7 +95,7 @@ class TopicStore {
       if (seen.has(k)) continue;
       seen.add(k);
       fresh.push({
-        t: it.t, who: it.who || '', type: 'event', text: it.text,
+        t: it.t, tSource: it.tSource || 'llm', who: it.who || '', type: 'event', text: it.text,
         source: 'topic:' + topic.id,
       });
     }
@@ -239,7 +242,7 @@ class TopicStore {
     const exists = ((chain && chain.nodes) || []).some((n) => n.t === it.t && n.text === it.text);
     if (!exists) {
       chainStore.append(name, [{
-        t: it.t, who: it.who || '', type: 'event', text: it.text,
+        t: it.t, tSource: it.tSource || 'llm', who: it.who || '', type: 'event', text: it.text,
         source: 'topic:' + topic.id,
       }]);
     }

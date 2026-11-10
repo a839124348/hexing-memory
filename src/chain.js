@@ -21,6 +21,7 @@
 const fs = require('fs');
 const path = require('path');
 const { withWriteLock } = require('./lock');
+const { localMinute } = require('./time');
 
 const MAX_HEADER = 500;          // 头部硬上限（建议 ≤200；常识层索引只取头部）
 const MAX_NODES_PER_APPEND = 50; // 单次追加上限，防一次灌爆
@@ -217,8 +218,11 @@ class ChainStore {
       for (const n of list) {
         const text = String((n && n.text) || '').trim();
         if (!text) continue;
+        const explicitT = String((n && n.t) || '').trim();
         const item = {
-          t: String(n.t || '').trim() || new Date().toISOString().slice(0, 16).replace('T', ' '),
+          t: explicitT || localMinute(),
+          // 修复旧数据时靠它区分：local=本机生成，explicit/llm/raw=调用方给的时间。
+          tSource: explicitT ? String(n.tSource || 'explicit') : 'local',
           who: ['我', '你', '我们'].includes(n.who) ? n.who : '',
           type: n.type === 'state' ? 'state' : 'event',
           text,

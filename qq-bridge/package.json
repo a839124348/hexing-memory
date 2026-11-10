@@ -1,0 +1,14 @@
+{
+  "name": "hexing-qq-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OneBot 11 thin bridge for 核星记忆：QQ 收发骨架，后续接 DSH",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/normalize.test.js test/router.test.js test/onebot.test.js test/group-board.test.js test/guard.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

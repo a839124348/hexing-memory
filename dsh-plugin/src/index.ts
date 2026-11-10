@@ -27,7 +27,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const APP_NAME = '核星记忆'
 const APP_NAME_EN = 'Hexing Memory'
 // 版本号单一来源：dsh-plugin/package.json；读不到再退回常量
-let APP_VERSION = '0.4.2'
+let APP_VERSION = '0.4.3'
 try {
   const pkg = require(path.join(__dirname, '..', 'package.json'))
   if (pkg && pkg.version) APP_VERSION = String(pkg.version)
@@ -1644,6 +1644,9 @@ export function apply(ctx: Context) {
     const decision = await next()
     try {
       if (!decision || decision.kind === 'reject' || signal?.aborted) return decision
+      // QQ 群 @ 的公开会话：不注入私聊常识层/链网索引，群插件自己带公开上下文
+      const agentSid = String((agent as any)?.session?.id || (agent as any)?.sessionId || '')
+      if (agentSid.includes('qq:group:')) return decision
       const list = Array.isArray(decision.messages) ? decision.messages : []
       // 同一步里已有常识层就不重复插（工具循环里会多次进 pre-step）；
       // 历史里已有也不插（常识层会作为 user/message 留在会话里，
@@ -1692,6 +1695,8 @@ export function apply(ctx: Context) {
       const rawSid = (options.session && (options.session.id || options.session.sessionId))
         || options.sessionId || 'unknown'
       sid = String(rawSid).startsWith('dsh:') ? String(rawSid) : 'dsh:' + rawSid
+      // QQ 群 @ 的公开会话：不写主 raw/草稿，也不旁听 AI 回复
+      if (sid.includes('qq:group:')) return next()
       streamKey = sid + ':' + Date.now().toString(36) + ':' + Math.random().toString(36).slice(2, 10)
       const snapshot = messages.slice()
       setImmediate(() => { try { autoCapture(snapshot, sid) } catch (e) { /* 绝不打断对话 */ } })
