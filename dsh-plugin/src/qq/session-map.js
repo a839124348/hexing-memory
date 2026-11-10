@@ -36,8 +36,8 @@ export class QQSessionMap {
   }
 
   /** 同一 chatKey 串行，避免 create/resume 并发 */
-  deliver({ chatKey, chat, text }) {
-    const run = () => this._deliver(chatKey, chat, text);
+  deliver({ chatKey, chat, text, title, sessionId, createIfMissing = true }) {
+    const run = () => this._deliver(chatKey, chat, text, title, sessionId, createIfMissing);
     const prev = this.inflight.get(chatKey) || Promise.resolve();
     const cur = prev.then(run, run);
     this.inflight.set(chatKey, cur);
@@ -46,10 +46,11 @@ export class QQSessionMap {
     });
   }
 
-  async _deliver(chatKey, chat, text) {
+  async _deliver(chatKey, chat, text, title, boundSessionId, createIfMissing = true) {
     let entry = this.entries.get(chatKey);
-    const sessionId = this.makeSessionId(chatKey);
-    let agent = entry?.agent || this.ctx.agents.get?.(sessionId);
+    const sessionId = boundSessionId || this.makeSessionId(chatKey);
+    let agent = (entry && entry.sessionId === sessionId ? entry.agent : null)
+      || this.ctx.agents.get?.(sessionId);
 
     if (!agent) {
       const preset = chat.kind === 'group' ? this.cfg.groupPreset : this.cfg.agentPreset;
@@ -57,12 +58,28 @@ export class QQSessionMap {
         ? { provider: this.cfg.provider, model: this.cfg.model }
         : undefined;
 
+      // 绑定的是用户已有会话：恢复时沿用它自己的 preset / 模型，
+      // 不能把 QQ 桥的 standard 配置盖到主会话上。
+      let resumePreset = preset;
+      let resumeOptions = agentOptions;
+      if (boundSessionId) {
+        resumeOptions = undefined;
+        try {
+          const persistence = typeof this.ctx.get === 'function' ? this.ctx.get('sessionPersistence') : null;
+          const snap = await persistence?.stat?.(sessionId);
+          const storedPreset = String(snap?.header?.agentPreset || '').trim();
+          if (storedPreset) resumePreset = storedPreset;
+        } catch (e) {
+          this.log.warn?.(`[qq] 读取绑定会话头失败：${e.message}`);
+        }
+      }
+
       try {
         const handle = await this.ctx.agents.resume({
           resumeSessionId: sessionId,
-          ...(agentOptions ? { agentOptions } : {}),
+          ...(resumeOptions ? { agentOptions: resumeOptions } : {}),
           setup: async (agentCtx) => {
-            await this.ctx.agentPresets.mount(agentCtx, preset);
+            await this.ctx.agentPresets.mount(agentCtx, resumePreset);
           },
         });
         agent = handle.agent;
@@ -74,6 +91,9 @@ export class QQSessionMap {
         if (live) {
           agent = live;
           this.log.info?.(`[qq] 复用已激活会话 ${chatKey}（resume: ${e.message}）`);
+        } else if (!createIfMissing) {
+          // 绑定的是用户已有会话：不能在这里新建一个空会话冒充。
+          throw new Error(`绑定会话 ${sessionId} 不存在或无法恢复：${e.message}`);
         } else {
           const cwd = path.join(this.cfg.cwd, safeSegment(chatKey));
           fs.mkdirSync(cwd, { recursive: true });
@@ -97,12 +117,33 @@ export class QQSessionMap {
           }
         }
       }
-
-      entry = { sessionId, chat, agent };
-      this.entries.set(chatKey, entry);
     }
 
-    if (this.cfg.provider && this.cfg.model && agent.model && typeof agent.model.select === 'function') {
+    // 关键：不管 agent 是 create、resume 还是 ctx.agents.get 复用的，
+    // 都必须把 chatKey → chat 写回 entries；否则 outbound 找不到聊天，
+    // 私聊回复会被静默丢弃（2026-11-11 实测）。
+    entry = { sessionId, chat, agent, title: entry?.title };
+    this.entries.set(chatKey, entry);
+
+    if (title && entry.title !== title) {
+      const svc = (typeof this.ctx.get === 'function' ? this.ctx.get('sessionTitle') : null) || this.ctx.sessionTitle;
+      if (svc && typeof svc.rename === 'function') {
+        try {
+          // rename 要求传入 session store 里的同一个对象；用 id 取一次，避免
+          // agent.session 是包装对象时被 "not live in this store" 拒绝。
+          const target = this.ctx.sessions?.get?.(agent.session?.id) || agent.session;
+          svc.rename(target, title);
+          entry.title = title;
+          this.log.info?.(`[qq] 会话标题：${title}`);
+        } catch (e) {
+          this.log.warn?.(`[qq] 会话标题失败：${e.message}`);
+        }
+      } else {
+        entry.title = title;
+      }
+    }
+
+    if (!boundSessionId && this.cfg.provider && this.cfg.model && agent.model && typeof agent.model.select === 'function') {
       try {
         agent.model.select({ provider: this.cfg.provider, model: this.cfg.model });
       } catch (e) {

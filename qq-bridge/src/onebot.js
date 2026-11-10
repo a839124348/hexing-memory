@@ -204,6 +204,10 @@ class OneBotClient extends EventEmitter {
     return this.call('get_login_info', {});
   }
 
+  getGroupInfo(groupId) {
+    return this.call('get_group_info', { group_id: Number(groupId) });
+  }
+
   close() {
     this.closed = true;
     this.reconnect = false;

@@ -1610,7 +1610,14 @@ export function apply(ctx: Context) {
     const picked = pure.pickLastUserMessage(messages)
     if (!picked) return
     const last: any = picked.message
-    const text: string = picked.text
+    let text: string = picked.text
+
+    // 绑定主会话时，QQ 消息带 [QQ私聊] 前缀方便区分渠道；
+    // 记忆里存原话，不把渠道标签写进草稿/raw。
+    if (last.source && last.source.kind === 'hexing-qq' && text.startsWith('[QQ私聊]')) {
+      text = text.slice('[QQ私聊]'.length).trimStart()
+      if (!text) return
+    }
 
     // DSH 原生 schedule 投递的是合成提醒，不是用户原话；不能写进 raw/草稿。
     if (pure.isScheduleMessage(text)) {

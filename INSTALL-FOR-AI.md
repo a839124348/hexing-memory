@@ -168,7 +168,7 @@ memory_onboarding action=status
 如果工具不存在：
 
 1. 看 `cordis.patch.yml` 里有没有 `id: memory-system`
-2. 看启动日志有没有 `[memory-system] 核星记忆 v0.4.3 已加载`
+2. 看启动日志有没有 `[memory-system] 核星记忆 v0.4.4 已加载`
 3. 跑 `node tools/check-paths.js`，按红项修
 4. 仍不行：把 profile 备份恢复，保留数据，把日志给用户/开发者
 

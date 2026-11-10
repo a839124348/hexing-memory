@@ -6,9 +6,9 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "test": "node --test test/normalize.test.js test/router.test.js test/onebot.test.js test/group-board.test.js test/guard.test.js"
+    "test": "node --test test/normalize.test.js test/router.test.js test/onebot.test.js test/group-board.test.js test/guard.test.js test/public-projects.test.js test/session-catalog.test.js"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24.9"
   }
 }

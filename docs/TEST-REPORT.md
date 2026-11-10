@@ -1,29 +1,27 @@
 # 开源记忆系统 · 测试报告
 
-> 测试日期：2026-11-11（v0.4.4 文档补丁；代码沿用 v0.4.3）
-> 被测版本：MVP v0.4.4（v0.4.3 全量修复 + 说明书补丁）
-> 运行环境：Node.js v24 / Windows / 本地 bge-small-zh-v1.5（512 维）
+> 测试日期：2026-11-11（v0.4.4 QQ 群聊 / owner 会话绑定）
+> 被测版本：MVP v0.4.4
+> 运行环境：Node.js v24.14 / Windows / 本地 bge-small-zh-v1.5（512 维）
 > 数据目录：单元/验收全部使用临时目录；真机数据在 `%APPDATA%\dsh-memory`
 
-## v0.4.4 说明
-
-v0.4.4 只改 `RULES.md`/版本号，没有代码变化；下面结果沿用 v0.4.3 实测。
+## v0.4.4 结果
 
 | 测试集 | 用例数 | 通过 |
 |:--|--:|--:|
-| `unit-time` 本地时间/tSource/月份 | 5 | 5 |
-| `unit-chain` 回归 | 29 | 29 |
-| `unit-topics` 回归 | 25 | 25 |
-| `unit-llm-refine` 回归 | 26 | 26 |
-| `unit-adapter-pure` + schedule 识别 | 30 | 30 |
 | `acceptance` 全链路 | 13 | 13 |
-| QQ 桥 | 24 | 24 |
-| DSH QQ 插件 | 5 | 5 |
+| 核心单元（20 个文件） | 327 | 327 |
+| QQ 桥（normalize/router/onebot/group-board/guard/public-projects/session-catalog） | 31 | 31 |
+| DSH QQ 插件（标题/绑定/回合过滤/限流排队） | 15 | 15 |
 
-- 干净 clone、空格/中文路径 `install.ps1 -Phase core -DryRun` 通过。
-- 未跑：真实 1 分钟 schedule、真实 QQ 群、Node 20/22 与其他 DSH 版本、完整路径矩阵。
+- QQ 桥新增 `session-catalog` 3 项：多段 zstd 会话头/标题、未命名会话、坏文件跳过。
+- DSH QQ 插件 15 项：owner 复用、群一会话、复用 agent 写回映射、会话标题只写一次、绑定指定 ID 不新建、绑定缺失抛错、QQ 轮次回发、UI 轮次不外发、非映射会话忽略、guard 拦截、限流排队、`qq_bind_session` 当前会话绑定/按标题绑定/找不到候选/群会话拒绝。
+- 真实环境：owner 私聊收发已实测；`qq:owner` 标题「大号私聊会话」已写入会话日志。群聊早期版本实测过收发、隐私挡回和群工具拒绝；v0.4.4 的“一群一会话 + 群名标题 + 绑定模式 + `[QQ私聊]`”按 `docs/QQ群测试验收.md` 的 G1–G18 / B1–B4 做最终真实验收。
+- 未跑：真实 1 分钟 schedule、其他 DSH 版本、Node 20/22（不支持）、完整路径矩阵。
 
 ---
+
+## 历史基线（v0.4.3，核心记忆部分仍适用）
 
 ## 一、结果汇总
 
@@ -165,4 +163,12 @@ node test/unit-onboarding.js
 
 # 全链路自动验收（会生成 ACCEPTANCE-*.md）
 node test/acceptance.js
+
+# QQ 桥
+cd qq-bridge
+npm test
+
+# DSH QQ 插件
+cd ..
+node --test dsh-plugin/test/qq.test.js
 ```
