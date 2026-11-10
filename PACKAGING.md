@@ -76,7 +76,7 @@ git branch -M main
 ## 5. GitHub
 
 > Release 正文格式：开头先写 **「本版卖点」3–6 条**（用户能感知的价值），再写技术新增/修复/安装/测试/已知问题；
-> 技术明细同步 `CHANGELOG.md`。星核卖点总表维护在 `docs/星核卖点.md`（按版本往下追加，不覆盖旧版本）。
+> 技术明细同步 `CHANGELOG.md`。星核卖点总表维护在 `docs/星核卖点.md`（最新版本在最上面，旧版本往下排，不覆盖旧版本）。
 
 ```powershell
 git push -u origin main
