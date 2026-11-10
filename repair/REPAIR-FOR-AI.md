@@ -22,9 +22,17 @@ node repair/tools/check-chain-time.js
 
 先看这些时间是否整体比本地慢/快一个时区。**不要直接批量加 8 小时**：refine 节点本来就来自本地 raw；只有 `memory_chain append` 没传 `t` 的节点才走 UTC。
 
-## 再造映射（人工/会话取证）
+## 再造映射（会话取证 / 人工）
 
-只有确认了“这条节点应该是什么本地时间”，才写 map：
+先跑会话取证：
+
+```sh
+node repair/tools/suggest-chain-time.js --out map.json
+```
+
+它只读扫描 `~/.dsh/sessions`，找 `memory_chain append` 工具调用里**没有传 `t`** 的节点，用工具调用事件的 `time` 转成本地时间，生成 `map.json`。匹配不到就输出 0 条，不会猜。
+
+如果会话取证匹配不到，再人工确认后写 map：
 
 ```json
 [

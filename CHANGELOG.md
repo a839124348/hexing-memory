@@ -11,7 +11,9 @@
 
 - 常驻规范第 10 条改成：压缩只影响上下文，不影响原文；`<compacted-summary>` 是线索不是证据。
 - 第三方平台规则 16.3.1：QQ 桥只提供桥代码和说明书，不代下载/安装/登录/扫码/开端口。
-- `repair/` 老用户修复包：`check-chain-time.js` 只读诊断、`fix-chain-time.js` 按确认映射修（默认 dry-run、写前备份 links、幂等）。
+- `repair/` 老用户修复包：`check-chain-time.js` 只读诊断、`suggest-chain-time.js` 从 DSH 会话取证、`fix-chain-time.js` 按确认映射修（默认 dry-run、写前备份 links、幂等）。
+- `tools/rebuild-daily.js`：老用户扁平日常链按 `t` 分到 `日常-年` / `年-月`，structure-only，不改正文；默认 dry-run。
+- DSH 原生 schedule 兼容：`[SCHEDULE REMINDER]` 不再写 raw/草稿，pre-step 改成 `[WAKE]`，并记 `common/wake-log.jsonl`。
 - 可选 QQ 桥：OneBot 11 收发、DSH session 接入、群友 24h 分板、出站闸门；群模式默认关闭。
 
 ### Fixed
@@ -23,12 +25,13 @@
 ### Tests
 
 - 新增 `test/unit-time.test.js` 5 项，`TZ=Asia/Shanghai` / `America/New_York` 均通过。
-- 回归：chain 29/29、topics 25/25、refine 26/26；QQ 桥 24 + DSH 插件 5。
+- 回归：chain 29/29、topics 25/25、refine 26/26、adapter-pure 30/30、acceptance 13/13；QQ 桥 24 + DSH 插件 5。
+- repair-kit / rebuild-daily 用临时 links 验证 dry-run、apply、备份、幂等。
 
 ### Known
 
 - QQ 群模式代码在，但未做真实群测试，默认 `groupEnabled: false`。
-- 自动唤醒兼容、老用户日节点重建顺延到 v0.4.4。
+- 日常结构修复只做 structure-only；从 raw 重提炼（一天一个日节点）仍后置。
 
 ## [0.4.2] - 2026-11-09
 

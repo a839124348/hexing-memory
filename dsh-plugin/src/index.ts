@@ -60,6 +60,7 @@ const pure = require(path.join(CORE_DIR, 'adapter_pure.js'))
 // 链头状态 + 大链取节点纯函数
 const chainView = require(path.join(CORE_DIR, 'chain_view.js'))
 const { localDay: localDayKey } = require(path.join(CORE_DIR, 'usage.js'))
+const { localMinute } = require(path.join(CORE_DIR, 'time.js'))
 
 interface MemoryApp {
   store: any
@@ -1317,6 +1318,15 @@ export function apply(ctx: Context) {
   // 只按内容去重会把第二个会话的发言整条吞掉（2026-11-07 实测：
   // 两个测试会话只剩 AI 回复，用户消息被前一个会话的同文发言顶掉）。
   const seenMsgs = new Set<string>()
+  // schedule 唤醒只记“醒来过”，不把提醒原文写进记忆
+  const wakeLogged = new Set<string>()
+  function logWake(id: string) {
+    try {
+      const file = path.join(DATA_ROOT, 'common', 'wake-log.jsonl')
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      fs.appendFileSync(file, JSON.stringify({ t: localMinute(), id, kind: 'schedule' }) + '\n')
+    } catch (e) { /* 日志失败不影响对话 */ }
+  }
   // 最近一次对话请求用的模型（LLM 提炼优先复用宿主模型）
   let lastModel: { provider: string; model: string } | null = null
   // 防重入：定时器 + 对话驱动可能同时触发提炼
@@ -1602,6 +1612,12 @@ export function apply(ctx: Context) {
     const last: any = picked.message
     const text: string = picked.text
 
+    // DSH 原生 schedule 投递的是合成提醒，不是用户原话；不能写进 raw/草稿。
+    if (pure.isScheduleMessage(text)) {
+      console.log('[memory-system] 跳过 schedule 提醒（不写入草稿/raw）')
+      return
+    }
+
     // 去重键用「这次发送」的唯一标识，不能用内容：
     // 同一个人在同一会话里说两次「在吗 / 继续」是两条真实发言，
     // 按内容去重会把第二次吞掉。DSH 持久化后的 user 消息没有 id，
@@ -1648,11 +1664,25 @@ export function apply(ctx: Context) {
       const agentSid = String((agent as any)?.session?.id || (agent as any)?.sessionId || '')
       if (agentSid.includes('qq:group:')) return decision
       const list = Array.isArray(decision.messages) ? decision.messages : []
+      // DSH 原生 schedule 的合成提醒：模型只该看到 [WAKE]，不该当成用户发言。
+      const wakeList = list.map((m: any) => {
+        const raw = textOf(m)
+        if (!pure.isScheduleMessage(raw)) return m
+        const key = String(m.id || raw.slice(0, 80))
+        if (!wakeLogged.has(key)) {
+          wakeLogged.add(key)
+          logWake(key)
+        }
+        const text = raw.replace(/^\s*\[SCHEDULE REMINDER(?: BATCH)?\]\s*/i, '[WAKE] ')
+        return { ...m, content: [{ type: 'text', text }] }
+      })
       // 同一步里已有常识层就不重复插（工具循环里会多次进 pre-step）；
       // 历史里已有也不插（常识层会作为 user/message 留在会话里，
       // 压缩把它裁掉后这里会重新补上）
-      if (list.some((m: any) => textOf(m).includes(COMMON_MARK))) return decision
-      if (historyHasCommon(agent)) return decision
+      if (wakeList.some((m: any) => textOf(m).includes(COMMON_MARK))) {
+        return { ...decision, messages: wakeList }
+      }
+      if (historyHasCommon(agent)) return { ...decision, messages: wakeList }
 
       const commonMsg = {
         role: 'user',
@@ -1666,7 +1696,7 @@ export function apply(ctx: Context) {
         injectLogged = true
         console.log('[memory-system] 常识层：已通过 agent/pre-step 注入')
       }
-      return { ...decision, messages: [commonMsg, ...list] }
+      return { ...decision, messages: [commonMsg, ...wakeList] }
     } catch (e) {
       console.error('[memory-system] 常识层注入失败：', e)
       return decision

@@ -2,7 +2,7 @@
  * unit-adapter-pure.js — 插件适配层纯函数
  */
 const {
-  extractText, stripNoise, pickLastUserMessage,
+  extractText, stripNoise, pickLastUserMessage, isScheduleMessage,
   readResidentSpecFrom, readManualIndexFrom, composeCommonText, dedupeKey,
 } = require('../src/adapter_pure');
 
@@ -130,6 +130,11 @@ check('超长仍保留身份与摘要', longCommon.includes('身份身份') && l
 // 7. 去重键
 check('去重键含 kind/cid/identity', dedupeKey('user', 'c1', 'm1') === 'user\u0000c1\u0000m1');
 check('不同 cid 键不同', dedupeKey('user', 'c1', 'm1') !== dedupeKey('user', 'c2', 'm1'));
+
+// 8. DSH 原生 schedule 提醒不是用户原话
+check('识别 [SCHEDULE REMINDER]', isScheduleMessage('[SCHEDULE REMINDER] 起来喝水'));
+check('识别 [SCHEDULE REMINDER BATCH]', isScheduleMessage('[SCHEDULE REMINDER BATCH] 两条'));
+check('普通用户话不误判', !isScheduleMessage('提醒我喝水'));
 
 console.log('\n结果：' + pass + '/' + (pass + fails.length) + ' 通过');
 if (fails.length) { console.log('失败：\n' + fails.join('\n')); process.exit(1); }

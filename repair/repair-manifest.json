@@ -5,12 +5,17 @@
     {
       "id": "chain-time-utc",
       "title": "链节点 t 使用 UTC，比本地慢/快一个时区",
-      "affects": ["0.4.0", "0.4.1", "0.4.2"],
+      "affects": [
+        "0.4.0",
+        "0.4.1",
+        "0.4.2"
+      ],
       "detect": "links/*.json 节点缺少 tSource；旧节点可能来自 memory_chain append（UTC）或 refine/raw（本地）",
-      "fix": "v0.4.3 起新写入用本地时间并写 tSource；旧节点先用 check-chain-time.js 诊断，确认映射后用 fix-chain-time.js --map --apply",
+      "fix": "v0.4.3 起新写入用本地时间并写 tSource；旧节点先 check，再 suggest-chain-time.js 会话取证生成 map，最后 fix-chain-time.js --map --apply",
       "risk": "不做全面转写；无法确认的节点保持原样；写前备份 links",
       "tools": [
         "tools/check-chain-time.js",
+        "tools/suggest-chain-time.js",
         "tools/fix-chain-time.js"
       ]
     }

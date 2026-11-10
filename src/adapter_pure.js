@@ -12,6 +12,7 @@
 const COMMON_MARK = '<!-- memory-system:common -->';
 const COMMON_MAX = 4000;
 const INJECTED_RE = /^(time-context|runtime-context|memory-common)$/i;
+const SCHEDULE_RE = /^\s*\[SCHEDULE REMINDER(?: BATCH)?\]/i;
 
 function isInjectedMessage(msg) {
   const kind = msg && msg.source && msg.source.kind;
@@ -142,6 +143,11 @@ function composeCommonText({ profile, resident, manualIndex, chains, topics, onb
   return head + body;
 }
 
+/** DSH 原生 schedule 投递的是合成 user 消息，不是用户原话。 */
+function isScheduleMessage(text) {
+  return SCHEDULE_RE.test(String(text || ''));
+}
+
 /** 去重键：kind + cid + 平台消息 ID/文本；插件再哈希成短键 */
 function dedupeKey(kind, cid, identity) {
   return [String(kind || ''), String(cid || ''), String(identity || '')].join('\u0000');
@@ -154,6 +160,7 @@ module.exports = {
   extractText,
   stripNoise,
   pickLastUserMessage,
+  isScheduleMessage,
   readResidentSpecFrom,
   readManualIndexFrom,
   fitLines,
