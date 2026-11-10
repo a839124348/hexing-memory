@@ -47,7 +47,7 @@ dsh --version
 2. 下载固定 tag 的源码包（**不要装 main**）：
 
 ```powershell
-$Tag = 'v0.4.3'
+$Tag = 'v0.4.4'
 $InstallDir = Join-Path $env:USERPROFILE 'hexing-memory'
 $Zip = Join-Path $env:TEMP "hexing-memory-$Tag.zip"
 Invoke-WebRequest "https://github.com/a839124348/hexing-memory/archive/refs/tags/$Tag.zip" -OutFile $Zip
@@ -74,7 +74,7 @@ bge-small-zh-v1.5.onnx.data 02A5F74BE93B625908C7AE11B04042C21F06864E9A439605D304
 
 不一致就停下，别继续装。
 
-> 如果 GitHub 打不开：让用户下载 Release 的 `hexing-memory-v0.4.3-full.zip`（已含模型），解压后把文件夹路径给你；从第 2 步的 `install.ps1` 开始。
+> 如果 GitHub 打不开：让用户下载 Release 的 `hexing-memory-v0.4.4-full.zip`（已含模型），解压后把文件夹路径给你；从第 2 步的 `install.ps1` 开始。
 
 ### B. 用户给了 full zip
 

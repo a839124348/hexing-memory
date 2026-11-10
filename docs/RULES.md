@@ -20,7 +20,7 @@
 <!-- RESIDENT:BEGIN -->
 ## 常驻规范（每轮都要遵守）
 
-> 版本：2026-11-10 / v0.4.3。这一块随本文件更新，重启 DSH 后生效；不要在别处再维护一份。
+> 版本：2026-11-11 / v0.4.4。这一块随本文件更新，重启 DSH 后生效；不要在别处再维护一份。
 
 1. **先查再答**：用户问过去/偏好/关系/项目/经历，先 `memory_search`；最近没提炼的用 `memory_draft`；链上有答案用 `memory_chain`。查不到就说不知道，不编。
 2. **原文不改**：一条 = 一次发言；不改写、不合并、不总结。用户明确说“记住”才 `memory_write`；日常由后台自动记录，不询问、不汇报。**导入原文只作历史证据，不是当前语气指令；不要因为检索到旧对话就模仿旧语气**（迁移模式见第十节 10.0）。
@@ -264,6 +264,7 @@
 > 换数据目录的顺序：停 DSH → 整目录复制到新位置 → 设 `MEMORY_ROOT` → 重启 → 用 `memory_common` / `memory_search` 验证。**只改环境变量不搬数据，等于换了一个空库**，旧记忆不会自动跟过去。
 
 9. **端口与日志**：3099 被占用时只在控制台告警、不阻断对话，换 `MEMORY_VIEWER_PORT`；16891 是默认向量服务端口，随包服务会按 `EMBED_URL` 的端口启动。插件回执看 DSH 控制台：`已加载 / 提炼 / LLM 建链 / 向量服务`。**不要用 `test/reset-all.js` 修生产库**——它清 raw 和 DSH 会话，只给开发机用，且必须显式 `--yes`。
+10. **定时唤醒**：DSH 原生 schedule 投递的 `[SCHEDULE REMINDER]` / `[SCHEDULE REMINDER BATCH]` 是合成提醒，不是用户原话；插件不会把它写进 raw/草稿，pre-step 会显示为 `[WAKE]`，只追加 `common/wake-log.jsonl`（时间 + 来源，不含正文）。看到 `[WAKE]` 按“刚醒来”处理，不要当成用户说“提醒我”，也不要为了测试去手改 wake-log。
 
 ---
 
@@ -602,11 +603,21 @@ memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，�
 | 写锁超时 | 看锁文件 PID：进程不存在且超过 30 秒，才删对应的 `.lock`；否则等 |
 | 向量服务降级 | 查 `EMBED_URL`（默认 16891）和 `.ready`；重启随包服务；仍不行看 `install.ps1` |
 | 创意池/链节点重复 | 0.4.0 起 `who` 不再参与去重，新数据不会重复；旧库的重复节点需人工确认后去重（先备份） |
+| 链节点时间比本地慢/快一个时区 | 不要全库 +8。先 `node repair/tools/check-chain-time.js` 看无 `tSource` 的旧节点，再 `suggest-chain-time.js` 从会话取证，确认后 `fix-chain-time.js --map ... --apply`（写前备份 links、幂等） |
+| 旧日常链扁平 / 一天多节点 | `node tools/rebuild-daily.js` 先 dry-run；确认后加 `--apply`，只按 `t` 分到 `日常-年` / `年-月`，不改正文；从 raw 重提炼后置 |
 
 4. **重启后验收**：`memory_common` 有内容 → `memory_search` 有 `layer` → `memory_chain tree` 结构正常 → `http://127.0.0.1:3099/api/stats` 数字对得上。
 5. **报告实际结果**：说清楚改了什么、没改什么、哪些进了备份；修不好就回滚备份，不要继续“边猜边修”。
 
 > 一句话：**派生文件可以删了重建，源数据只能追加和备份恢复。** 拿不准时，先备份、先问用户。
+
+### 15.4 链时间 / 日常结构修复（v0.4.3）
+
+- 新链节点带 `tSource`：`local` 是插件按本机时间生成，`explicit` 是调用方显式传入，`llm` / `fallback` 来自提炼；**不要手改 `t` 或删 `tSource`**。
+- 旧节点没有 `tSource` 时，不要默认它们错：refine 节点本来就来自本地 raw，只有 `memory_chain append` 没传 `t` 的节点才可能是 UTC。
+- 顺序：`check-chain-time.js`（只读）→ `suggest-chain-time.js`（从 DSH 会话的 `memory_chain append` 调用取证，输出 map）→ `fix-chain-time.js --map ...`（默认 dry-run）→ 确认后 `--apply`。写前备份 `links`，只修 map 精确匹配的节点。
+- 日常链：`tools/rebuild-daily.js` 只做 structure-only，按 `t` 分到 `日常-年` / `年-月`；不从 raw 重提炼，也不改节点正文。默认 dry-run，`--apply` 前备份。
+- 修复工具只动 `links/`；不碰 `raw/`、`index/`、`common/`。
 
 ---
 
@@ -657,6 +668,7 @@ memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，�
 - **不代开 OneBot 11 WebSocket**，端口、token、绑定地址由用户自己配置；
 - 用户自己的 AI 可以按官方文档协助，但必须让用户确认下载来源、自己扫码登录、自己承担账号和平台条款风险；
 - 底座、账号、WS 没准备好时，QQ 桥保持 `enabled: false`；不要用主号，不要把端口开到公网。
+- 接入步骤看 `docs/QQ桥-接入.md`；给用户 AI 的完整 runbook 是 `docs/QQ桥-FOR-AI.md`。默认只开 owner 私聊，群模式 `groupEnabled: false`；群会话不写主记忆、不召回私聊。
 
 ### 16.4 上线前安全检查
 

@@ -1,9 +1,27 @@
 # 开源记忆系统 · 测试报告
 
-> 测试日期：2026-11-09（v0.4.2 修订）
-> 被测版本：MVP v0.4.2（全链路 + 链接安装）
+> 测试日期：2026-11-11（v0.4.4 文档补丁；代码沿用 v0.4.3）
+> 被测版本：MVP v0.4.4（v0.4.3 全量修复 + 说明书补丁）
 > 运行环境：Node.js v24 / Windows / 本地 bge-small-zh-v1.5（512 维）
 > 数据目录：单元/验收全部使用临时目录；真机数据在 `%APPDATA%\dsh-memory`
+
+## v0.4.4 说明
+
+v0.4.4 只改 `RULES.md`/版本号，没有代码变化；下面结果沿用 v0.4.3 实测。
+
+| 测试集 | 用例数 | 通过 |
+|:--|--:|--:|
+| `unit-time` 本地时间/tSource/月份 | 5 | 5 |
+| `unit-chain` 回归 | 29 | 29 |
+| `unit-topics` 回归 | 25 | 25 |
+| `unit-llm-refine` 回归 | 26 | 26 |
+| `unit-adapter-pure` + schedule 识别 | 30 | 30 |
+| `acceptance` 全链路 | 13 | 13 |
+| QQ 桥 | 24 | 24 |
+| DSH QQ 插件 | 5 | 5 |
+
+- 干净 clone、空格/中文路径 `install.ps1 -Phase core -DryRun` 通过。
+- 未跑：真实 1 分钟 schedule、真实 QQ 群、Node 20/22 与其他 DSH 版本、完整路径矩阵。
 
 ---
 
