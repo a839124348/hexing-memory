@@ -31,6 +31,7 @@ const prompt = buildRefinePrompt(records, chain.list());
 check('提示词含对话原文', prompt.user.includes('我喜欢西瓜'));
 check('提示词含链索引', prompt.user.includes('身份链'));
 check('提示词带输出契约', prompt.system.includes('"chains"'));
+check('梗/表情默认不自动建节点', prompt.system.includes('梗、表情用法、口头禅、一次性玩笑默认不建节点'));
 
 // 2. 解析：合法 JSON（带围栏）
 const valid = '```json\n' + JSON.stringify({
