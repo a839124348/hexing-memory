@@ -45,6 +45,17 @@ const ROUTE_ORDER = [
   '知识/踩坑/存储/灵感/日常 → 对应默认根；无法归类 → 日常；绝不新建顶层根。',
 ].join('\n');
 
+// 迁移回填专用约束：旧历史量大、噪声多，宁可少建，不要逐条抄。
+const BACKFILL_RULES = [
+  '## 旧历史回填模式',
+  '- 这是迁移旧对话，不是当前对话。只提取长期有价值的内容：身份、关系、项目、学习、约定、重要事件。',
+  '- 不要为寒暄、测试串、日常流水、重复发言、一次玩笑建节点；宁少勿多。',
+  '- 每批最多 8 条链、20 个节点；不要新建顶层根。',
+  '- 节点时间用原文时间；不要写“现在/最近/目前”，除非原文明确。',
+  '- 不推断原文没说过的事实；不确定就不建。',
+  '- 同类旧事合并成一条摘要，不逐条抄原文。',
+].join('\n');
+
 class LlmError extends Error {
   constructor(stage, message) {
     super(message);
@@ -78,10 +89,13 @@ const SYSTEM_PROMPT = [
 ].join('\n');
 
 /** 构造提示词；records 只带 t/s/c，chains/topics 只带索引，不喂全库 */
-function buildRefinePrompt(records, chains, topics) {
+function buildRefinePrompt(records, chains, topics, opts = {}) {
   const compactRecords = (records || []).slice(0, 100).map((r) => ({
     t: r.t, s: r.s, c: String(r.c || '').slice(0, 1000),
   }));
+  const system = opts.mode === 'backfill'
+    ? SYSTEM_PROMPT + '\n\n' + BACKFILL_RULES
+    : SYSTEM_PROMPT;
   const chainIndex = (chains || []).map((c) => ({
     name: c.name, parent: c.parent, header: c.header || '', nodes: c.nodes || 0,
   }));
@@ -98,7 +112,7 @@ function buildRefinePrompt(records, chains, topics) {
     '对话原文（JSONL，一行一条）：',
     compactRecords.map((r) => JSON.stringify(r)).join('\n'),
   ].join('\n');
-  return { system: SYSTEM_PROMPT, user };
+  return { system, user };
 }
 
 /** 从模型输出里抠 JSON：容忍 ```json 围栏和前后废话 */
@@ -201,7 +215,7 @@ function depthOf(chainStore, name) {
   return d;
 }
 
-function applyChainUpdates(chainStore, parsed) {
+function applyChainUpdates(chainStore, parsed, defaults = {}) {
   let chainCount = 0;
   let nodeCount = 0;
 
@@ -234,7 +248,7 @@ function applyChainUpdates(chainStore, parsed) {
       const key = [n.t, n.type, n.text].join('\u0000');
       if (seen.has(key)) continue;
       seen.add(key);
-      fresh.push(n);
+      fresh.push({ ...n, source: defaults.source || n.source || '' });
     }
     if (fresh.length) {
       const r = chainStore.append(u.name, fresh);
@@ -250,11 +264,11 @@ function applyChainUpdates(chainStore, parsed) {
  * 调用方负责“失败不推进游标 / 保留草稿”。
  * @param {object} p { records, chainStore, topicStore, call, fallbackT }
  */
-async function refineWithLLM({ records, chainStore, topicStore, call, fallbackT }) {
+async function refineWithLLM({ records, chainStore, topicStore, call, fallbackT, dryRun = false, nodeDefaults = {}, mode = 'live' }) {
   if (!records || !records.length) return { chains: 0, nodes: 0, topics: [], topicItems: 0 };
   const chainIndex = chainStore ? chainStore.list() : [];
   const topicIndex = topicStore ? topicStore.list() : [];
-  const prompt = buildRefinePrompt(records, chainIndex, topicIndex);
+  const prompt = buildRefinePrompt(records, chainIndex, topicIndex, { mode });
   let text;
   try {
     text = await call(prompt);
@@ -262,9 +276,9 @@ async function refineWithLLM({ records, chainStore, topicStore, call, fallbackT 
     throw new LlmError('CALL', e && e.message ? e.message : String(e));
   }
   const parsed = parseRefineResponse(text, { fallbackT });
-  const applied = applyChainUpdates(chainStore, parsed);
+  const applied = dryRun ? { chains: 0, nodes: 0 } : applyChainUpdates(chainStore, parsed, nodeDefaults);
   let topicApplied = { added: 0, promoted: [] };
-  if (topicStore && parsed.topics.length) {
+  if (!dryRun && topicStore && parsed.topics.length) {
     topicApplied = topicStore.applyTopics(parsed.topics, chainStore);
   }
   return {

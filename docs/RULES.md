@@ -429,7 +429,7 @@ memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，�
 5. **向量化**：不用手工。启动 DSH 后 5 秒，插件会从 raw 补原文索引、从 links 补链索引；日志看到“启动补索引/补链索引”即可。**不要在导入后立刻问“有没有向量”，先等这一轮补完。**
 6. **身份补全（仅迁移）**：只把“用户称呼 / AI 名字 / 关系”补进身份文件（`memory_identity`，只填空字段）。**语气、习惯、隐性边界不要塞进 identity**，走 10.0 的 `common/voice-habits.md`；约定/故事/事实留在 raw、约定链、链网，不要抄进相处方式。补完身份即冻结；日常提炼不再自动改身份，之后只有用户明确要求才改。
 
-> `offline-import-result.json` 里的 `chainBackfill.status` 应为 `skipped`：这不是漏做，也不是失败。它表示旧历史只进 raw + 向量，链网从迁移后的**新对话**生长；旧原文仍可 `memory_search` 检索。一键回填计划在 v0.5。
+> `offline-import-result.json` 里的 `chainBackfill.status` 应为 `pending`，且 `consentRequired=true`：旧历史可以补链网，但不会自动开始。先 `memory_backfill action=status` 看批数/token，把估算告诉用户；用户同意后再 `preview` → `start`。旧原文在补链前也一直可被 `memory_search` 检索。
 
 迁移禁止：总结、改写、去口语、合并重复、加标题。错别字、语气词、重复发言都是原文的一部分。
 
@@ -437,21 +437,22 @@ memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，�
 
 导入验收五条：条数对得上 / 时间戳齐全 / 抽 20 条逐字一致 / 向量全覆盖 / 问 5 个旧问题能召回。
 
-> **旧历史不会自动建链。** 导入的是 raw 原文 + 向量，`memory_search` 能召回；链网只从**新对话**的提炼里长出来。这是故意的：把几万条旧对话一次性塞给 LLM 会烧穿预算、也容易建出垃圾链。导入器会在 `offline-import-result.json` 里明确写 `chainBackfill.status=skipped`，不要把它当成失败或漏做；想要旧历史也建链，目前只能分批重新走“草稿 → 提炼”，一键回填留到 v0.5。
+> **旧历史默认不自动建链，但可以补。** 导入的是 raw 原文 + 向量，`memory_search` 能召回；导入器会在 `offline-import-result.json` 里写 `chainBackfill.status=pending`、`consentRequired=true` 和批数/token 估算。导入后先 `memory_backfill action=status` 看估算，把批数和 token 告诉用户，**用户明确同意后**再 `preview` → `start`；可 `pause` / `resume`。不要自动 start，也不要用 `memory_chain append` 导历史。
 
-### 10.2 大体量历史：让你自己过一遍（v0.5 设计，尚未实现）
+### 10.2 大体量历史：分批补链网（`memory_backfill`）
 
-原则：**不是把旧数据塞进上下文让你“读一遍”，而是让你分批提炼、自己写链**。这样链网是你自己整理的笔记，换模型后也能靠链网接手。
+原则：**不是把旧数据塞进上下文，而是分批提炼、写成可检索的链**。这样链网是整理过的笔记，换模型后也能靠链网接手。
 
-- **分批**：按“日期 + 条数”切，先旧后新；一批 50–100 条，单日过大再按条数切。
-- **断点**：每批成功才推进 `backfill-state.json`；失败留在原位重试，不跳批。
-- **预算**：可设最大批数/最大 token；跑不完就停，不偷偷烧。
-- **质量**：只提炼 state / event / 关系 / 项目 / 约定；不为寒暄建链；每批链节点有上限。
-- **原始不动**：只写链网和向量，不改 raw；节点按 `t+type+text` 幂等去重。
+- **入口**：`memory_backfill action=status` 看条数/批数/token 估算；`preview` 预览第一批会建哪些链（不写）；`start` 后台分批跑；`pause` / `resume` 控制。
+- **分批**：按“日期 + 条数”切，先旧后新；一批 100 条。
+- **断点**：每批成功才推进 `common/backfill-state.json`；失败留在原位，不跳批。
+- **预算**：`maxBatches` 默认 20、最多 200；跑不完标 `partial`，可再次 start 续跑，不偷偷烧。
+- **质量**：只提炼身份/关系/项目/学习/约定/重要事件；不为寒暄、测试、日常流水建节点；每批最多 8 链、20 节点；节点时间用原文时间，标 `source=migration`。
+- **原始不动**：只写链网，不改 raw；节点按 `t+type+text` 幂等去重；写前备份 `links-backfill-*`。
+- **同意**：`inherit` / `memory` 模式在问卷阶段就会提示“迁移后补链网会消耗 token”；导入后再用实际批数确认一次。`fresh` 不导入，不涉及。
 - **验收**：抽 20 条对照原文、问 5 个旧问题；链头 ≤200 字。
-- **默认关闭**：旧历史发给模型提供方有隐私和成本问题，必须用户明确同意才跑。
 
-> 技术边界：你不会因为“过了一遍”就更新权重；你得到的是自己写的链网/摘要，作为可检索的外部记忆。换模型后，新模型读链网接手，不会继承旧模型的“感觉”。
+> 技术边界：回填不会更新模型权重；得到的是可检索的链网/摘要。换模型后，新模型读链网接手，不会继承旧模型的“感觉”。
 
 ---
 

@@ -46,8 +46,9 @@ const resultFile = path.join(TMP, 'common', 'offline-import-result.json');
 check('生成 offline-import-result.json', fs.existsSync(resultFile));
 if (fs.existsSync(resultFile)) {
   const result = JSON.parse(fs.readFileSync(resultFile, 'utf8'));
-  check('链网回填状态明确为 skipped', result.chainBackfill && result.chainBackfill.status === 'skipped');
-  check('链网回填有原因', !!(result.chainBackfill && result.chainBackfill.reason));
+  check('链网回填状态为 pending', result.chainBackfill && result.chainBackfill.status === 'pending');
+  check('链网回填需要用户同意', result.chainBackfill && result.chainBackfill.consentRequired === true);
+  check('链网回填带估算', !!(result.chainBackfill && result.chainBackfill.estimate && result.chainBackfill.estimate.batches >= 1));
   check('结果带 nextSteps', Array.isArray(result.nextSteps) && result.nextSteps.length >= 2);
 }
 

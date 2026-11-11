@@ -680,6 +680,13 @@ export function apply(ctx: Context) {
   }
 
   const app = initCore()
+  const { Backfill } = require(path.join(CORE_DIR, 'backfill.js'))
+  const backfill = new Backfill({
+    store: app.store,
+    chain: app.chain,
+    root: DATA_ROOT,
+    logger: console,
+  })
   let embedService: any = null
   ensureIdentityTemplate()   // 身份文件由插件预置模板，模型只能在模板里填内容
   ensureChains(app.chain)    // 链网骨架：核星 → 身份（含身份链）/ 项目
@@ -980,7 +987,7 @@ export function apply(ctx: Context) {
   // 只记录模式、存一页相处方式；不训练、不改权重。
   ctx.tools.register(defineTool({
     name: 'memory_onboarding',
-    description: '首次迁移问卷。**先问用户三选一，不要替用户选**：inherit=把以前的它尽量带回来（记忆+称呼+语气+习惯）；memory=只继承记忆（语气重新长）；fresh=全新开始（不导入旧数据）。action：status（看当前模式）／check（看该模式检查清单）／save（保存选择；inherit/memory 需要 consent=true）／voice（保存一页相处方式 + 常驻核心，仅 inherit）／voice_get（读完整相处方式）。',
+    description: '首次迁移问卷。**先问用户三选一，不要替用户选**：inherit=把以前的它尽量带回来（记忆+称呼+语气+习惯）；memory=只继承记忆（语气重新长）；fresh=全新开始（不导入旧数据）。action：status（看当前模式）／check（看该模式检查清单）／save（保存选择；inherit/memory 需要 consent=true）／voice（保存一页相处方式 + 常驻核心，仅 inherit）／voice_get（读完整相处方式）。注意：inherit/memory 的旧历史补链网会分批调用 LLM、消耗 token；迁移后先 memory_backfill status 估算并问用户，不要自动 start。',
     parameters: {
       action: { type: 'string', required: true, description: 'status / check / save / voice / voice_get' },
       mode: { type: 'string', description: 'save：inherit / memory / fresh' },
@@ -1008,7 +1015,7 @@ export function apply(ctx: Context) {
           return cleanJson({ ok: true, mode: s.mode, modeLabel: s.modeLabel, checklist: s.checklist })
         }
         if (action === 'save') {
-          return cleanJson(app.onboarding.save({
+          const saved: any = app.onboarding.save({
             mode: args.mode,
             source: args.source,
             dateRange: args.dateRange,
@@ -1016,7 +1023,11 @@ export function apply(ctx: Context) {
             keepNames: typeof args.keepNames === 'boolean' ? args.keepNames : undefined,
             exclusions: args.exclusions,
             notes: args.notes,
-          }))
+          })
+          if (saved && (saved.mode === 'inherit' || saved.mode === 'memory')) {
+            saved.backfillNotice = '旧历史补链网会分批调用 LLM、消耗 token。导入完成后先跑 memory_backfill action=status 看批数和预估，再把估算告诉用户，用户同意后才 preview/start。'
+          }
+          return cleanJson(saved)
         }
         if (action === 'voice') return cleanJson(app.onboarding.setVoice(args.text, args.summary, args.core))
         if (action === 'voice_get') return cleanJson(app.onboarding.voice())
@@ -1236,6 +1247,43 @@ export function apply(ctx: Context) {
   // ── 工具 8：话题栈 / 创意池 ─────────────────────────
   // 用户 2026-11-08 定：想法不需要相关，同类型累计 ≥5 条成立一条创意池链，
   // 一个节点一个想法；立项时从池里升格出独立项目链，原想法保留并挂 promoted_to。
+  // ── 工具 8：迁移回填链网 ─────────────────────────────
+  // 迁移只导 raw + 向量；旧历史补链由这个工具按批跑，先估算/预览，用户同意再写。
+  ctx.tools.register(defineTool({
+    name: 'memory_backfill',
+    description: '迁移旧历史后补链网。先用 action=status 看条数/批数/token 估算，再 action=preview 看会建哪些链（不写），用户明确同意后 action=start。start 后台分批跑，可 pause/resume。只用于迁移回填，不要拿它处理日常对话；日常链由后台提炼生长。',
+    parameters: {
+      action: { type: 'string', required: true, description: 'status / preview / start / pause / resume' },
+      batches: { type: 'number', description: 'preview：预览几批，默认 1，最多 5' },
+      maxBatches: { type: 'number', description: 'start/resume：本次最多跑几批，默认 20，最多 200' },
+    } as any,
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 1) }],
+    },
+    async execute(args: any) {
+      const action = String(args.action || 'status')
+      if (action === 'status') return cleanJson(backfill.status())
+      if (action === 'preview') {
+        const call = makeLlmCall()
+        if (!call) return { ok: false, error: '当前没有可用的 LLM 调用；先确认 DSH 模型可用' }
+        return cleanJson(await backfill.preview({ call, batches: args.batches }))
+      }
+      if (action === 'start') {
+        const call = makeLlmCall()
+        if (!call) return { ok: false, error: '当前没有可用的 LLM 调用；先确认 DSH 模型可用' }
+        return cleanJson(await backfill.start({ call, maxBatches: args.maxBatches }))
+      }
+      if (action === 'pause') return cleanJson(backfill.pause())
+      if (action === 'resume') {
+        const call = makeLlmCall()
+        if (!call) return { ok: false, error: '当前没有可用的 LLM 调用；先确认 DSH 模型可用' }
+        return cleanJson(await backfill.resume({ call, maxBatches: args.maxBatches }))
+      }
+      return { ok: false, error: '未知 action：' + action + '（可用：status / preview / start / pause / resume）' }
+    },
+  }))
+
   ctx.tools.register(defineTool({
     name: 'memory_topic',
     description: '话题栈 / 创意池。想法累计 ≥5 条会自动成立“创意池-年月”链；想立项时用 promote 从池里升格成项目链（想法保留）。action：list / get / add / promote / close / merge。',

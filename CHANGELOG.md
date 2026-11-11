@@ -11,12 +11,14 @@
 
 - 梗/表情用法/口头禅/一次性玩笑默认只留 raw/草稿，不自动建链；只有用户明确要求“记住这个梗 / 以后这样用 / 写进链”才写约定链/身份链/关系链，并更新链头。同步更新 refine 提示词和 `RULES.md`。
 - 用户明确要求时，直接用 `memory_chain append` 写入，不要只写 raw 等自动提炼。
-- 迁移导入器生成 `common/offline-import-result.json`：明确 `chainBackfill.status=skipped`、原因和 `nextSteps`。旧历史只进 raw + 向量、链网从新对话生长，不再被误认为“补链网漏做/失败”。
+- 迁移导入器生成 `common/offline-import-result.json`：`chainBackfill.status=pending`、`consentRequired=true`，并给出批数和 token 估算；不会自动回填。
+- 新增 `memory_backfill`（status/preview/start/pause/resume）：迁移后按批补旧历史链网，节点标 `source=migration`，写前备份 links，状态落 `backfill-state.json`。用户确认后才 start，默认最多 20 批，可续跑。
 
 ### Tests
 
 - `unit-llm-refine` 27/27（新增“梗/表情默认不自动建节点”提示词断言）。
-- `unit-import` 新增 `offline-import-result.json` / `chainBackfill` / `nextSteps` 检查。
+- `unit-import` 新增 `offline-import-result.json` / `chainBackfill=pending` / 估算 / `nextSteps` 检查。
+- 新增 `unit-backfill`：估算、preview 不写链、start 写入 `source=migration`、状态文件、重复 start 幂等。
 
 ## [0.4.4] - 2026-11-11
 
