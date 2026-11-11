@@ -985,6 +985,7 @@ export function apply(ctx: Context) {
 
   // ── 工具 5.5：迁移问卷（继承 / 只继承记忆 / 全新开始）────
   // 只记录模式、存一页相处方式；不训练、不改权重。
+  const BACKFILL_NOTICE = '选择 inherit / memory 后，旧历史补链网会分批调用 LLM、消耗 token；导入后先用 memory_backfill action=status 估算并再次确认，不会自动开始。'
   ctx.tools.register(defineTool({
     name: 'memory_onboarding',
     description: '首次迁移问卷。**先问用户三选一，不要替用户选**：inherit=把以前的它尽量带回来（记忆+称呼+语气+习惯）；memory=只继承记忆（语气重新长）；fresh=全新开始（不导入旧数据）。action：status（看当前模式）／check（看该模式检查清单）／save（保存选择；inherit/memory 需要 consent=true）／voice（保存一页相处方式 + 常驻核心，仅 inherit）／voice_get（读完整相处方式）。注意：inherit/memory 的旧历史补链网会分批调用 LLM、消耗 token；迁移后先 memory_backfill status 估算并问用户，不要自动 start。',
@@ -1009,10 +1010,19 @@ export function apply(ctx: Context) {
       if (!app.onboarding) return { ok: false, error: '迁移问卷模块未加载（检查 src/onboarding.js）' }
       const action = String(args.action || '').trim()
       try {
-        if (action === 'status') return cleanJson(app.onboarding.status())
+        if (action === 'status') {
+          const s: any = app.onboarding.status()
+          return cleanJson({ ...s, backfillNotice: s.mode === 'fresh' ? undefined : BACKFILL_NOTICE })
+        }
         if (action === 'check') {
-          const s = app.onboarding.status()
-          return cleanJson({ ok: true, mode: s.mode, modeLabel: s.modeLabel, checklist: s.checklist })
+          const s: any = app.onboarding.status()
+          return cleanJson({
+            ok: true,
+            mode: s.mode,
+            modeLabel: s.modeLabel,
+            checklist: s.checklist,
+            backfillNotice: s.mode === 'fresh' ? undefined : BACKFILL_NOTICE,
+          })
         }
         if (action === 'save') {
           const saved: any = app.onboarding.save({
@@ -1025,7 +1035,7 @@ export function apply(ctx: Context) {
             notes: args.notes,
           })
           if (saved && (saved.mode === 'inherit' || saved.mode === 'memory')) {
-            saved.backfillNotice = '旧历史补链网会分批调用 LLM、消耗 token。导入完成后先跑 memory_backfill action=status 看批数和预估，再把估算告诉用户，用户同意后才 preview/start。'
+            saved.backfillNotice = BACKFILL_NOTICE
           }
           return cleanJson(saved)
         }

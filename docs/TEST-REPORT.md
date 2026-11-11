@@ -19,6 +19,17 @@
 - 真实环境：owner 私聊收发已实测；`qq:owner` 标题「大号私聊会话」已写入会话日志。群聊早期版本实测过收发、隐私挡回和群工具拒绝；v0.4.4 的“一群一会话 + 群名标题 + 绑定模式 + `[QQ私聊]`”按 `docs/QQ群测试验收.md` 的 G1–G18 / B1–B4 做最终真实验收。
 - 未跑：真实 1 分钟 schedule、其他 DSH 版本、Node 20/22（不支持）、完整路径矩阵。
 
+## 迁移补链（Unreleased）
+
+| 测试集 | 用例数 | 通过 |
+|:--|--:|--:|
+| `unit-backfill` 估算/preview/start/幂等 | 13 | 13 |
+| `unit-import` 迁移结果文件 | 22 | 22 |
+
+- `offline-import-result.json` 写 `chainBackfill.status=pending`、`consentRequired=true`、批数/token 估算。
+- `memory_backfill` 先 status/preview，用户同意后 start；节点 `source=migration`，写前备份 links，`maxBatches` 可续跑。
+- 未跑：万条级真实旧历史回填成本/质量验收；需要用户样本。
+
 ---
 
 ## 历史基线（v0.4.3，核心记忆部分仍适用）

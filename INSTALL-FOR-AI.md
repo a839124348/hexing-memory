@@ -182,10 +182,12 @@ memory_onboarding action=status
    - 全继承（记忆 + 称呼 + 语气 + 习惯）
    - 只继承记忆（语气重新长）
    - 全新开始（不导入）
+   - **选 inherit/memory 时，必须同时告知**：旧历史补链网会分批调用 LLM、消耗 token；导入后先用 `memory_backfill action=status` 估算，再问一次，不会自动开始。
 3. 用 `memory_onboarding action=save` 记录；`inherit/memory` 需要 `consent=true`
 4. 全继承再按 RULES 第 10.0 节提炼 `common/voice-habits.md`，必须有 `## 常驻核心`（≤800 字）
 5. 迁移完成后用 `memory_search` 验证旧对话能搜到；全新开始则先正常聊一句
-6. 不替用户选，不承诺“完全一样”
+6. 旧历史补链：读 `common/offline-import-result.json` 的 `chainBackfill`（pending / 批数 / token 估算），把估算告诉用户；用户同意后 `memory_backfill action=preview` → `start`，可 `pause/resume`
+7. 不替用户选，不承诺“完全一样”
 
 **做完这一步，才去第 6 节装侧边栏入口。**
 
