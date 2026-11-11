@@ -29,6 +29,7 @@
 - `offline-import-result.json` 写 `chainBackfill.status=pending`、`consentRequired=true`、批数/token 估算。
 - `memory_backfill` 先 status/preview，用户同意后 start；节点 `source=migration`，写前备份 links，`maxBatches` 可续跑。
 - 真机集成：在 DSH 当前库调用 `memory_backfill action=status`，返回 211 条 / 5 天 / 3 批 / 约 30,746 tokens / `needConsent:true`。
+- 总览页 `3099` 已显示「Backfill / 旧历史补链」卡：`待开始`、`0/211 条 · 0 批`、已加节点 0。
 - 未跑：万条级真实旧历史回填成本/质量验收；`preview/start` 真机写入需用户样本与同意。
 
 ---
