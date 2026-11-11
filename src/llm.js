@@ -24,6 +24,8 @@ const MAX_NODES_PER_CHAIN = 50;
 const MAX_TEXT = 500;
 const MAX_HEADER = 500;
 const MAX_DEPTH = 4;
+// 单次 LLM 提示最多 100 条；超过就分块调用，绝不静默丢弃。
+const MAX_PROMPT_RECORDS = 100;
 const TIME_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 
 // 顶层根固定；LLM 可以建子链，但不能自己造新的顶层根。
@@ -264,8 +266,7 @@ function applyChainUpdates(chainStore, parsed, defaults = {}) {
  * 调用方负责“失败不推进游标 / 保留草稿”。
  * @param {object} p { records, chainStore, topicStore, call, fallbackT }
  */
-async function refineWithLLM({ records, chainStore, topicStore, call, fallbackT, dryRun = false, nodeDefaults = {}, mode = 'live' }) {
-  if (!records || !records.length) return { chains: 0, nodes: 0, topics: [], topicItems: 0 };
+async function refineOne({ records, chainStore, topicStore, call, fallbackT, dryRun = false, nodeDefaults = {}, mode = 'live' }) {
   const chainIndex = chainStore ? chainStore.list() : [];
   const topicIndex = topicStore ? topicStore.list() : [];
   const prompt = buildRefinePrompt(records, chainIndex, topicIndex, { mode });
@@ -289,6 +290,37 @@ async function refineWithLLM({ records, chainStore, topicStore, call, fallbackT,
   };
 }
 
+/**
+ * 一次完整提炼：构造提示词 → 调模型 → 解析 → 应用链/话题更新。
+ * 超过 100 条自动分块，绝不静默截断；调用方负责“失败不推进游标 / 保留草稿”。
+ * @param {object} p { records, chainStore, topicStore, call, fallbackT }
+ */
+async function refineWithLLM(params) {
+  const records = (params && params.records) || [];
+  if (!records.length) return { chains: 0, nodes: 0, topics: [], topicItems: 0 };
+  if (records.length <= MAX_PROMPT_RECORDS) {
+    return refineOne({ ...params, records });
+  }
+  const agg = { chains: 0, nodes: 0, topics: [], topicItems: 0, chunks: 0 };
+  const parsed = { chains: [], topics: [] };
+  for (let i = 0; i < records.length; i += MAX_PROMPT_RECORDS) {
+    const r = await refineOne({
+      ...params,
+      records: records.slice(i, i + MAX_PROMPT_RECORDS),
+    });
+    agg.chunks++;
+    agg.chains += r.chains || 0;
+    agg.nodes += r.nodes || 0;
+    agg.topics.push(...(r.topics || []));
+    agg.topicItems += r.topicItems || 0;
+    if (r.parsed) {
+      parsed.chains.push(...(r.parsed.chains || []));
+      parsed.topics.push(...(r.parsed.topics || []));
+    }
+  }
+  return { ...agg, parsed };
+}
+
 module.exports = {
   LlmError,
   buildRefinePrompt,
@@ -296,4 +328,5 @@ module.exports = {
   applyChainUpdates,
   refineWithLLM,
   SYSTEM_PROMPT,
+  MAX_PROMPT_RECORDS,
 };

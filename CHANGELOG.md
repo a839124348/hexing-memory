@@ -15,10 +15,11 @@
 - 新增 `memory_backfill`（status/preview/start/pause/resume）：迁移后按批补旧历史链网，节点标 `source=migration`，写前备份 links，状态落 `backfill-state.json`。用户确认后才 start，默认最多 20 批，可续跑。
 - 总览页新增「Backfill / 旧历史补链」状态卡：无旧历史 / 可补旧链 / 待确认 / 进行中 / 已暂停 / 可续跑 / 已完成 / 失败，显示进度和已加节点。
 - 新增 `docs/老用户补链升级.md`：老用户只需对 AI 说“检查旧历史链网，先统计，我同意后再补”；AI 先 `memory_backfill status` 报数，同意后 `preview` → `start`。
+- `refineWithLLM` 超过 100 条自动分块：单次提示最多 100 条，不再只取前 100 导致“180 条被截断”；补链和日常提炼都受益。
 
 ### Tests
 
-- `unit-llm-refine` 27/27（新增“梗/表情默认不自动建节点”提示词断言）。
+- `unit-llm-refine` 29/29（新增“梗/表情默认不自动建节点”“超过 100 条自动分块”断言）。
 - `unit-import` 新增 `offline-import-result.json` / `chainBackfill=pending` / 估算 / `nextSteps` 检查。
 - 新增 `unit-backfill`：估算、preview 不写链、start 写入 `source=migration`、状态文件、重复 start 幂等。
 

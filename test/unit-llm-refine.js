@@ -156,6 +156,29 @@ check('旧节点未删除', !!old);
   check('输出非法抛 PARSE', badErr && badErr.stage === 'PARSE');
   check('失败后链未被写坏', chain2.get('项目链-体检').nodes.length === 1);
 
+  // 超过 100 条必须自动分块，不能静默截断
+  const many = Array.from({ length: 150 }, (_, i) => ({
+    t: '2026-11-07 23:31', s: '我', c: '批量消息 ' + i,
+  }));
+  let manyCalls = 0;
+  const rMany = await refineWithLLM({
+    records: many,
+    chainStore: chain2,
+    call: async () => {
+      manyCalls++;
+      return JSON.stringify({
+        chains: [{
+          name: '批量链', parent: '项目', nodes: [
+            { t: '2026-11-07 23:31', who: '我', type: 'event', text: '批量节点 ' + manyCalls },
+          ],
+        }],
+      });
+    },
+    fallbackT: '2026-11-07 23:31',
+  });
+  check('超过 100 条自动分块', manyCalls === 2, 'calls=' + manyCalls);
+  check('分块结果都写入', rMany.chunks === 2 && rMany.nodes === 2, JSON.stringify(rMany));
+
   console.log('\n结果：' + pass + '/' + (pass + fails.length) + ' 通过');
   if (fails.length) { console.log('失败：\n' + fails.join('\n')); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });

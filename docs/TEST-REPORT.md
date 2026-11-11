@@ -25,6 +25,7 @@
 |:--|--:|--:|
 | `unit-backfill` 估算/preview/start/幂等 | 13 | 13 |
 | `unit-import` 迁移结果文件 | 22 | 22 |
+| `unit-llm-refine`（含 >100 条自动分块） | 29 | 29 |
 
 - `offline-import-result.json` 写 `chainBackfill.status=pending`、`consentRequired=true`、批数/token 估算。
 - `memory_backfill` 先 status/preview，用户同意后 start；节点 `source=migration`，写前备份 links，`maxBatches` 可续跑。
