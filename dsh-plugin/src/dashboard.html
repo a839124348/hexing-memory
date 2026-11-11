@@ -845,6 +845,15 @@
     </article>
 
     <article class="card">
+      <div class="card-label">Backfill / 旧历史补链</div>
+      <div class="card-main" id="backfillState">—</div>
+      <div class="card-lines">
+        <div>进度：<b id="backfillProgress">—</b></div>
+        <div>已加节点：<b id="backfillNodes">—</b></div>
+      </div>
+    </article>
+
+    <article class="card">
       <div class="card-label">Topics / 创意池</div>
       <div class="card-main" id="topicOpen">— <small>个未闭合</small></div>
       <div class="card-lines">
@@ -1163,6 +1172,22 @@ function render(s) {
   text('chainBranches', n(chains.branches));
   text('chainNodes', n(chains.nodes));
   text('chainNeedHeader', n(chains.needHeader));
+
+  const bf = s.backfill || {};
+  const bfTotal = Number(bf.totalRecords || (bf.estimate && bf.estimate.records) || 0);
+  const bfLabels = {
+    none: bfTotal ? '待开始' : '无旧历史',
+    idle: bfTotal ? '待开始' : '无旧历史',
+    pending: '待确认',
+    running: '进行中',
+    paused: '已暂停',
+    partial: '可续跑',
+    done: '已完成',
+    error: '失败',
+  };
+  text('backfillState', bfLabels[bf.status] || '未开始');
+  text('backfillProgress', bfTotal ? `${n(bf.processedRecords)} / ${n(bfTotal)} 条 · ${n(bf.batches)} 批` : '—');
+  text('backfillNodes', n(bf.addedNodes));
 
   text('topicOpen', n(topics.open));
   text('topicPromoted', n(topics.promoted));

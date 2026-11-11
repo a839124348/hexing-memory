@@ -144,7 +144,7 @@ function ensureChains(chain: any) {
  *
  * 端口默认 3099，可用 MEMORY_VIEWER_PORT 覆盖；占用时只告警不阻断。
  */
-function startViewer(ctx: any, app: MemoryApp, embedService?: any) {
+function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: any) {
   const port = Number(process.env.MEMORY_VIEWER_PORT || 3099)
 
   const server = http.createServer(async (req, res) => {
@@ -178,7 +178,7 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any) {
       }
 
       if (url.pathname === '/api/stats') {
-        const stats = await collectStats(app, embedService)
+        const stats = await collectStats(app, embedService, backfill)
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         res.end(JSON.stringify(stats))
         return
@@ -233,7 +233,7 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any) {
 }
 
 /** 总览页数据：只读，任何一项失败都降级为空值，不影响页面打开 */
-async function collectStats(app: MemoryApp, embedService?: any) {
+async function collectStats(app: MemoryApp, embedService?: any, backfill?: any) {
   const today = localDayKey()
   const generatedAt = new Date().toISOString()
 
@@ -299,6 +299,25 @@ async function collectStats(app: MemoryApp, embedService?: any) {
   let tokens: any = { today: null, history: [], updatedAt: null }
   try { tokens = app.usage.snapshot(14) } catch (e) { /* ignore */ }
 
+  // 迁移旧历史补链状态：pending / running / paused / partial / done / error
+  let backfillStats: any = { status: 'none', batches: 0, processedRecords: 0, totalRecords: 0, addedNodes: 0 }
+  try {
+    const st: any = backfill ? backfill.status() : null
+    if (st) {
+      backfillStats = {
+        status: st.status || 'none',
+        batches: st.batches || 0,
+        processedRecords: st.processedRecords || 0,
+        totalRecords: (st.estimate && st.estimate.records) || st.totalRecords || 0,
+        addedChains: st.addedChains || 0,
+        addedNodes: st.addedNodes || 0,
+        maxBatches: st.maxBatches || 0,
+        lastError: st.lastError || null,
+        note: st.note || '',
+      }
+    }
+  } catch (e) { /* 状态读不到不影响总览 */ }
+
   // 总览页用：没选迁移模式且没有任何原文时，显示“还没开始”的引导，而不是一排 0。
   let onboarding: any = { mode: null }
   try {
@@ -325,6 +344,7 @@ async function collectStats(app: MemoryApp, embedService?: any) {
     chains,
     topics,
     refine,
+    backfill: backfillStats,
     tokens,
     onboarding,
     service,
@@ -1830,7 +1850,7 @@ export function apply(ctx: Context) {
   })
 
   // ── 链网展示窗（跟 DSH 生命周期起停）──
-  startViewer(ctx, app, embedService)
+  startViewer(ctx, app, embedService, backfill)
 
   // ── 启动时补一次向量索引 ──
   // 场景：上次 embed 服务没起来 / 进程中途退出，会导致存档有内容但索引缺失。
