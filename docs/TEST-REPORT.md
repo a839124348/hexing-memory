@@ -1,37 +1,28 @@
 # 开源记忆系统 · 测试报告
 
-> 测试日期：2026-11-11（v0.4.4 QQ 群聊 / owner 会话绑定）
-> 被测版本：MVP v0.4.4
+> 测试日期：2026-11-11（v0.4.5 迁移补链 / 大提示分块）
+> 被测版本：MVP v0.4.5
 > 运行环境：Node.js v24.14 / Windows / 本地 bge-small-zh-v1.5（512 维）
 > 数据目录：单元/验收全部使用临时目录；真机数据在 `%APPDATA%\dsh-memory`
 
-## v0.4.4 结果
+## v0.4.5 结果
 
 | 测试集 | 用例数 | 通过 |
 |:--|--:|--:|
 | `acceptance` 全链路 | 13 | 13 |
-| 核心单元（20 个文件） | 327 | 327 |
+| 核心单元（22 个文件，含 backfill/import/refine/time） | 356 | 356 |
 | QQ 桥（normalize/router/onebot/group-board/guard/public-projects/session-catalog） | 31 | 31 |
 | DSH QQ 插件（标题/绑定/回合过滤/限流排队） | 15 | 15 |
 
-- QQ 桥新增 `session-catalog` 3 项：多段 zstd 会话头/标题、未命名会话、坏文件跳过。
-- DSH QQ 插件 15 项：owner 复用、群一会话、复用 agent 写回映射、会话标题只写一次、绑定指定 ID 不新建、绑定缺失抛错、QQ 轮次回发、UI 轮次不外发、非映射会话忽略、guard 拦截、限流排队、`qq_bind_session` 当前会话绑定/按标题绑定/找不到候选/群会话拒绝。
-- 真实环境：owner 私聊收发已实测；`qq:owner` 标题「大号私聊会话」已写入会话日志。群聊早期版本实测过收发、隐私挡回和群工具拒绝；v0.4.4 的“一群一会话 + 群名标题 + 绑定模式 + `[QQ私聊]`”按 `docs/QQ群测试验收.md` 的 G1–G18 / B1–B4 做最终真实验收。
-- 未跑：真实 1 分钟 schedule、其他 DSH 版本、Node 20/22（不支持）、完整路径矩阵。
-
-## 迁移补链（Unreleased）
-
-| 测试集 | 用例数 | 通过 |
-|:--|--:|--:|
-| `unit-backfill` 估算/preview/start/幂等 | 13 | 13 |
-| `unit-import` 迁移结果文件 | 22 | 22 |
-| `unit-llm-refine`（含 >100 条自动分块） | 29 | 29 |
-
+- 其中 `unit-backfill` 13、`unit-import` 22、`unit-llm-refine` 29、`unit-time` 5。
 - `offline-import-result.json` 写 `chainBackfill.status=pending`、`consentRequired=true`、批数/token 估算。
 - `memory_backfill` 先 status/preview，用户同意后 start；节点 `source=migration`，写前备份 links，`maxBatches` 可续跑。
+- `unit-llm-refine` 新增“超过 100 条自动分块”：150 条拆 2 次调用，两次结果都落链，不再只取前 100 条。
+- 梗/表情/口头禅默认不自动建节点；用户明确要求才写约定链/身份链/关系链，refine 提示词与 RULES 已同步。
 - 真机集成：在 DSH 当前库调用 `memory_backfill action=status`，返回 211 条 / 5 天 / 3 批 / 约 30,746 tokens / `needConsent:true`。
 - 总览页 `3099` 已显示「Backfill / 旧历史补链」卡：`待开始`、`0/211 条 · 0 批`、已加节点 0。
-- 未跑：万条级真实旧历史回填成本/质量验收；`preview/start` 真机写入需用户样本与同意。
+- QQ 真实验收沿用 v0.4.4：owner 私聊收发已实测；`qq:owner` 标题「大号私聊会话」已写入会话日志。群聊的“一群一会话 + 群名标题 + 绑定模式 + `[QQ私聊]`”按 `docs/QQ群测试验收.md` 的 G1–G18 / B1–B4 做最终真实验收。
+- 未跑：万条级真实旧历史回填成本/质量验收；`preview/start` 真机写入需用户样本与同意；真实 1 分钟 schedule、其他 DSH 版本、Node 20/22（不支持）、完整路径矩阵。
 
 ---
 

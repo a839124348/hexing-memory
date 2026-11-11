@@ -1,9 +1,9 @@
-# 核星记忆 / Hexing Memory · 开源版（v0.4.4）
+# 核星记忆 / Hexing Memory · 开源版（v0.4.5）
 
 给个人用户用的 AI 长期记忆：**实时跨会话 + 自动 LLM 提炼建链 + 完整向量库**。
 当前以 DSH（DeepSeek Harness）插件形式交付；核心引擎是纯 JS，可接其他平台。
 
-**版本：v0.4.4**（v0.4.3 全量修复 + QQ 群聊/会话绑定 + 说明书补丁）。
+**版本：v0.4.5**（迁移补链版：旧历史可分批补链 + 大提示自动分块 + 梗节点策略）。
 
 ## 星核卖点
 
@@ -25,7 +25,7 @@
 
 模型会下载固定 tag、校验模型、备份 `cordis.patch.yml`、写入插件、装依赖、重启并验证。**不要自己手写路径，也不要改 DSH 源码。**
 
-如果网络打不开 GitHub：下载 Release 里的 `hexing-memory-v0.4.4-full.zip`（已含两个向量模型），解压后把文件夹路径发给 DSH，还是同一句话。
+如果网络打不开 GitHub：下载 Release 里的 `hexing-memory-v0.4.5-full.zip`（已含两个向量模型），解压后把文件夹路径发给 DSH，还是同一句话。
 
 ## 它能做什么
 
@@ -205,11 +205,11 @@ common/    IDENTITY.md / identity.json / onboarding.json / voice-habits.md / lin
 node test/acceptance.js     # 全链路自动验收（生成 ACCEPTANCE-*.md）
 ```
 
-单元测试见 `docs/TEST-REPORT.md`：核心记忆 20 个文件、327 个用例；QQ 桥 31 项、DSH QQ 插件 15 项。
+单元测试见 `docs/TEST-REPORT.md`：核心记忆 22 个文件、356 个用例；QQ 桥 31 项、DSH QQ 插件 15 项。
 
 ## 反馈问题
 
-1. 先记下**版本号**：启动日志、总览页右上角、或诊断报告里的 `v0.4.4`。
+1. 先记下**版本号**：启动日志、总览页右上角、或诊断报告里的 `v0.4.5`。
 2. 在项目目录运行只读诊断：
 
    ```sh
