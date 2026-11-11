@@ -163,11 +163,13 @@ function main() {
 
   const reportDir = path.join(dataDir, 'common');
   fs.mkdirSync(reportDir, { recursive: true });
-  const report = path.join(reportDir, 'import-report-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json');
-  fs.writeFileSync(report, JSON.stringify({
+  const reportName = 'import-report-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+  const report = path.join(reportDir, reportName);
+  const importedAt = new Date().toISOString();
+  const reportBody = {
     file: path.resolve(file),
     dataDir,
-    importedAt: new Date().toISOString(),
+    importedAt,
     total: records.length,
     added: r.added,
     skipped: skipped + (r.skipped || 0),
@@ -177,8 +179,31 @@ function main() {
     warnings: v.warnings.length,
     errors: [],
     onboarding: onboardHint ? { mode: onboardHint.mode, level: onboardHint.level, message: onboardHint.message } : null,
-  }, null, 1), 'utf8');
+  };
+  fs.writeFileSync(report, JSON.stringify(reportBody, null, 1), 'utf8');
+
+  // 给用户 AI 的机器可读结果：迁移流程的“补链网”这一环不是漏做，
+  // 而是本阶段明确跳过；写清楚状态和原因，避免被当成失败。
+  const resultPath = path.join(reportDir, 'offline-import-result.json');
+  const resultBody = {
+    ...reportBody,
+    reportFile: reportName,
+    chainBackfill: {
+      status: 'skipped',
+      reason: '旧历史只导入 raw + 向量；链网从迁移后的新对话生长，不批量建链。',
+      note: '这不是失败；旧原文仍可被 memory_search 检索。一键回填计划在 v0.5。',
+      plannedVersion: 'v0.5',
+    },
+    nextSteps: [
+      '启动 DSH，等约 5 秒补索引',
+      '用 memory_search 搜一条旧原话，确认可检索',
+      '链网从新对话继续生长；不要用 memory_chain append 导入历史',
+    ],
+  };
+  fs.writeFileSync(resultPath, JSON.stringify(resultBody, null, 1), 'utf8');
   console.log('报告：' + report);
+  console.log('结果：' + resultPath);
+  console.log('链网回填：未运行（旧历史不自动建链；从新对话生长；回填计划 v0.5）');
   console.log('');
   console.log('下一步：启动 DSH → 等 5 秒补索引 → memory_search 验证。');
   console.log('注意：旧历史不会自动建链；链网从新对话的提炼里积累。');

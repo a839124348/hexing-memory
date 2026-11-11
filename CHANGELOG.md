@@ -11,10 +11,12 @@
 
 - 梗/表情用法/口头禅/一次性玩笑默认只留 raw/草稿，不自动建链；只有用户明确要求“记住这个梗 / 以后这样用 / 写进链”才写约定链/身份链/关系链，并更新链头。同步更新 refine 提示词和 `RULES.md`。
 - 用户明确要求时，直接用 `memory_chain append` 写入，不要只写 raw 等自动提炼。
+- 迁移导入器生成 `common/offline-import-result.json`：明确 `chainBackfill.status=skipped`、原因和 `nextSteps`。旧历史只进 raw + 向量、链网从新对话生长，不再被误认为“补链网漏做/失败”。
 
 ### Tests
 
 - `unit-llm-refine` 27/27（新增“梗/表情默认不自动建节点”提示词断言）。
+- `unit-import` 新增 `offline-import-result.json` / `chainBackfill` / `nextSteps` 检查。
 
 ## [0.4.4] - 2026-11-11
 

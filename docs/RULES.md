@@ -425,9 +425,11 @@ memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，�
    node tools/import-jsonl.js --file old.jsonl --apply
    ```
 
-   只追加、不重写；已存在的按 `cid+t+s+mid+c` 跳过；报告写到 `common/import-report-*.json`。重复跑同一文件不会翻倍。
+   只追加、不重写；已存在的按 `cid+t+s+mid+c` 跳过；报告写到 `common/import-report-*.json`，同时写一份机器可读的 `common/offline-import-result.json`。重复跑同一文件不会翻倍。
 5. **向量化**：不用手工。启动 DSH 后 5 秒，插件会从 raw 补原文索引、从 links 补链索引；日志看到“启动补索引/补链索引”即可。**不要在导入后立刻问“有没有向量”，先等这一轮补完。**
 6. **身份补全（仅迁移）**：只把“用户称呼 / AI 名字 / 关系”补进身份文件（`memory_identity`，只填空字段）。**语气、习惯、隐性边界不要塞进 identity**，走 10.0 的 `common/voice-habits.md`；约定/故事/事实留在 raw、约定链、链网，不要抄进相处方式。补完身份即冻结；日常提炼不再自动改身份，之后只有用户明确要求才改。
+
+> `offline-import-result.json` 里的 `chainBackfill.status` 应为 `skipped`：这不是漏做，也不是失败。它表示旧历史只进 raw + 向量，链网从迁移后的**新对话**生长；旧原文仍可 `memory_search` 检索。一键回填计划在 v0.5。
 
 迁移禁止：总结、改写、去口语、合并重复、加标题。错别字、语气词、重复发言都是原文的一部分。
 
@@ -435,7 +437,7 @@ memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，�
 
 导入验收五条：条数对得上 / 时间戳齐全 / 抽 20 条逐字一致 / 向量全覆盖 / 问 5 个旧问题能召回。
 
-> **旧历史不会自动建链。** 导入的是 raw 原文 + 向量，`memory_search` 能召回；链网只从**新对话**的提炼里长出来。这是故意的：把几万条旧对话一次性塞给 LLM 会烧穿预算、也容易建出垃圾链。想要旧历史也建链，目前只能分批重新走“草稿 → 提炼”，一键回填留到 v0.5。
+> **旧历史不会自动建链。** 导入的是 raw 原文 + 向量，`memory_search` 能召回；链网只从**新对话**的提炼里长出来。这是故意的：把几万条旧对话一次性塞给 LLM 会烧穿预算、也容易建出垃圾链。导入器会在 `offline-import-result.json` 里明确写 `chainBackfill.status=skipped`，不要把它当成失败或漏做；想要旧历史也建链，目前只能分批重新走“草稿 → 提炼”，一键回填留到 v0.5。
 
 ### 10.2 大体量历史：让你自己过一遍（v0.5 设计，尚未实现）
 

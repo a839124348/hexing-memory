@@ -42,6 +42,14 @@ check('apply 成功', a1.status === 0, a1.stderr);
 check('apply 新增 2 条', a1.stdout.includes('新增 2 条'), a1.stdout);
 check('raw 里 2 条', rawCount() === 2, String(rawCount()));
 check('生成导入报告', fs.existsSync(path.join(TMP, 'common')) && fs.readdirSync(path.join(TMP, 'common')).some((f) => f.startsWith('import-report-')));
+const resultFile = path.join(TMP, 'common', 'offline-import-result.json');
+check('生成 offline-import-result.json', fs.existsSync(resultFile));
+if (fs.existsSync(resultFile)) {
+  const result = JSON.parse(fs.readFileSync(resultFile, 'utf8'));
+  check('链网回填状态明确为 skipped', result.chainBackfill && result.chainBackfill.status === 'skipped');
+  check('链网回填有原因', !!(result.chainBackfill && result.chainBackfill.reason));
+  check('结果带 nextSteps', Array.isArray(result.nextSteps) && result.nextSteps.length >= 2);
+}
 
 // 3. 重复导入幂等
 const a2 = run(['--file', GOOD, '--data', TMP, '--apply']);
