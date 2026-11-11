@@ -1176,7 +1176,8 @@ function render(s) {
   const bf = s.backfill || {};
   const bfTotal = Number(bf.totalRecords || (bf.estimate && bf.estimate.records) || 0);
   const bfLabels = {
-    none: '无迁移任务',
+    none: '无旧历史',
+    available: '可补旧链',
     idle: '无迁移任务',
     pending: '待确认',
     running: '进行中',

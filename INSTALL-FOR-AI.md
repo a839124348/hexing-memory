@@ -189,6 +189,8 @@ memory_onboarding action=status
 6. 旧历史补链：读 `common/offline-import-result.json` 的 `chainBackfill`（pending / 批数 / token 估算），把估算告诉用户；用户同意后 `memory_backfill action=preview` → `start`，可 `pause/resume`
 7. 不替用户选，不承诺“完全一样”
 
+> 老用户升级（旧对话已在 raw、只是没补链）：对 AI 说“检查旧历史链网，先统计，我同意后再补”即可。完整步骤见 `docs/老用户补链升级.md`。
+
 **做完这一步，才去第 6 节装侧边栏入口。**
 
 ---

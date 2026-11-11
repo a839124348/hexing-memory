@@ -13,7 +13,8 @@
 - 用户明确要求时，直接用 `memory_chain append` 写入，不要只写 raw 等自动提炼。
 - 迁移导入器生成 `common/offline-import-result.json`：`chainBackfill.status=pending`、`consentRequired=true`，并给出批数和 token 估算；不会自动回填。
 - 新增 `memory_backfill`（status/preview/start/pause/resume）：迁移后按批补旧历史链网，节点标 `source=migration`，写前备份 links，状态落 `backfill-state.json`。用户确认后才 start，默认最多 20 批，可续跑。
-- 总览页新增「Backfill / 旧历史补链」状态卡：待确认 / 进行中 / 已暂停 / 可续跑 / 已完成 / 失败，显示进度和已加节点。
+- 总览页新增「Backfill / 旧历史补链」状态卡：无旧历史 / 可补旧链 / 待确认 / 进行中 / 已暂停 / 可续跑 / 已完成 / 失败，显示进度和已加节点。
+- 新增 `docs/老用户补链升级.md`：老用户只需对 AI 说“检查旧历史链网，先统计，我同意后再补”；AI 先 `memory_backfill status` 报数，同意后 `preview` → `start`。
 
 ### Tests
 
