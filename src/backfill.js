@@ -74,7 +74,7 @@ class Backfill {
     const state = this._readState();
     if (!state) {
       const estimate = this.estimate();
-      let status = 'idle';
+      let status = 'none';
       try {
         const imp = JSON.parse(fs.readFileSync(path.join(this.commonDir, 'offline-import-result.json'), 'utf8'));
         if (imp.chainBackfill && imp.chainBackfill.status === 'pending') status = 'pending';
