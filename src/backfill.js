@@ -194,6 +194,7 @@ class Backfill {
     state.startedAt = state.startedAt || new Date().toISOString();
     state.updatedAt = new Date().toISOString();
     state.maxBatches = Math.max(1, Math.min(200, Number(maxBatches) || DEFAULT_MAX_BATCHES));
+    state.batchLimit = (Number(state.batches) || 0) + state.maxBatches;
     state.estimate = this.estimate();
     try {
       state.backupDir = this._backupLinks(state);
@@ -236,7 +237,7 @@ class Backfill {
   async _run(call) {
     let state = this._readState();
     if (!state) throw new Error('missing backfill state');
-    const limit = Number(state.maxBatches) || DEFAULT_MAX_BATCHES;
+    const limit = Number(state.batchLimit) || ((Number(state.batches) || 0) + DEFAULT_MAX_BATCHES);
     while (!this._paused) {
       const batch = this._readBatch(state);
       if (!batch.records.length) {
@@ -248,7 +249,7 @@ class Backfill {
       }
       if (Number(state.batches) >= limit) {
         state.status = 'partial';
-        state.note = `已达到本批上限 ${limit} 批；可再次 start 续跑。`;
+        state.note = `已达到本次 ${state.maxBatches} 批上限（累计 ${state.batches} 批）；可再次 start 续跑。`;
         state.updatedAt = new Date().toISOString();
         this._writeState(state);
         break;
