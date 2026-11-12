@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QQ 群 24h 活动 · 核星记忆</title>
+<style>
+  :root{
+    --bg:#05070f; --panel:rgba(14,19,34,.86); --line:rgba(150,175,255,.14);
+    --text:#e9edff; --muted:#8e9bc4; --dim:#6f7fa8; --blue:#6f8cff; --gold:#ffd479;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;background:
+      radial-gradient(1100px 650px at 25% 8%, rgba(40,64,140,.22), transparent 62%),
+      radial-gradient(900px 600px at 82% 90%, rgba(90,40,120,.14), transparent 62%),
+      var(--bg);
+    color:var(--text);font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+  }
+  header{
+    max-width:1120px;margin:0 auto;padding:42px 28px 18px;display:flex;align-items:flex-end;
+    justify-content:space-between;gap:20px;flex-wrap:wrap;
+  }
+  h1{margin:0;font-size:24px;font-weight:400;letter-spacing:.06em}
+  header p{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.7}
+  header a{color:#9fb4ff;text-decoration:none;font-size:12px;border:1px solid var(--line);padding:8px 12px;border-radius:10px}
+  main{max-width:1120px;margin:0 auto;padding:8px 28px 60px}
+  .empty{padding:80px 20px;text-align:center;color:var(--dim);font-size:14px;border:1px dashed var(--line);border-radius:16px;margin-top:20px}
+  .group{border:1px solid var(--line);border-radius:16px;background:var(--panel);margin-top:18px;overflow:hidden}
+  .group-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:16px 18px;border-bottom:1px solid var(--line)}
+  .group-head h2{margin:0;font-size:17px;font-weight:500;letter-spacing:.02em}
+  .gid{font-family:Consolas,monospace;font-size:11px;color:var(--dim)}
+  .latest{margin-left:auto;font-size:11px;color:var(--dim)}
+  .member{padding:14px 18px 6px}
+  .member + .member{border-top:1px solid rgba(150,175,255,.08)}
+  .member-head{font-size:11px;color:var(--gold);letter-spacing:.08em;margin-bottom:9px}
+  .msg{display:grid;grid-template-columns:110px 42px minmax(0,1fr);gap:10px;padding:7px 0;border-top:1px dashed rgba(150,175,255,.07)}
+  .msg:first-of-type{border-top:0}
+  .time{font-family:Consolas,monospace;font-size:10px;color:var(--dim);padding-top:3px}
+  .who{font-size:11px;color:var(--muted);padding-top:2px}
+  .msg.user .who{color:#9fb4ff}
+  .msg.ai .who{color:var(--gold)}
+  .text{font-size:13px;line-height:1.75;color:#dfe6ff;white-space:pre-wrap;word-break:break-word}
+  .msg.ai .text{color:#f0e6cf}
+  @media (max-width:640px){
+    header{padding:28px 16px 12px}
+    main{padding:6px 16px 40px}
+    .msg{grid-template-columns:54px 34px minmax(0,1fr);gap:7px}
+    .time{font-size:9px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>QQ 群 24h 活动</h1>
+    <p>仅本机 · 只显示 @ 机器人的消息和回复 · 24h 后自动消失 · 不进主记忆</p>
+  </div>
+  <a href="/">返回总览</a>
+</header>
+<main id="app"><div class="empty">加载中…</div></main>
+<script>
+const app = document.getElementById('app');
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function fmt(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function render(data) {
+  const groups = (data && data.groups) || [];
+  app.innerHTML = '';
+  if (!groups.length) {
+    app.appendChild(el('div', 'empty', '最近 24h 没有群 @ 活动。'));
+    return;
+  }
+  for (const g of groups) {
+    const sec = el('section', 'group');
+    const head = el('div', 'group-head');
+    head.appendChild(el('h2', '', g.name || g.gid));
+    head.appendChild(el('span', 'gid', g.gid));
+    head.appendChild(el('span', 'latest', '最近 ' + fmt(g.latest)));
+    sec.appendChild(head);
+
+    for (const m of g.members || []) {
+      const mem = el('div', 'member');
+      mem.appendChild(el('div', 'member-head', '成员 ' + m.uid));
+      for (const msg of m.messages || []) {
+        const row = el('div', 'msg ' + (msg.role === 'assistant' ? 'ai' : 'user'));
+        row.appendChild(el('span', 'time', msg.at || fmt(msg.ts)));
+        row.appendChild(el('span', 'who', msg.role === 'assistant' ? '它' : '群友'));
+        row.appendChild(el('span', 'text', msg.text));
+        mem.appendChild(row);
+      }
+      sec.appendChild(mem);
+    }
+    app.appendChild(sec);
+  }
+}
+async function load() {
+  try {
+    const r = await fetch('/api/qq-groups', { cache: 'no-store' });
+    const data = await r.json();
+    if (!r.ok || !data || data.ok === false) throw new Error((data && data.error) || ('HTTP ' + r.status));
+    render(data);
+  } catch (e) {
+    app.innerHTML = '';
+    app.appendChild(el('div', 'empty', '读取失败：' + (e && e.message ? e.message : e)));
+  }
+}
+load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 {
-  "kitVersion": "0.4.3",
-  "latest": "0.4.3",
+  "kitVersion": "0.4.6",
+  "latest": "0.4.6",
   "issues": [
     {
       "id": "chain-time-utc",
@@ -18,6 +18,19 @@
         "tools/suggest-chain-time.js",
         "tools/fix-chain-time.js"
       ]
+    },
+    {
+      "id": "legacy-download-cleanup",
+      "title": "旧版本下载包里含不该公开的示例文本（已在 v0.4.6 移除）",
+      "affects": [
+        "0.4.4",
+        "0.4.5"
+      ],
+      "detect": "本机是否还留有 v0.4.4 / v0.4.5 的下载包（hexing-memory-v0.4.4* / v0.4.5*）、解压出来的 hexing-memory/ 目录，或当时 clone 的仓库副本",
+      "fix": "删掉旧 zip 和旧解压目录；git clone 的直接重新 clone 新版本，不要就地改旧目录；安装只用当前版本的 docs。已装进 DSH 的插件按正常升级覆盖即可",
+      "risk": "旧副本可能已被转发，收不回；只保证本机干净。删除前列给用户确认",
+      "boundary": "只清我们自己发出去的包；不扫描用户文档/聊天记录；不动 %APPDATA%\\dsh-memory 下的数据",
+      "tools": []
     }
   ]
 }

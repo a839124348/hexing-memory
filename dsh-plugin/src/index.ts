@@ -19,7 +19,7 @@ import fs from 'node:fs'
 import http from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { isAgentLoopRequest } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, isAgentLoopRequest } from '@deepseek-ai/dsh-llm'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -27,14 +27,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const APP_NAME = '核星记忆'
 const APP_NAME_EN = 'Hexing Memory'
 // 版本号单一来源：dsh-plugin/package.json；读不到再退回常量
-let APP_VERSION = '0.4.5'
+let APP_VERSION = '0.4.6'
 try {
   const pkg = require(path.join(__dirname, '..', 'package.json'))
   if (pkg && pkg.version) APP_VERSION = String(pkg.version)
 } catch (e) { /* 发布包里一定有 package.json；读不到不致命 */ }
 
 export const name = 'memory-system'
-export const inject = ['tools', 'llm']
+export const inject = ['tools', 'llm', 'agents', 'agentPresets', 'sessions']
 
 // ── 数据目录 ──────────────────────────────────────────
 const DATA_ROOT = process.env.MEMORY_ROOT
@@ -57,10 +57,16 @@ function manualGate(): any {
 
 // 适配层纯函数（选真话/剥注入/渲染常识层/去重键），单测直接覆盖
 const pure = require(path.join(CORE_DIR, 'adapter_pure.js'))
+// 自动唤醒：作息记录、7 天曲线、排程、策略
+const wakeProfile = require(path.join(CORE_DIR, 'wake_profile.js'))
+const wakeCare = require(path.join(CORE_DIR, 'wake_care.js'))
+const wakeScheduler = require(path.join(CORE_DIR, 'wake_scheduler.js'))
+const wakeTools = require(path.join(CORE_DIR, 'wake_tools.js'))
+const wakeCore = require(path.join(CORE_DIR, 'wake.js'))
 // 链头状态 + 大链取节点纯函数
 const chainView = require(path.join(CORE_DIR, 'chain_view.js'))
 const { localDay: localDayKey } = require(path.join(CORE_DIR, 'usage.js'))
-const { localMinute } = require(path.join(CORE_DIR, 'time.js'))
+const { localMinute, localDay } = require(path.join(CORE_DIR, 'time.js'))
 
 interface MemoryApp {
   store: any
@@ -144,6 +150,31 @@ function ensureChains(chain: any) {
  *
  * 端口默认 3099，可用 MEMORY_VIEWER_PORT 覆盖；占用时只告警不阻断。
  */
+function readJsonBody(req: any, limit = 1_000_000): Promise<any> {
+  return new Promise((resolve, reject) => {
+    let size = 0
+    const chunks: Buffer[] = []
+    req.on('data', (c: Buffer) => {
+      size += c.length
+      if (size > limit) {
+        reject(new Error('请求体过大'))
+        req.destroy()
+        return
+      }
+      chunks.push(c)
+    })
+    req.on('end', () => {
+      try {
+        const text = Buffer.concat(chunks).toString('utf8') || '{}'
+        resolve(JSON.parse(text))
+      } catch (e) {
+        reject(new Error('JSON 解析失败'))
+      }
+    })
+    req.on('error', reject)
+  })
+}
+
 function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: any) {
   const port = Number(process.env.MEMORY_VIEWER_PORT || 3099)
 
@@ -183,6 +214,54 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: an
         res.end(JSON.stringify(stats))
         return
       }
+      if (url.pathname === '/api/qq-groups') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        res.end(JSON.stringify(readQQGroups()))
+        return
+      }
+      if (url.pathname === '/api/qq-transport') {
+        const qqRoot = path.join(DATA_ROOT, 'qq')
+        const readQqJson = (name: string) => {
+          try { return JSON.parse(fs.readFileSync(path.join(qqRoot, name), 'utf8')) } catch (e) { return null }
+        }
+        if (req.method === 'GET') {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.end(JSON.stringify({
+            ok: true,
+            override: readQqJson('transport.json'),
+            status: readQqJson('transport-status.json'),
+          }))
+          return
+        }
+        if (req.method === 'POST') {
+          const body = await readJsonBody(req)
+          const t = String(body && body.transport || '').toLowerCase()
+          if (t !== 'onebot' && t !== 'official') {
+            res.statusCode = 400
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({ ok: false, error: 'transport 只能是 onebot / official' }))
+            return
+          }
+          const status = readQqJson('transport-status.json') || {}
+          if (t === 'official' && !status.officialConfigured) {
+            res.statusCode = 400
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({ ok: false, error: '官方 transport 还没配置 AppID/Secret' }))
+            return
+          }
+          fs.mkdirSync(qqRoot, { recursive: true })
+          fs.writeFileSync(path.join(qqRoot, 'transport.json'), JSON.stringify({
+            transport: t,
+            updatedAt: new Date().toISOString(),
+          }, null, 2), 'utf8')
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.end(JSON.stringify({ ok: true, transport: t, restartRequired: true }))
+          return
+        }
+        res.statusCode = 405
+        res.end('method not allowed')
+        return
+      }
       if (url.pathname === '/api/chains') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         res.end(JSON.stringify(app.chain.tree()))
@@ -197,7 +276,9 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: an
 
       const page = (url.pathname === '/' || url.pathname === '/dashboard')
         ? 'dashboard.html'
-        : ((url.pathname === '/universe' || url.pathname === '/viewer') ? 'viewer.html' : '')
+        : (url.pathname === '/qq-groups' ? 'qq-groups.html'
+          : (url.pathname === '/qq-switch' ? 'qq-switch.html'
+            : ((url.pathname === '/universe' || url.pathname === '/viewer') ? 'viewer.html' : '')))
       if (page) {
         const file = path.join(__dirname, page)
         if (fs.existsSync(file)) {
@@ -233,6 +314,78 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: an
 }
 
 /** 总览页数据：只读，任何一项失败都降级为空值，不影响页面打开 */
+/**
+ * QQ 群 24h 分板的只读视图。
+ * 只读 qq/groups/<gid>/members/<uid>.jsonl，过滤 24h；不碰私聊、不碰主记忆。
+ */
+function readQQGroups() {
+  const empty = { ok: true, generatedAt: Date.now(), groups: [] as any[], totalMessages: 0, latest: 0 }
+  const root = path.join(DATA_ROOT, 'qq', 'groups')
+  if (!fs.existsSync(root)) return empty
+
+  let names: any = {}
+  try {
+    names = JSON.parse(fs.readFileSync(path.join(DATA_ROOT, 'qq', 'group-names.json'), 'utf8')) || {}
+  } catch (e) { /* 没配置群名就用 gid */ }
+
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000
+  const groups: any[] = []
+  let totalMessages = 0
+  let latest = 0
+
+  for (const g of fs.readdirSync(root, { withFileTypes: true })) {
+    if (!g.isDirectory()) continue
+    const membersDir = path.join(root, g.name, 'members')
+    if (!fs.existsSync(membersDir)) continue
+
+    const members: any[] = []
+    for (const m of fs.readdirSync(membersDir, { withFileTypes: true })) {
+      if (!m.isFile() || !m.name.endsWith('.jsonl')) continue
+      const messages: any[] = []
+      try {
+        const lines = fs.readFileSync(path.join(membersDir, m.name), 'utf8').split(/\r?\n/)
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const r = JSON.parse(line)
+            if (!r || !Number.isFinite(r.ts) || r.ts < cutoff || typeof r.text !== 'string') continue
+            messages.push({
+              ts: r.ts,
+              at: String(r.at || ''),
+              role: r.role === 'assistant' ? 'assistant' : 'user',
+              text: String(r.text).slice(0, 4000),
+              mid: String(r.mid || ''),
+            })
+          } catch (e) { /* 跳过坏行 */ }
+        }
+      } catch (e) { /* 跳过坏文件 */ }
+      if (!messages.length) continue
+      messages.sort((a, b) => a.ts - b.ts)
+      const last = messages[messages.length - 1].ts
+      members.push({
+        uid: m.name.replace(/\.jsonl$/, ''),
+        latest: last,
+        messages: messages.slice(-50),
+      })
+      totalMessages += messages.length
+      latest = Math.max(latest, last)
+    }
+
+    if (!members.length) continue
+    members.sort((a, b) => b.latest - a.latest)
+    const groupLatest = members[0].latest
+    groups.push({
+      gid: g.name,
+      name: String(names[g.name] || g.name),
+      latest: groupLatest,
+      members,
+    })
+  }
+
+  groups.sort((a, b) => b.latest - a.latest)
+  return { ok: true, generatedAt: Date.now(), groups, totalMessages, latest }
+}
+
 async function collectStats(app: MemoryApp, embedService?: any, backfill?: any) {
   const today = localDayKey()
   const generatedAt = new Date().toISOString()
@@ -345,6 +498,10 @@ async function collectStats(app: MemoryApp, embedService?: any, backfill?: any) 
     topics,
     refine,
     backfill: backfillStats,
+    qqGroups: (() => {
+      const qq = readQQGroups()
+      return { groups: qq.groups.length, messages: qq.totalMessages, latest: qq.latest }
+    })(),
     tokens,
     onboarding,
     service,
@@ -710,6 +867,56 @@ export function apply(ctx: Context) {
   let embedService: any = null
   ensureIdentityTemplate()   // 身份文件由插件预置模板，模型只能在模板里填内容
   ensureChains(app.chain)    // 链网骨架：核星 → 身份（含身份链）/ 项目
+
+  // ── 自动唤醒：唤醒轮标记 + 作息回填 ──────────────────
+  // cid -> 过期时间。唤醒轮内 tools/pre-execute 按“只读 + 追加”放行，
+  // 删除/覆盖/执行任务仍然拒绝；captureAssistant 用同一个标记把回复写成 origin:'wake'。
+  const wakeTurns = new Map<string, { until: number; token: string }>()
+  function agentSidOf(agent: any): string {
+    return String(agent?.session?.id || agent?.sessionId || agent?.id || '')
+  }
+  function markWakeTurn(sid: string, until: number): string {
+    const token = until.toString(36) + ':' + Math.random().toString(36).slice(2, 8)
+    wakeTurns.set(sid, { until, token })
+    return token
+  }
+  function clearWakeTurn(sid: string, token: string): void {
+    const cur = wakeTurns.get(sid)
+    if (cur && cur.token === token) wakeTurns.delete(sid)
+  }
+  // llm/stream 里的 cid 带 dsh: 前缀；pre-step/tools 拿到的 session.id 不一定带。
+  // 唤醒轮标记统一用这个键，避免“在唤醒轮里却匹配不到”。
+  function wakeKeyOf(agent: any): string {
+    const raw = agentSidOf(agent)
+    if (!raw || raw.includes('qq:group:')) return raw
+    return raw.startsWith('dsh:') ? raw : 'dsh:' + raw
+  }
+  function wakeActive(sid: string): boolean {
+    if (!sid) return false
+    const entry = wakeTurns.get(sid)
+    if (!entry) return false
+    if (Date.now() > entry.until) { wakeTurns.delete(sid); return false }
+    return true
+  }
+  // 首次启动从 raw 回填作息；异步跑，不阻塞插件加载。
+  setTimeout(() => {
+    try {
+      const r = wakeProfile.backfillFromRaw(DATA_ROOT)
+      if (r && r.filled) console.log(`[memory-system] 作息回填：${r.filled} 天`)
+    } catch (e: any) {
+      console.warn('[memory-system] 作息回填失败：' + (e && e.message))
+    }
+  }, 0)
+
+  // 唤醒第一轮不允许调用任何工具（包括 memory_write / memory_search / bash）。
+  ctx.on('tools/pre-execute', async (exec: any, next: any) => {
+    const sid = wakeKeyOf(exec && exec.agent)
+    if (sid && wakeActive(sid)) {
+      const d = wakeTools.decideWakeTool(exec && exec.name, exec && exec.arguments)
+      if (!d.allow) return { kind: 'deny', reason: d.reason }
+    }
+    return next()
+  })
 
   // 说明书阅读进度：首次安装/升级未读完会在常识层提示，并拦住链网/话题写入
   try {
@@ -1390,21 +1597,251 @@ export function apply(ctx: Context) {
     },
   }))
 
+  // ── 工具：无感自动唤醒（绑定会话 + 插件定时器）──────
+  ctx.tools.register(defineTool({
+    name: 'memory_wake',
+    description: '无感自动唤醒。action：status / bind / unbind / enable / disable / replan。bind 支持 current（当前会话）、title（按会话名找）、id；enable 按作息排 4 个时间点，到点直接在绑定会话里醒来，不创建自动化任务。用户说“自动唤醒绑到当前会话/某某会话”“打开/关闭自动唤醒”“多叫醒我几次”“重新排时间”时调用。',
+    parameters: {
+      action: { type: 'string', required: true, description: 'status / bind / unbind / enable / disable / replan' },
+      target: { type: 'string', description: 'bind：current / title / id' },
+      title: { type: 'string', description: 'bind target=title 时的会话标题，可只给一部分' },
+      sessionId: { type: 'string', description: 'bind target=id 时的精确 session id' },
+    } as any,
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args: any, value: any) => [{ type: 'text', text: JSON.stringify(value, null, 1) }],
+    },
+    async execute(args: any, exec: any) {
+      const action = String(args.action || '').trim().toLowerCase()
+      const currentId = agentSidOf(exec && exec.agent)
+      const stateNow = () => wakeCore.readState(DATA_ROOT)
+      const getSchedule = () => {
+        try { return (ctx as any).get ? (ctx as any).get('schedule') : (ctx as any).schedule } catch (e) { return null }
+      }
+      const entriesOf = (s: any) => (Array.isArray(s.companionSchedules) ? s.companionSchedules : [])
+        .map((x: any) => (typeof x === 'string' ? { id: x } : x))
+        .filter((x: any) => x && x.id)
+
+      function liveTitle(id: string) {
+        try {
+          const session = (ctx as any).sessions?.get?.(id)
+          if (!session) return ''
+          const svc = (ctx as any).get ? (ctx as any).get('sessionTitle') : (ctx as any).sessionTitle
+          const snap = svc?.get?.(session)
+          if (snap && snap.title) return String(snap.title)
+        } catch (e) { /* ignore */ }
+        return ''
+      }
+
+      function sessionRows() {
+        const rows: any[] = []
+        try {
+          for (const s of ((ctx as any).sessions?.list?.() || [])) {
+            const id = String((s && s.id) || '')
+            if (!id || id.startsWith('qq:group:')) continue
+            rows.push({
+              id,
+              title: liveTitle(id) || String((s && s.title) || '') || '（未命名）',
+              cwd: String((s && s.cwd) || ''),
+            })
+          }
+        } catch (e) { /* ignore */ }
+        return rows
+      }
+
+      function findCandidates(query: string) {
+        const q = String(query || '').trim().toLowerCase()
+        if (!q) return []
+        const rows = sessionRows()
+        const exact = rows.filter((r) => String(r.title || '').trim().toLowerCase() === q)
+        return exact.length ? exact : rows.filter((r) => String(r.title || '').toLowerCase().includes(q))
+      }
+
+      function candidateView(rows: any[]) {
+        return rows.slice(0, 5).map((r) => ({ id: r.id, title: r.title, cwd: r.cwd || '' }))
+      }
+
+      async function exists(id: string) {
+        try {
+          if ((ctx as any).agents?.get?.(id) || (ctx as any).sessions?.get?.(id)) return true
+          const persistence = (ctx as any).get ? (ctx as any).get('sessionPersistence') : null
+          const snap = await persistence?.stat?.(id)
+          return !!snap
+        } catch (e) {
+          return false
+        }
+      }
+
+      function nextLocal(iso: string) {
+        const ms = Date.parse(String(iso || ''))
+        return Number.isFinite(ms) ? localMinute(ms) : ''
+      }
+
+      async function status() {
+        const s = stateNow()
+        const profile = wakeProfile.summary(DATA_ROOT)
+        return cleanJson({
+          ok: true,
+          enabled: s.enabled,
+          target: { sessionId: s.targetSessionId, title: s.targetTitle, boundAt: s.targetBoundAt },
+          plan: s.plan,
+          planDay: s.planDay,
+          nextWindow: s.nextWindow,
+          nextWakeAt: s.nextWakeAt,
+          nextWakeAtLocal: nextLocal(s.nextWakeAt),
+          maxPerDay: s.maxPerDay,
+          minGapMinutes: s.minGapMinutes,
+          quietHours: s.quietHours,
+          countToday: s.countToday,
+          lastWakeAt: s.lastWakeAt,
+          lastUserReplyAt: s.lastUserReplyAt,
+          ignoredStreak: s.ignoredStreak,
+          pausedUntil: s.pausedUntil,
+          profile: { sampleDays: profile.sampleDays, activeHours: profile.activeHours, cold: profile.cold },
+        })
+      }
+
+      if (action === 'status') return status()
+
+      if (action === 'unbind') {
+        wakeCore.mutateState(DATA_ROOT, (s: any) => {
+          s.targetSessionId = ''
+          s.targetTitle = ''
+          s.targetBoundAt = null
+          s.plan = []
+          s.nextWakeAt = null
+          s.enabled = false
+        })
+        return cleanJson({ ok: true, mode: 'unbound', note: '已取消唤醒绑定；不会再醒。' })
+      }
+
+      if (action === 'bind') {
+        const target = String(args.target || 'current').trim().toLowerCase()
+        let id = ''
+        let title = ''
+        if (target === 'title') {
+          const q = String(args.title || '').trim()
+          if (!q) return { ok: false, error: 'bind target=title 时需要 title' }
+          const candidates = findCandidates(q)
+          if (!candidates.length) {
+            return { ok: false, error: `没有找到标题包含「${q}」的会话`, candidates: candidateView(sessionRows()) }
+          }
+          if (candidates.length > 1) {
+            return { ok: false, error: `标题「${q}」匹配到多个会话，请确认是哪一个`, candidates: candidateView(candidates) }
+          }
+          id = String(candidates[0].id)
+          title = String(candidates[0].title || '')
+        } else if (target === 'id') {
+          id = String(args.sessionId || '').trim()
+          if (!id) return { ok: false, error: 'bind target=id 时需要 sessionId' }
+          title = liveTitle(id)
+        } else {
+          id = currentId
+          title = liveTitle(id) || '当前会话'
+        }
+
+        if (!id) return { ok: false, error: '没有可绑定的会话' }
+        if (id.startsWith('qq:group:')) return { ok: false, error: '群会话不能绑定自动唤醒' }
+        if (!(await exists(id))) return { ok: false, error: `会话 ${id} 不存在或无法恢复` }
+
+        wakeCore.mutateState(DATA_ROOT, (s: any) => {
+          s.targetSessionId = id
+          s.targetTitle = title
+          s.targetBoundAt = new Date().toISOString()
+        })
+        return cleanJson({
+          ok: true,
+          mode: 'bound',
+          sessionId: id,
+          title,
+          note: '绑定立即生效；enable 后到点会在这个会话里醒来。',
+        })
+      }
+
+      if (action === 'disable') {
+        wakeCore.mutateState(DATA_ROOT, (s: any) => {
+          s.enabled = false
+          s.nextWakeAt = null
+        })
+        return cleanJson({ ok: true, disabled: true, note: '已关闭自动唤醒；绑定保留。' })
+      }
+
+      if (action === 'enable' || action === 'replan') {
+        const s = stateNow()
+        if (s.maxPerDay === 0) {
+          return { ok: false, error: 'wake.json 的 maxPerDay=0；先调到 1–6 再 enable' }
+        }
+
+        let targetId = String(s.targetSessionId || '')
+        let targetTitle = String(s.targetTitle || '')
+        if (!targetId && action === 'enable') {
+          targetId = currentId
+          targetTitle = liveTitle(currentId) || '当前会话'
+        }
+        if (!targetId) return { ok: false, error: '还没有绑定唤醒会话；先 bind 一个会话' }
+        if (targetId.startsWith('qq:group:')) return { ok: false, error: '群会话不能绑定自动唤醒' }
+        if (!(await exists(targetId))) return { ok: false, error: `绑定会话 ${targetId} 不存在或无法恢复` }
+
+        const profile = wakeProfile.summary(DATA_ROOT)
+        const plan = wakeScheduler.pickPlan(profile, Date.now(), {
+          generalCount: Math.max(0, (s.maxPerDay || 6) - 2),
+          minGapMinutes: s.minGapMinutes > 0 ? s.minGapMinutes : 45,
+        })
+        if (!plan.length) return { ok: false, error: '排不出唤醒时间；检查 wake.json 的 maxPerDay / minGapMinutes' }
+        const next = wakeScheduler.nextEntry(plan, Date.now())
+
+        const old = entriesOf(s)
+        let deleted = 0
+        if (old.length) {
+          const schedule = getSchedule()
+          if (!schedule) {
+            return {
+              ok: false,
+              error: '还有旧 DSH 定时任务，但 schedule 服务不可用；先在“自动化任务”面板删掉再 enable',
+              old,
+            }
+          }
+          for (const x of old) {
+            try {
+              await schedule.edit({ id: String(x.id), action: 'delete' }, undefined, exec && exec.signal)
+              deleted += 1
+            } catch (e) { /* 已不存在也当删掉 */ deleted += 1 }
+          }
+        }
+
+        wakeCore.mutateState(DATA_ROOT, (st: any) => {
+          st.targetSessionId = targetId
+          st.targetTitle = targetTitle
+          st.targetBoundAt = st.targetBoundAt || new Date().toISOString()
+          st.plan = plan
+          st.planDay = localDay(Date.now())
+          st.nextWakeAt = next ? new Date(next.at).toISOString() : null
+          st.nextWindow = next && next.entry && next.entry.window || ''
+          st.enabled = true
+          st.companionSchedules = []
+        })
+        return cleanJson({
+          ok: true,
+          target: { sessionId: targetId, title: targetTitle },
+          plan,
+          nextWakeAt: next ? new Date(next.at).toISOString() : null,
+          nextWakeAtLocal: next ? localMinute(next.at) : '',
+          nextWindow: next && next.entry && next.entry.window || '',
+          oldTasksDeleted: deleted,
+          note: deleted < old.length ? '部分旧自动化任务没删掉，可能重复唤醒；去“自动化任务”面板确认一下' : '无感唤醒已启用：不再创建自动化任务，到点在绑定会话里醒来。',
+        })
+      }
+
+      return { ok: false, error: '未知 action：' + action + '（可用：status / bind / unbind / enable / disable / replan）' }
+    },
+  }))
+
   // ── 自动记录（用户无感：不需要模型记得调 memory_write）──────
   // 已处理消息指纹（进程内去重；重启后靠草稿层自身的去重兜底）
   // 指纹必须带 cid：同一个人在两个会话里说同一句话，是两条独立记忆。
   // 只按内容去重会把第二个会话的发言整条吞掉（2026-11-07 实测：
   // 两个测试会话只剩 AI 回复，用户消息被前一个会话的同文发言顶掉）。
   const seenMsgs = new Set<string>()
-  // schedule 唤醒只记“醒来过”，不把提醒原文写进记忆
-  const wakeLogged = new Set<string>()
-  function logWake(id: string) {
-    try {
-      const file = path.join(DATA_ROOT, 'common', 'wake-log.jsonl')
-      fs.mkdirSync(path.dirname(file), { recursive: true })
-      fs.appendFileSync(file, JSON.stringify({ t: localMinute(), id, kind: 'schedule' }) + '\n')
-    } catch (e) { /* 日志失败不影响对话 */ }
-  }
   // 最近一次对话请求用的模型（LLM 提炼优先复用宿主模型）
   let lastModel: { provider: string; model: string } | null = null
   // 防重入：定时器 + 对话驱动可能同时触发提炼
@@ -1593,6 +2030,7 @@ export function apply(ctx: Context) {
       // 工具调用里的代码本来就不会进这里——适配层只取 text 块，tool_use 参数不取。
       const cleaned = pure.stripNoise(text)
       if (cleaned.length < 2) return
+      const isWake = wakeActive(cid)
 
       // 兜底：整段像 reasoning（英文思考句式、没有中文）就丢。
       // 上面的 chunkText 已经按 type 过滤过；这里防的是「流里没有 type 标记」的情况
@@ -1610,12 +2048,13 @@ export function apply(ctx: Context) {
       const { ai } = resolveSpeakers()
 
       const wr = app.draft.add([{
-        t, s: ai, c: cleaned.slice(0, 4000), cid, v: 1, type: 'ai', origin: 'ai',
+        t, s: ai, c: cleaned.slice(0, 4000), cid, v: 1, type: 'ai', origin: isWake ? 'wake' : 'ai',
         ...(streamKey ? { mid: streamKey } : {}),
       }])
       if (!wr.ok) {
         console.error('[memory-system] AI 回复写入草稿失败：' + JSON.stringify(wr.errors || []).slice(0, 300))
       }
+      if (isWake) wakeCore.noteWakeReply(DATA_ROOT, cleaned)
       maybeRefine()
     } catch (e) {
       console.error('[memory-system] 记录 AI 回复失败：', e)
@@ -1666,6 +2105,21 @@ export function apply(ctx: Context) {
 
   function autoCapture(messages: any[], cid: string) {
     const { user } = resolveSpeakers()
+
+    // 自动唤醒的 [WAKE] 简报是插件合成消息，不是用户原话。
+    // 只跳过“最后一条真实 user 就是 wake”的轮次；不能扫整段历史——
+    // 否则 wake 消息一旦留在会话里，以后每一轮都不会再记用户消息（sticky bug）。
+    if (Array.isArray(messages)) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i]
+        if (!m || m.role !== 'user') continue
+        const kind = String((m.source && m.source.kind) || '')
+        if (kind === 'memory-wake') return
+        if (pure.isInjectedMessage(m)) continue
+        if (textOf(m).includes(COMMON_MARK)) continue
+        break
+      }
+    }
 
     // 诊断：只打一次，看 DSH 的消息到底带哪些字段
     if (!msgShapeLogged && messages.length) {
@@ -1730,6 +2184,12 @@ export function apply(ctx: Context) {
       if (!wr.ok) {
         console.error('[memory-system] 用户消息写入草稿失败：' + JSON.stringify(wr.errors || []).slice(0, 300))
       }
+      try {
+        wakeProfile.noteActivity(DATA_ROOT)
+        wakeCore.noteUserMessage(DATA_ROOT)
+      } catch (e: any) {
+        console.warn('[memory-system] 唤醒记录更新失败：' + (e && e.message))
+      }
       maybeRefine()
     } catch (e) {
       console.error('[memory-system] 自动记录失败：', e)
@@ -1746,28 +2206,155 @@ export function apply(ctx: Context) {
     try {
       if (!decision || decision.kind === 'reject' || signal?.aborted) return decision
       // QQ 群 @ 的公开会话：不注入私聊常识层/链网索引，群插件自己带公开上下文
-      const agentSid = String((agent as any)?.session?.id || (agent as any)?.sessionId || '')
+      const agentSid = agentSidOf(agent)
+      const wakeKey = wakeKeyOf(agent)
       if (agentSid.includes('qq:group:')) return decision
       const list = Array.isArray(decision.messages) ? decision.messages : []
-      // DSH 原生 schedule 的合成提醒：模型只该看到 [WAKE]，不该当成用户发言。
-      const wakeList = list.map((m: any) => {
+      const hasWakeMsg = list.some((m: any) => m && m.source && m.source.kind === 'memory-wake')
+
+      // 收集 schedule 消息 + 判断这一轮有没有真实用户发言。
+      const scheduleMsgs: any[] = []
+      const items: any[] = []
+      let hasRealUser = false
+      for (const m of list) {
         const raw = textOf(m)
-        if (!pure.isScheduleMessage(raw)) return m
-        const key = String(m.id || raw.slice(0, 80))
-        if (!wakeLogged.has(key)) {
-          wakeLogged.add(key)
-          logWake(key)
+        const srcKind = String((m && m.source && m.source.kind) || '')
+        if (srcKind === 'schedule' || pure.isScheduleMessage(raw)) {
+          scheduleMsgs.push(m)
+          const parsed = pure.parseScheduleMessage(raw)
+          if (parsed.items && parsed.items.length) {
+            for (const it of parsed.items) items.push(it)
+          } else {
+            // 解析失败：按普通提醒处理，日志只存哈希，不存正文。
+            const id = 'unparsed:' + require('node:crypto').createHash('sha1').update(raw).digest('hex').slice(0, 12)
+            items.push({
+              id,
+              at: '',
+              prompt: raw.replace(/^\s*\[SCHEDULE REMINDER(?: BATCH)?\]\s*/i, '').trim(),
+              rawPrompt: raw,
+              companion: false,
+            })
+          }
+        } else if (m && m.role === 'user' && !pure.isInjectedMessage(m)
+          && !raw.includes(COMMON_MARK)
+          && pure.stripNoise(raw).length >= 2) {
+          hasRealUser = true
         }
-        const text = raw.replace(/^\s*\[SCHEDULE REMINDER(?: BATCH)?\]\s*/i, '[WAKE] ')
-        return { ...m, content: [{ type: 'text', text }] }
-      })
+      }
+
+      if (items.length && process.env.MEMORY_WAKE_DEBUG) {
+        try {
+          console.log('[memory-system][wake-debug] ' + JSON.stringify(list.map((m: any) => ({
+            role: m && m.role,
+            src: m && m.source && m.source.kind,
+            id: m && m.id,
+            head: textOf(m).slice(0, 60),
+          }))))
+        } catch (e) { /* ignore */ }
+      }
+
+      let outList = list
+      if (items.length) {
+        const now = Date.now()
+        const state = wakeCore.readState(DATA_ROOT, now)
+        const profile = wakeProfile.summary(DATA_ROOT, now)
+        const topics = app.topic.list()
+        let care: any = null
+        try {
+          if (wakeCare.shouldCare(DATA_ROOT, now)) {
+            const obs = wakeCare.analyze(profile, now)
+            const ev = obs ? wakeCare.pickEvidence(topics, now) : null
+            const line = obs && ev ? wakeCare.careLine(obs.observation, ev) : ''
+            if (line) care = { observation: obs.observation, weekStart: obs.weekStart, evidence: ev, line }
+          }
+        } catch (e) { /* 曲线失败不影响唤醒 */ }
+        const clue = wakeCore.pickClue(topics, state.lastClueId)
+        const result = wakeCore.decide({
+          items,
+          hasRealUser,
+          now,
+          state,
+          profile,
+          clue,
+          care: care ? care.line : '',
+          root: DATA_ROOT,
+        })
+        try { wakeCore.appendLog(DATA_ROOT, result.entries) } catch (e) { /* 日志失败不影响对话 */ }
+
+        if (result.action === 'reject') return { kind: 'reject' }
+
+        if (care && result.companionDelivered) {
+          try {
+            wakeCare.markCare(DATA_ROOT, {
+              weekStart: care.weekStart,
+              observation: care.observation,
+              evidence: [care.evidence.type, care.evidence.summary || care.evidence.title].filter(Boolean).join('：'),
+              at: now,
+            })
+          } catch (e) { /* ignore */ }
+        }
+
+        const synthetic = result.action === 'enter' ? {
+          role: 'user',
+          id: 'memory-wake-' + now.toString(36) + '-' + Math.random().toString(36).slice(2, 8),
+          content: [{ type: 'text', text: result.text || '' }],
+          source: { kind: 'memory-wake', form: 'notice', summary: '自动唤醒' },
+        } : null
+
+        const next: any[] = []
+        let inserted = false
+        for (const m of list) {
+          if (scheduleMsgs.includes(m)) {
+            if (!inserted && synthetic) {
+              next.push(synthetic)
+              inserted = true
+            }
+            continue
+          }
+          next.push(m)
+        }
+        if (!inserted && synthetic) next.push(synthetic)
+        outList = next
+
+        if (result.companionDelivered && wakeKey) {
+          const token = markWakeTurn(wakeKey, now + 15 * 60 * 1000)
+          try {
+            const idle = agent && typeof agent.whenIdle === 'function' ? agent.whenIdle() : null
+            if (idle && typeof idle.then === 'function') {
+              idle.then(() => clearWakeTurn(wakeKey, token)).catch(() => clearWakeTurn(wakeKey, token))
+            }
+          } catch (e) { /* ignore */ }
+        }
+      }
+
+      // 测试用：唤醒轮把最新的 time-context 改成模拟时间，
+      // 否则模型会看到真实凌晨时间，模拟 09:00/12:30 就不成立。
+      try {
+        const st = wakeCore.readState(DATA_ROOT)
+        const simMs = st.simNow ? Date.parse(st.simNow) : 0
+        if (simMs && hasWakeMsg) {
+          for (let i = outList.length - 1; i >= 0; i--) {
+            const m: any = outList[i]
+            if (m && m.source && m.source.kind === 'time-context') {
+              const text = 'Time sampled while preparing this turn: ' + st.simNow
+              outList[i] = {
+                ...m,
+                content: [{ type: 'text', text }],
+                source: { ...m.source, sections: [{ name: 'time-context', text }] },
+              }
+              break
+            }
+          }
+        }
+      } catch (e) { /* ignore */ }
+
       // 同一步里已有常识层就不重复插（工具循环里会多次进 pre-step）；
       // 历史里已有也不插（常识层会作为 user/message 留在会话里，
       // 压缩把它裁掉后这里会重新补上）
-      if (wakeList.some((m: any) => textOf(m).includes(COMMON_MARK))) {
-        return { ...decision, messages: wakeList }
+      if (outList.some((m: any) => textOf(m).includes(COMMON_MARK))) {
+        return { ...decision, messages: outList }
       }
-      if (historyHasCommon(agent)) return { ...decision, messages: wakeList }
+      if (historyHasCommon(agent)) return { ...decision, messages: outList }
 
       const commonMsg = {
         role: 'user',
@@ -1781,10 +2368,165 @@ export function apply(ctx: Context) {
         injectLogged = true
         console.log('[memory-system] 常识层：已通过 agent/pre-step 注入')
       }
-      return { ...decision, messages: [commonMsg, ...wakeList] }
+      return { ...decision, messages: [commonMsg, ...outList] }
     } catch (e) {
       console.error('[memory-system] 常识层注入失败：', e)
       return decision
+    }
+  })
+
+  // ── 无感唤醒定时器 ──────────────────────────────
+  // 不再用 DSH schedule：到点直接往绑定会话里投一条 memory-wake notice。
+  // DSH 关掉就不醒；重启后从 wake.json 的 nextWakeAt 恢复。
+  let wakeTickRunning = false
+  async function wakeTick() {
+    if (wakeTickRunning) return
+    wakeTickRunning = true
+    try {
+      const realNow = Date.now()
+      const s = wakeCore.readState(DATA_ROOT, realNow)
+      if (!s.enabled || !s.targetSessionId) return
+
+      // 测试用：把“现在”模拟成正常的醒来时间；生产 simNow 为空，用真实时间。
+      const simMs = s.simNow ? Date.parse(s.simNow) : 0
+      const now = Number.isFinite(simMs) && simMs ? simMs : realNow
+
+      // 每天重新排：4 次日常 + 午饭/晚饭各一次（饭点在窗口里随机）。
+      const today = localDay(now)
+      if (s.planDay !== today) {
+        const profile = wakeProfile.summary(DATA_ROOT, realNow)
+        const generalCount = Math.max(0, (s.maxPerDay || 6) - 2)
+        const plan = wakeScheduler.pickPlan(profile, now, {
+          generalCount,
+          minGapMinutes: s.minGapMinutes > 0 ? s.minGapMinutes : 45,
+        })
+        const next = wakeScheduler.nextEntry(plan, now + 1000)
+        wakeCore.mutateState(DATA_ROOT, (st: any) => {
+          st.plan = plan
+          st.planDay = today
+          st.nextWakeAt = next ? new Date(next.at).toISOString() : null
+          st.nextWindow = next && next.entry && next.entry.window || ''
+        }, now)
+        return
+      }
+      if (!s.nextWakeAt) return
+      const due = Date.parse(s.nextWakeAt)
+      if (!Number.isFinite(due) || realNow < due) return
+
+      const target = s.targetSessionId
+      const advance = () => {
+        const fresh = wakeCore.readState(DATA_ROOT, now)
+        const plan = fresh.plan && fresh.plan.length ? fresh.plan : s.plan
+        const next = wakeScheduler.nextEntry(plan, now + 1000)
+        wakeCore.mutateState(DATA_ROOT, (st: any) => {
+          st.nextWakeAt = next ? new Date(next.at).toISOString() : null
+          st.nextWindow = next && next.entry && next.entry.window || ''
+        }, now)
+      }
+
+      if (realNow - due > 15 * 60 * 1000) {
+        console.log('[memory-system] 唤醒跳过：已错过 ' + Math.round((realNow - due) / 60000) + ' 分钟')
+        advance()
+        return
+      }
+
+      let agent: any = null
+      try { agent = (ctx as any).agents?.get?.(target) || null } catch (e) { agent = null }
+      if (!agent) {
+        try {
+          const persistence = (ctx as any).get ? (ctx as any).get('sessionPersistence') : null
+          const snap = await persistence?.stat?.(target)
+          if (!snap) {
+            console.warn('[memory-system] 唤醒跳过：目标会话不存在 ' + target)
+            advance()
+            return
+          }
+          const preset = String(snap?.header?.agentPreset || '').trim() || 'standard'
+          const handle = await (ctx as any).agents.resume({
+            resumeSessionId: target,
+            setup: async (agentCtx: any) => {
+              await (ctx as any).agentPresets.mount(agentCtx, preset)
+            },
+          })
+          agent = handle && handle.agent
+        } catch (e: any) {
+          try { agent = (ctx as any).agents?.get?.(target) || null } catch (e2) { agent = null }
+          if (!agent) {
+            console.warn('[memory-system] 唤醒跳过：目标会话恢复失败 ' + (e && e.message))
+            advance()
+            return
+          }
+        }
+      }
+      if (!agent) {
+        console.log('[memory-system] 唤醒跳过：目标会话不可用')
+        advance()
+        return
+      }
+      if (agent.status !== 'idle') {
+        // 不再跳过：followup 会排到当前回合结束之后。
+        console.log('[memory-system] 唤醒排队：目标会话正忙，等当前回合结束')
+      }
+
+      const profile = wakeProfile.summary(DATA_ROOT, now)
+      const r = wakeCore.admit(DATA_ROOT, now, { kind: 'companion', clueId: '', profile, planned: true })
+      const entryId = 'timer:' + new Date(now).toISOString()
+      if (!r.allow) {
+        wakeCore.appendLog(DATA_ROOT, [wakeCore._entry(now, 'companion', 'skipped', r.reason, [
+          { id: entryId, at: new Date(now).toISOString() },
+        ])])
+        advance()
+        return
+      }
+
+      // 只给时间场景，不写关心台词；上次聊了什么让她自己决定要不要查。
+      const brief = wakeCore.buildWakeText({
+        now,
+        window: s.simWindow || s.nextWindow || '',
+        simulated: !!s.simNow,
+        ignoredStreak: r.streak || 0,
+        finalWarning: !!r.finalWarning,
+        pauseDays: s.pauseDays || 3,
+      })
+      const message = createUserMessage({
+        content: [{ type: 'text', text: brief }],
+        source: { kind: 'memory-wake', form: 'notice', summary: '自动唤醒' } as any,
+      })
+      const key = wakeKeyOf({ session: { id: target } })
+      const wakeToken = key ? markWakeTurn(key, now + 15 * 60 * 1000) : ''
+
+      try {
+        agent.followup(message)
+        try { await (ctx as any).sessions?.flush?.(agent.session) } catch (e) { /* ignore */ }
+        if (typeof agent.whenIdle === 'function') {
+          agent.whenIdle()
+            .then(() => { if (key && wakeToken) clearWakeTurn(key, wakeToken) })
+            .catch(() => { if (key && wakeToken) clearWakeTurn(key, wakeToken) })
+        }
+        wakeCore.appendLog(DATA_ROOT, [wakeCore._entry(now, 'companion', 'delivered', 'ok', [
+          { id: entryId, at: new Date(now).toISOString() },
+        ])])
+        console.log('[memory-system] 无感唤醒：' + target + ' | ' + brief.split('\n')[0])
+      } catch (e: any) {
+        if (key && wakeToken) clearWakeTurn(key, wakeToken)
+        console.warn('[memory-system] 唤醒投递失败：' + (e && e.message))
+        wakeCore.appendLog(DATA_ROOT, [wakeCore._entry(now, 'companion', 'skipped', 'followup-failed', [
+          { id: entryId, at: new Date(now).toISOString() },
+        ])])
+      }
+      advance()
+    } catch (e: any) {
+      console.warn('[memory-system] 唤醒定时器异常：' + (e && e.message))
+    } finally {
+      wakeTickRunning = false
+    }
+  }
+  ctx.effect(() => {
+    const timer = setInterval(() => { void wakeTick() }, 30 * 1000)
+    const kick = setTimeout(() => { void wakeTick() }, 3000)
+    return () => {
+      clearInterval(timer)
+      clearTimeout(kick)
     }
   })
 

@@ -95,6 +95,8 @@ class Refiner {
     }
 
     // 1) 回流剔除：显式标记或 origin=recall_echo 直接丢，不进正式库
+    // 主动唤醒（origin=wake）保留：它是 AI 侧的互动，也要进 raw/链网；
+    // 提炼提示词会把它当“AI 主动表达”，不据此推断用户状态。
     const clean = [];
     let echoed = 0;
     for (const r of pending) {

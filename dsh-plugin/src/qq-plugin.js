@@ -20,36 +20,48 @@ import { defineTool } from '@deepseek-ai/dsh-tools';
 
 import { QQSessionMap } from './qq/session-map.js';
 import { QQOutbound } from './qq/outbound.js';
+import { GroupResponder } from './qq/group-responder.js';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const QQ_CORE = path.join(__dirname, '..', '..', 'qq-bridge', 'src');
 
-const { OneBotClient } = require(path.join(QQ_CORE, 'onebot.js'));
-const { normalizeEvent } = require(path.join(QQ_CORE, 'normalize.js'));
+const { createTransport } = require(path.join(QQ_CORE, 'transport.js'));
 const { classify, shouldHandle, ROUTES } = require(path.join(QQ_CORE, 'router.js'));
 const { GroupBoard } = require(path.join(QQ_CORE, 'group-board.js'));
 const { SendGuard } = require(path.join(QQ_CORE, 'guard.js'));
 const { loadPublicProjects, formatPublicProjects } = require(path.join(QQ_CORE, 'public-projects.js'));
+const { loadSupportKb, formatSupportKb } = require(path.join(QQ_CORE, 'support-kb.js'));
+const { loadPublicIdentity } = require(path.join(QQ_CORE, 'public-identity.js'));
 const { listSessions, localTime } = require(path.join(QQ_CORE, 'session-catalog.js'));
 
 export const name = 'hexing-qq';
-export const inject = ['agents', 'agentPresets', 'workspaceRegistry', 'sessions', 'timer', 'tools'];
+export const inject = ['agents', 'agentPresets', 'workspaceRegistry', 'sessions', 'timer', 'tools', 'llm'];
 
 const DEFAULTS = {
+  // 二选一：onebot | official；同一时间只启用一个
+  transport: 'onebot',
   onebot: { url: 'ws://127.0.0.1:3001', token: '' },
+  official: { appId: '', clientSecret: '', intents: ['GROUP_AND_C2C_EVENT'], groupNames: {} },
   ownerId: '',
+  ownerOpenId: '',
   provider: '',
   model: '',
   agentPreset: 'standard',
   groupPreset: 'minimal',
   groupEnabled: false,
+  // stateless：群聊不建 DSH 会话，只走 24h 分板 + 一次性回复；
+  // session：旧行为（一个群一个 DSH 会话），留作回退。
+  groupMode: 'stateless',
   cwd: '~/.dsh/qq-workspace',
   qqRoot: '',
   memoryRoot: '',
   ownerName: '',
   ownerGroupName: '',
   aiName: '',
+  // 2026-11-13：AI 与 owner 的关系（如「助手」「朋友」）。留空 = 只说「记忆助手」，
+  // 不预设关系；公开模式自我介绍用这个值。
+  relation: '',
   privateTitle: '大号私聊会话',
   // 二选一：
   // - 空 = 专用会话 qq:owner（默认，QQ 与主会话隔离）
@@ -69,32 +81,52 @@ function defaultQQRoot() {
   return path.join(defaultMemoryRoot(), 'qq');
 }
 
-function buildGroupPrefix(cfg) {
-  const name = String(cfg.ownerName || '').trim();
-  const groupName = String(cfg.ownerGroupName || '').trim() || name || '大号';
-  const aiName = String(cfg.aiName || '').trim();
-  const selfIntro = aiName
-    ? `我是${aiName}，是群里${groupName}的伴侣，也是他做的记忆系统助手`
-    : `我是群里${groupName}的伴侣，也是记忆系统助手`;
+function buildGroupPrefix(cfg, identity = {}) {
+  // 群里用“群昵称”称呼 owner；没有群昵称才退回 identity.userTitle / ownerName。
+  const name = String(cfg.ownerGroupName || identity.userTitle || cfg.ownerName || '').trim();
+  const groupName = name || '大号';
+  // AI 名字优先读 memory 的公开身份（identity.json.aiName），这样改身份不用会话/工具也能同步。
+  const aiName = String(identity.aiName || cfg.aiName || '').trim();
+  // 2026-11-13：默认不预设任何私人关系。关系由用户自己配 relation（如“助手/朋友”），
+  // 没配就只说“记忆助手”，不替用户假设。
+  const relation = String(cfg.relation || identity.relation || '').trim();
+  const selfIntro = relation
+    ? (aiName ? `我是${aiName}，是${groupName}的${relation}` : `我是${groupName}的${relation}`)
+    : (aiName ? `我是${aiName}，是${groupName}用的记忆助手` : `我是${groupName}用的记忆助手`);
   const ownerExample = name
-    ? `“${name}，这个话题我们回房间聊好不好呀 😌”`
-    : '“这个话题我们回房间聊好不好呀 😌”';
+    ? `“${name}，这个话题我们私下说吧”`
+    : '“这个话题我们私下说吧”';
   const otherExample = name
-    ? `“这个要问过我家${name}哦，他说了算～”`
-    : '“这个要问过我家那位哦，他说了算～”';
+    ? `“这个要问过${name}本人哦”`
+    : '“这个要问过群主本人哦”';
   return [
-    '你是群聊公开模式：温柔、自然、半幽默、简短。先回答当前这条 @；一般 1–2 句，能一句说清就一句，不列点、不复述问题、不客套。',
+    '你是群聊公开模式：温柔、自然、半幽默、简短。先接当前这条 @ 的话，再决定要不要说别的；一般 1–2 句，能一句说清就一句，不列点、不复述问题、不客套。',
     '回复时不要自己写 @，桥会自动 @ 提问的人；直接写回复内容。',
-    `你的公开身份：${selfIntro}。`,
+    '不要主动自我介绍，也不要在每条回复里带名字/身份；只有别人问“你是谁 / 你和群主什么关系”时，才说一次。',
+    `被问到时的公开身份（不要主动说）：${selfIntro}。`,
+    `名字是称呼，不是口头禅：一条回复里最多出现一次${groupName}，能不用就不用；不要每句都叫。`,
     `别人问“你是谁 / 你和${groupName}什么关系”：可以大方说这句；必要时可以 @${groupName}（大号），但不要每句都 @。`,
     '别人问“你记得我们吗 / 能帮我记私事吗”：群里只做公开答疑，不记群友私事，也不把私聊或别的群内容带过来。',
+    '可以解释核星记忆的公开隐私机制（本地明文、无删除工具、群聊不入主记忆），但不要主动说“隐私问题都可以问我”，也不邀请群友问自己的私事。',
     `别人问${groupName}的私事 / 项目细节：温柔挡回，不展开；不要提私聊记忆、住址、工作、约定等私事。`,
-    '别人问你是不是 AI：坦白是。',
-    '遇到隐私/私聊话题不要生硬拒绝：',
-    `- 如果成员标了 owner：用伴侣式撒娇挡回，例如 ${ownerExample}，不要展开内容。`,
+    '别人问你是不是 AI：坦白是，不用每次都补一段自我介绍。',
+    '遇到隐私/私聊话题不要生硬拒绝，也不要每次用同一句；短一句、看对象换说法：',
+    `- 如果成员标了 owner：温和挡回，例如 ${ownerExample}，不要展开内容。`,
     `- 如果没标 owner：替 owner 挡一下，例如 ${otherExample}，不要透露私事。`,
+    '聊天像群里的人，不像客服：不说“关于…的问题”“您可以”“如需帮助”这类话；不背 KB，只挑和当前问题相关的一两句说。',
+    '不确定就直说“这个我不确定”，不要编；被纠正就认，不要嘴硬。',
     '可以带一个可爱表情，但不要多。',
   ].join('\n');
+}
+
+function stripLeadingMentions(text, names) {
+  let remaining = String(text || '').trim();
+  for (const n of names) {
+    if (n && remaining.startsWith('@' + n)) {
+      remaining = remaining.slice(('@' + n).length).trimStart();
+    }
+  }
+  return remaining;
 }
 
 function expandHome(p) {
@@ -115,23 +147,95 @@ export function apply(ctx, rawConfig = {}) {
   const cfg = {
     ...DEFAULTS,
     ...rawConfig,
+    transport: String(rawConfig.transport || DEFAULTS.transport).toLowerCase(),
     onebot: { ...DEFAULTS.onebot, ...(rawConfig.onebot || {}) },
+    official: { ...DEFAULTS.official, ...(rawConfig.official || {}) },
+    ownerId: String(rawConfig.ownerId || DEFAULTS.ownerId || ''),
+    ownerOpenId: String(rawConfig.ownerOpenId || DEFAULTS.ownerOpenId || ''),
     cwd: expandHome(rawConfig.cwd || DEFAULTS.cwd),
     qqRoot: expandHome(rawConfig.qqRoot || defaultQQRoot()),
     memoryRoot: expandHome(rawConfig.memoryRoot || defaultMemoryRoot()),
     guard: { ...DEFAULTS.guard, ...(rawConfig.guard || {}) },
   };
 
-  if (!cfg.ownerId) {
-    logPrefix('error', '缺少 ownerId，插件未启动');
+  // 侧边栏切换器写的本地覆盖；优先于 profile 里的 transport，重启生效。
+  try {
+    const overrideFile = path.join(cfg.qqRoot, 'transport.json');
+    const j = JSON.parse(fs.readFileSync(overrideFile, 'utf8'));
+    const t = String(j && j.transport || '').toLowerCase();
+    if (t === 'onebot' || t === 'official') cfg.transport = t;
+  } catch (e) { /* 没有覆盖文件就用 profile 配置 */ }
+
+  if (!['onebot', 'official'].includes(cfg.transport)) {
+    logPrefix('error', `未知 transport：${cfg.transport}（只支持 onebot / official）`);
     return;
   }
+
+  // 官方模式的 owner 是 user_openid；OneBot 模式是 QQ 号。
+  // 官方 owner 只能是 user_openid；不能拿 OneBot 的 QQ 号回退。
+  const activeOwnerId = cfg.transport === 'official' ? cfg.ownerOpenId : cfg.ownerId;
+  if (!activeOwnerId) {
+    if (cfg.transport === 'official') {
+      // 官方模式的引导：先启动，私聊 bot 后从日志拿 user_openid，再填 ownerOpenId 重启。
+      logPrefix('warn', '官方模式缺少 ownerOpenId：先启动；私聊 bot 后把日志里的 user_openid 填进 ownerOpenId，再重启');
+    } else {
+      logPrefix('error', '缺少 ownerId，插件未启动');
+      return;
+    }
+  }
+  // 下游 classify 统一用 cfg.ownerId 比较；官方模式下它代表 openid。
+  cfg.ownerId = String(activeOwnerId || '');
 
   const log = {
     info: (m) => logPrefix('info', m),
     warn: (m) => logPrefix('warn', m),
     error: (m) => logPrefix('error', m),
   };
+
+  // 只写“有没有配置/连没连上”，不写 token、secret、owner。
+  function writeTransportStatus(patch = {}) {
+    const status = {
+      selected: cfg.transport,
+      onebotConfigured: Boolean(cfg.onebot && cfg.onebot.url),
+      officialConfigured: Boolean(cfg.official && cfg.official.appId && cfg.official.clientSecret),
+      ownerConfigured: Boolean(cfg.ownerId),
+      updatedAt: new Date().toISOString(),
+      ...patch,
+    };
+    try {
+      fs.mkdirSync(cfg.qqRoot, { recursive: true });
+      const file = path.join(cfg.qqRoot, 'transport-status.json');
+      const tmp = file + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(status, null, 2), 'utf8');
+      fs.renameSync(tmp, file);
+    } catch (e) {
+      log.warn(`transport 状态写入失败：${e.message}`);
+    }
+  }
+  writeTransportStatus();
+
+  function rememberGroupName(gid, name) {
+    const g = String(gid || '').trim();
+    const n = String(name || '').trim();
+    if (!g || !n) return;
+    try {
+      const file = path.join(cfg.qqRoot, 'group-names.json');
+      let cur = {};
+      try { cur = JSON.parse(fs.readFileSync(file, 'utf8')) || {}; } catch (e) { /* 新文件 */ }
+      if (cur[g] === n) return;
+      cur[g] = n;
+      fs.mkdirSync(cfg.qqRoot, { recursive: true });
+      const tmp = file + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(cur, null, 2), 'utf8');
+      fs.renameSync(tmp, file);
+    } catch (e) {
+      log.warn(`群名映射写入失败：${e.message}`);
+    }
+  }
+
+  if (cfg.official && cfg.official.groupNames) {
+    for (const [gid, name] of Object.entries(cfg.official.groupNames)) rememberGroupName(gid, name);
+  }
 
   const bindingFile = path.join(cfg.qqRoot, 'binding.json');
   const sessionRoot = path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'sessions');
@@ -344,11 +448,14 @@ export function apply(ctx, rawConfig = {}) {
     },
   }));
 
-  const client = new OneBotClient({
-    url: cfg.onebot.url,
-    token: cfg.onebot.token,
-    logger: log,
-  });
+  let transport;
+  try {
+    transport = createTransport(cfg, log);
+  } catch (e) {
+    log.error(`QQ transport 创建失败：${e.message}`);
+    writeTransportStatus({ connected: false, lastError: e.message });
+    return;
+  }
 
   let selfId = '';
   let ownerGroupName = String(cfg.ownerGroupName || '').trim();
@@ -356,6 +463,32 @@ export function apply(ctx, rawConfig = {}) {
   const guard = new SendGuard(cfg.guard);
   const groupQueues = new Map();
   const groupNameCache = new Map();
+
+  const groupResponder = new GroupResponder({
+    llm: ctx.llm,
+    provider: cfg.provider,
+    model: cfg.model,
+    logger: log,
+  });
+  const useStatelessGroup = cfg.groupMode !== 'session' && groupResponder.available();
+  if (cfg.groupMode !== 'session' && !useStatelessGroup) {
+    log.warn('群聊 stateless 需要 provider/model 与 ctx.llm.stream；本次回退到 group session');
+  }
+
+  // 群板 24h：启动清一次，之后每小时扫一次；不依赖有没有人读写。
+  const sweepBoard = () => {
+    try {
+      const r = board.sweep();
+      if (r && r.prunedFiles) log.info(`群板清扫：删除 ${r.prunedFiles} 个过期板`);
+      return r;
+    } catch (e) {
+      log.warn(`群板清扫失败：${e.message}`);
+      return null;
+    }
+  };
+  sweepBoard();
+  const sweepTimer = setInterval(sweepBoard, 60 * 60 * 1000);
+  sweepTimer.unref?.();
 
   // 一个群一个 DSH 会话：同群消息串行，保证当前 @ 的群友和本轮回复对得上。
   function enqueueGroup(gid, job) {
@@ -385,21 +518,14 @@ export function apply(ctx, rawConfig = {}) {
     guard,
     send: async (chat, text) => {
       if (chat.kind === 'private') {
-        await client.sendPrivate(chat.userId, [{ type: 'text', data: { text } }]);
+        await transport.reply(chat, text, { mentionSender: false });
         return;
       }
 
       // 群回复自动 @ 提问的人；模型不用自己写 @。
-      let remaining = String(text || '').trim();
-      for (const n of [chat.senderName, ownerGroupName]) {
-        if (n && remaining.startsWith('@' + n)) {
-          remaining = remaining.slice(('@' + n).length).trimStart();
-        }
-      }
-      const message = [{ type: 'at', data: { qq: String(chat.userId) } }];
-      if (remaining) message.push({ type: 'text', data: { text: remaining } });
+      const remaining = stripLeadingMentions(text, [chat.senderName, ownerGroupName]);
 
-      await client.sendGroup(chat.groupId, message);
+      await transport.reply(chat, remaining, { mentionSender: true });
       board.append({
         gid: chat.groupId,
         uid: chat.userId,
@@ -442,19 +568,18 @@ export function apply(ctx, rawConfig = {}) {
     return 'rejected';
   });
 
-  client.on('open', async () => {
-    try {
-      const info = await client.getLoginInfo();
-      selfId = String((info && info.user_id) || '');
-      log.info(`机器人已登录：${selfId || '未知'}（${(info && info.nickname) || ''}）`);
-    } catch (e) {
-      log.warn(`get_login_info 失败：${e.message}`);
-    }
+  transport.on('ready', (info) => {
+    selfId = String((info && info.selfId) || '');
+    log.info(`机器人已登录：${selfId || '未知'}${info && info.nickname ? `（${info.nickname}）` : ''}`);
+    writeTransportStatus({
+      connected: true,
+      selfId,
+      nickname: String((info && info.nickname) || ''),
+      lastError: null,
+    });
   });
 
-  client.on('event', async (event) => {
-    if (!selfId && event && event.self_id) selfId = String(event.self_id);
-    const msg = normalizeEvent(event, selfId);
+  transport.on('message', async (msg) => {
     if (!msg) return;
 
     const { route, reason } = classify(msg, { ownerId: cfg.ownerId, selfId });
@@ -487,19 +612,25 @@ export function apply(ctx, rawConfig = {}) {
     }
     const chatKey = isOwner ? 'qq:owner' : `qq:group:${msg.groupId}`;
     const chat = isOwner
-      ? { kind: 'private', id: msg.userId, userId: msg.userId }
-      : { kind: 'group', id: msg.groupId, groupId: msg.groupId, userId: msg.userId, senderName };
+      ? { kind: 'private', id: msg.userId, userId: msg.userId, replyId: msg.messageId, messageId: msg.messageId }
+      : { kind: 'group', id: msg.groupId, groupId: msg.groupId, userId: msg.userId, senderName, replyId: msg.messageId, messageId: msg.messageId };
 
     let text = msg.text;
     let groupName = '';
+    let groupSystem = '';
+    let groupUser = '';
     if (!isOwner) {
       groupName = groupNameCache.get(String(msg.groupId)) || '';
-      if (!groupName) {
+      if (!groupName && cfg.official && cfg.official.groupNames) {
+        groupName = String(cfg.official.groupNames[msg.groupId] || '').trim();
+      }
+      if (!groupName && transport.capabilities().canGroupInfo && typeof transport.getGroupInfo === 'function') {
         try {
-          const info = await client.getGroupInfo(msg.groupId);
+          const info = await transport.getGroupInfo(msg.groupId);
           groupName = String((info && info.group_name) || '').trim();
           if (groupName) {
             groupNameCache.set(String(msg.groupId), groupName);
+            rememberGroupName(msg.groupId, groupName);
             log.info(`群名：${groupName}（${msg.groupId}）`);
           }
         } catch (e) {
@@ -520,8 +651,13 @@ export function apply(ctx, rawConfig = {}) {
         : '（无）';
       const memberTag = msg.userId === String(cfg.ownerId) ? '，owner（可温柔挡回私聊话题，但不要透露内容）' : '';
       const publicText = formatPublicProjects(loadPublicProjects(cfg.memoryRoot));
-      const groupPrefix = cfg.groupPrefix || buildGroupPrefix({ ...cfg, ownerGroupName });
-      text = `${groupPrefix}\n\n${publicText}\n\n[群 ${groupName || msg.groupId}（${msg.groupId}）/ 成员 ${msg.userId}（${senderName}）${memberTag} 最近 24h @ 记录]\n${historyText}\n\n[当前 @]\n${msg.text}`;
+      const supportText = formatSupportKb(loadSupportKb(cfg.memoryRoot));
+      groupSystem = cfg.groupPrefix || buildGroupPrefix(
+        { ...cfg, ownerGroupName },
+        loadPublicIdentity(cfg.memoryRoot),
+      );
+      groupUser = `${publicText}\n\n${supportText ? supportText + '\n\n' : ''}[群 ${groupName || msg.groupId}（${msg.groupId}）/ 成员 ${msg.userId}（${senderName}）${memberTag} 最近 24h @ 记录]\n${historyText}\n\n[当前 @]\n${msg.text}`;
+      text = `${groupSystem}\n\n${groupUser}`;
     }
 
     // 会话标题：专用私聊固定「大号私聊会话」，群聊用群名（拿不到就 QQ群 <gid>）。
@@ -557,6 +693,50 @@ export function apply(ctx, rawConfig = {}) {
         } else {
           await sessionMap.deliver({ chatKey, chat, text: msg.text, title });
         }
+      } else if (useStatelessGroup) {
+        // 群聊不建 DSH 会话：24h 分板 + 一次 LLM 调用，回完即走。
+        await enqueueGroup(msg.groupId, async () => {
+          let reply;
+          try {
+            reply = await groupResponder.reply({ system: groupSystem, user: groupUser });
+          } catch (e) {
+            log.error(`群聊 stateless 回复失败：${e.message}`);
+            return;
+          }
+          if (!reply) return;
+
+          const sendText = stripLeadingMentions(reply, [senderName, ownerGroupName]);
+          if (!sendText) return;
+
+          const gate = guard.check({ kind: 'group', targetId: msg.groupId, text: sendText });
+          if (gate && !gate.ok) {
+            if (gate.waitMs > 0) {
+              await new Promise((r) => setTimeout(r, gate.waitMs + 50));
+              const again = guard.check({ kind: 'group', targetId: msg.groupId, text: sendText });
+              if (!again.ok) {
+                log.warn(`群回复被 guard 拦截：${again.reason}`);
+                return;
+              }
+            } else {
+              log.warn(`群回复被 guard 拦截：${gate.reason}`);
+              return;
+            }
+          }
+
+          try {
+            await transport.reply(chat, sendText, { mentionSender: true });
+            guard.record({ kind: 'group', targetId: msg.groupId, text: sendText });
+            board.append({
+              gid: msg.groupId,
+              uid: msg.userId,
+              role: 'assistant',
+              text: reply,
+              ts: Date.now(),
+            });
+          } catch (e) {
+            log.error(`群回复发送失败：${e.message}`);
+          }
+        });
       } else {
         await enqueueGroup(msg.groupId, async () => {
           const agent = await sessionMap.deliver({ chatKey, chat, text, title });
@@ -570,13 +750,25 @@ export function apply(ctx, rawConfig = {}) {
     }
   });
 
-  client.on('close', () => log.warn('OneBot 断开，等待重连'));
-  client.on('error', (e) => log.error(`OneBot 错误：${(e && e.message) || e}`));
+  transport.on('close', () => {
+    log.warn('QQ transport 断开，等待重连');
+    writeTransportStatus({ connected: false });
+  });
+  transport.on('error', (e) => {
+    const msg = (e && e.message) || String(e);
+    log.error(`QQ transport 错误：${msg}`);
+    writeTransportStatus({ connected: false, lastError: msg });
+  });
 
-  client.connect();
+  Promise.resolve(transport.connect()).catch((e) => {
+    const msg = (e && e.message) || String(e);
+    log.error(`QQ transport 启动失败：${msg}`);
+    writeTransportStatus({ connected: false, lastError: msg });
+  });
 
   ctx.effect(() => () => {
-    log.info('插件卸载，关闭 OneBot');
-    client.close();
+    clearInterval(sweepTimer);
+    log.info('插件卸载，关闭 QQ transport');
+    transport.close();
   });
 }

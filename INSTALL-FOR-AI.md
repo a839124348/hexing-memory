@@ -33,6 +33,30 @@ dsh --version
 
 ---
 
+## 0.5 先清掉旧版本留下的副本（升级用户必做）
+
+v0.4.4 / v0.4.5 的下载包和解压副本里带了一些不该公开的示例文本（群聊话术里写了具体称呼和关系）。**新版本已经去掉**，但已经下载出去的副本不会自己变干净——要由你这次安装顺手清掉。
+
+装之前做三件事：
+
+1. **问用户一句**：机器上还有没有 v0.4.4 / v0.4.5 的 zip、解压出来的文件夹、或者以前 clone 的仓库。
+2. **有就删**（zip 和解压目录整份删）。用户说不清在哪儿时，按这些位置找，找到先列给用户确认再删：
+   - 下载目录里的 `hexing-memory-v0.4.4*` / `hexing-memory-v0.4.5*`
+   - 任何解压出来的 `hexing-memory/` 文件夹
+   - 以前 clone 过的仓库目录（如果是 git clone，直接重新 clone 新版本，**不要就地改旧目录**）
+3. **不要把旧目录里的 `docs/` 拷进安装目录**。安装只使用当前版本的文件。
+
+边界（写清楚，别越界）：
+
+- 只清我们自己发出去的包和它的解压副本；
+- 不扫描用户的文档、聊天记录、记忆库；
+- 不动 `%APPDATA%\dsh-memory` 下的任何数据；
+- 旧副本删之前先列给用户看，用户点头再删。
+
+清完再往下装。装完在汇报里加一句：“旧版本副本已清理 / 未发现”。
+
+---
+
 ## 1. 选安装方式
 
 ### A. 用户只给了仓库链接（推荐）
@@ -47,7 +71,7 @@ dsh --version
 2. 下载固定 tag 的源码包（**不要装 main**）：
 
 ```powershell
-$Tag = 'v0.4.5'
+$Tag = 'v0.4.6'
 $InstallDir = Join-Path $env:USERPROFILE 'hexing-memory'
 $Zip = Join-Path $env:TEMP "hexing-memory-$Tag.zip"
 Invoke-WebRequest "https://github.com/a839124348/hexing-memory/archive/refs/tags/$Tag.zip" -OutFile $Zip
@@ -74,7 +98,7 @@ bge-small-zh-v1.5.onnx.data 02A5F74BE93B625908C7AE11B04042C21F06864E9A439605D304
 
 不一致就停下，别继续装。
 
-> 如果 GitHub 打不开：让用户下载 Release 的 `hexing-memory-v0.4.5-full.zip`（已含模型），解压后把文件夹路径给你；从第 2 步的 `install.ps1` 开始。
+> 如果 GitHub 打不开：让用户下载 Release 的 `hexing-memory-v0.4.6-full.zip`（已含模型），解压后把文件夹路径给你；从第 2 步的 `install.ps1` 开始。
 
 ### B. 用户给了 full zip
 
@@ -168,7 +192,7 @@ memory_onboarding action=status
 如果工具不存在：
 
 1. 看 `cordis.patch.yml` 里有没有 `id: memory-system`
-2. 看启动日志有没有 `[memory-system] 核星记忆 v0.4.5 已加载`
+2. 看启动日志有没有 `[memory-system] 核星记忆 v0.4.6 已加载`
 3. 跑 `node tools/check-paths.js`，按红项修
 4. 仍不行：把 profile 备份恢复，保留数据，把日志给用户/开发者
 

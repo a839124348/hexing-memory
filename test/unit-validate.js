@@ -13,6 +13,7 @@ const cases = [
   ['近似重复', [{ ...base }, { ...base, c: '今天试一下这个系统啊' }], false, 'NEAR_DUPLICATE'],
   ['召回复述(标记)', [{ ...base, c: '[记忆] 你之前说过喜欢下雨' }], false, 'RECALL_ECHO'],
   ['召回复述(origin)', [{ ...base, origin: 'recall_echo' }], false, 'RECALL_ECHO'],
+  ['唤醒回复 origin', [{ ...base, origin: 'wake' }], true, ''],
   ['时间格式错', [{ ...base, t: '2026/11/05 03:20' }], false, 'TIME_FORMAT'],
   ['时间不存在', [{ ...base, t: '2026-02-30 10:00' }], false, 'TIME_INVALID'],
   ['空内容', [{ ...base, c: '   ' }], false, 'EMPTY_CONTENT'],

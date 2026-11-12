@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QQ 接入 · 核星记忆</title>
+<style>
+  :root{
+    --bg:#05070f; --panel:rgba(14,19,34,.9); --line:rgba(150,175,255,.14);
+    --text:#e9edff; --muted:#8e9bc4; --dim:#6f7fa8; --blue:#6f8cff; --gold:#ffd479; --red:#ff8d9d;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;background:
+      radial-gradient(1100px 650px at 25% 8%, rgba(40,64,140,.22), transparent 62%),
+      radial-gradient(900px 600px at 82% 90%, rgba(90,40,120,.14), transparent 62%),
+      var(--bg);
+    color:var(--text);font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+  }
+  header{max-width:980px;margin:0 auto;padding:42px 28px 10px;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
+  h1{margin:0;font-size:24px;font-weight:400;letter-spacing:.06em}
+  header p{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.7}
+  header a{color:#9fb4ff;text-decoration:none;font-size:12px;border:1px solid var(--line);padding:8px 12px;border-radius:10px}
+  main{max-width:980px;margin:0 auto;padding:12px 28px 60px}
+  .status{display:flex;gap:18px;flex-wrap:wrap;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--panel);font-size:12px;color:var(--muted)}
+  .status b{color:var(--text);font-weight:500}
+  .status .ok{color:#8fe3b0}.status .bad{color:var(--red)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+  .card{border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:20px;cursor:pointer;position:relative;transition:border-color .2s,transform .2s}
+  .card:hover{transform:translateY(-1px);border-color:rgba(150,175,255,.32)}
+  .card.active{border-color:rgba(255,212,121,.55);box-shadow:0 0 0 1px rgba(255,212,121,.12) inset}
+  .card.disabled{opacity:.5;cursor:not-allowed;transform:none}
+  .card h2{margin:0 0 8px;font-size:18px;font-weight:500;letter-spacing:.02em}
+  .tag{display:inline-block;font-size:10px;letter-spacing:.12em;color:var(--dim);border:1px solid var(--line);padding:3px 7px;border-radius:999px;margin-left:8px;vertical-align:2px}
+  .card p{margin:0;color:var(--muted);font-size:12px;line-height:1.8}
+  .card ul{margin:12px 0 0;padding-left:18px;color:var(--muted);font-size:12px;line-height:1.85}
+  .card .note{margin-top:12px;color:var(--gold);font-size:11px;line-height:1.7}
+  .help{margin-top:16px;border:1px solid var(--line);border-radius:14px;background:rgba(14,19,34,.6);padding:14px 16px;color:var(--muted);font-size:12px;line-height:1.85}
+  .help summary{cursor:pointer;color:#b9c8ff;outline:none}
+  .help pre{margin:12px 0;padding:12px;border-radius:10px;background:rgba(5,8,18,.7);border:1px solid rgba(150,175,255,.12);color:#dfe6ff;overflow:auto;font-size:11px;line-height:1.7}
+  .manual{margin-top:16px;border:1px solid var(--line);border-radius:14px;background:rgba(14,19,34,.6);padding:16px;color:var(--muted);font-size:12px;line-height:1.8}
+  .manual h3{margin:0 0 8px;font-size:14px;font-weight:500;color:var(--text)}
+  .manual textarea{width:100%;height:300px;margin-top:10px;padding:12px;border-radius:10px;border:1px solid rgba(150,175,255,.14);background:rgba(5,8,18,.72);color:#dfe6ff;font-family:Consolas,monospace;font-size:11px;line-height:1.7;resize:vertical}
+  .copy-row{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+  .ghost{background:transparent;border:1px solid var(--line);color:#b9c8ff}
+  .ghost-link{color:#9fb4ff;text-decoration:none;font-size:12px;border:1px solid var(--line);padding:11px 14px;border-radius:12px}
+  #copyMsg{font-size:11px;color:var(--muted)}
+  .manual a{color:#9fb4ff;text-decoration:none}
+  .warn{margin-top:18px;padding:16px 18px;border:1px solid rgba(255,141,157,.28);border-radius:14px;background:rgba(255,141,157,.06);color:#ffc3cb;font-size:12px;line-height:1.85}
+  .warn b{color:#ffdce1}
+  .actions{display:flex;align-items:center;gap:14px;margin-top:18px;flex-wrap:wrap}
+  button{border:0;border-radius:12px;padding:12px 18px;font-size:13px;font-family:inherit;cursor:pointer;background:linear-gradient(135deg,#5f7cff,#7c5cff);color:#fff}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  #msg{font-size:12px;color:var(--muted)}
+  #msg.ok{color:#8fe3b0}#msg.bad{color:var(--red)}
+  code{font-family:Consolas,monospace;color:#b9c8ff;font-size:11px}
+  @media (max-width:720px){.cards{grid-template-columns:1fr}header{padding:28px 16px 8px}main{padding:8px 16px 40px}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>QQ 接入</h1>
+    <p>OneBot 和 QQ 官方机器人二选一 · 同一时间只连一个 · 切换需要重启 DSH</p>
+  </div>
+  <a href="/">返回总览</a>
+</header>
+<main>
+  <div class="status">
+    <span>当前选择：<b id="selected">—</b></span>
+    <span>运行状态：<b id="running">—</b></span>
+    <span>QQ 插件：<b id="plugin">—</b></span>
+    <span>官方凭据：<b id="officialCfg">—</b></span>
+    <span>owner openid：<b id="ownerCfg">—</b></span>
+  </div>
+
+  <div class="cards">
+    <div class="card" id="cardOnebot" data-transport="onebot">
+      <h2>OneBot <span class="tag">NAP CAT / LLONEBOT</span></h2>
+      <p>自己准备 QQ 小号、基座和 OneBot 11 WS。基座能看到全群，但桥只处理 @；能主动、有本地历史。</p>
+      <ul>
+        <li>群：只处理 @；非 @ 不记录、不进分板</li>
+        <li>私聊：进主记忆</li>
+        <li>风险：账号/协议/封号，自己承担</li>
+      </ul>
+      <div class="note">适合：能自己维护基座、接受自己准备小号/WS；群聊仍只处理 @。</div>
+    </div>
+
+    <div class="card" id="cardOfficial" data-transport="official">
+      <h2>QQ 官方机器人 <span class="tag">OFFICIAL API</span></h2>
+      <p>在 q.qq.com 建 bot，群主把它加进群。稳定、合规，但只回 @。</p>
+      <ul>
+        <li>群：只收 @ 机器人的消息</li>
+        <li>私聊：用户先私聊 bot；进主记忆</li>
+        <li>限制：不做主动消息、不拉历史</li>
+      </ul>
+      <div class="note" id="officialNote">需要先在 profile 配 official.appId / clientSecret。</div>
+    </div>
+  </div>
+
+  <details class="help">
+    <summary>官方机器人怎么配？</summary>
+    <p>先在 <code>q.qq.com</code> 建机器人，拿 AppID / ClientSecret；把下面这段加进 DSH profile 的 <code>hexing-qq</code> config，重启 DSH。不要把这些发到群里。</p>
+    <pre>transport: 'official'
+ownerOpenId: '&lt;你的 user_openid&gt;'
+official:
+  appId: '&lt;AppID&gt;'
+  clientSecret: '&lt;ClientSecret&gt;'
+  sandbox: false
+  groupNames:
+    '&lt;group_openid&gt;': '测试群'</pre>
+    <p>然后让群主把机器人加进群。官方只收 @ 机器人的消息；不拉历史、不做主动消息。ownerOpenId 用你的 QQ 私聊机器人发一句，DSH 日志里的「私聊 &lt;openid&gt;」就是。</p>
+  </details>
+
+  <section class="manual" id="aiManual">
+    <h3>模型不会连？复制这段给 AI</h3>
+    <p>把下面整段复制给 DSH 里的模型。它包含 OneBot / 官方两条路线、配置位置和验收步骤；让它先读完文档再动手。</p>
+    <textarea id="aiPrompt" readonly>你是 DSH 里的模型。请帮我把「核星记忆」的 QQ 桥接好。
+先完整读完仓库里的 docs/QQ桥-FOR-AI.md 和 docs/QQ桥-接入.md，再动手；不要只看一半，也不要猜。
+
+当前情况：
+- 仓库路径：[填绝对路径]
+- DSH profile：%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml
+- 已有 hexing-qq 配置；没有就按文档加。
+- 传输二选一：onebot 或 official，同一时间只开一个。
+
+路线 A：OneBot
+1. 让用户启动 NapCat/LLOneBot，小号登录，OneBot 11 正向 WS 在 127.0.0.1:3001，token 与配置一致。
+2. hexing-qq config：transport: 'onebot'；onebot.url/token；ownerId=用户 QQ 号；groupEnabled: true；groupMode: 'stateless'。
+3. 重启 DSH，日志看到 [hexing-qq] 已连接、机器人已登录。
+4. 私聊测试；群里 @ 测试。群聊不建 DSH 会话，只写 24h 分板。
+5. 不代登录、不代扫码、不代开端口；不要用主号。
+
+路线 B：QQ 官方机器人
+1. 用户在 q.qq.com 建 bot，拿 AppID/ClientSecret；不要把值发到聊天或仓库。
+2. hexing-qq config：transport: 'official'；official.appId/clientSecret；ownerOpenId 先留空。
+3. 重启 DSH；让用户私聊 bot 一句；日志出现「私聊 [openid]」后，把 openid 填进 ownerOpenId，再重启。
+4. 群主把 bot 加进测试群；官方只收 @，不拉历史、不主动。
+5. 被动回复：群 5 分钟/5 次，私聊 60 分钟/4-5 次；一轮只发一条。
+6. 主体未认证 / 不能加群就告诉用户平台限制，不要绕。
+
+通用：
+- 改 profile 前先备份；不要写死别人的路径；不要把 token/secret 写进仓库或聊天。
+- 每一步先验证日志/接口，再下一步；失败就停下来告诉用户卡在哪，不要装成功。
+- 切换 transport 后必须重启 DSH；不会同时在线；群板 24h 清理，私聊会话保留。</textarea>
+    <div class="copy-row">
+      <button type="button" class="ghost" id="copyPrompt">复制给 AI</button>
+      <span id="copyMsg"></span>
+    </div>
+    <p>完整文档：<a href="https://github.com/a839124348/hexing-memory/blob/main/docs/QQ桥-FOR-AI.md" target="_blank" rel="noopener noreferrer">QQ桥-FOR-AI.md</a> · <a href="https://github.com/a839124348/hexing-memory/blob/main/docs/QQ桥-接入.md" target="_blank" rel="noopener noreferrer">QQ桥-接入.md</a></p>
+  </section>
+
+  <div class="warn">
+    <b>切换前确认：</b>会停掉当前连接，不会同时在线；保存后必须重启 DSH 才生效。
+    群聊默认 stateless，不建 DSH 群会话；24h 分板按 24h 清理，旧群会话不再使用。
+    <b>私聊会话保留，继续进主记忆。</b>
+  </div>
+
+  <div class="actions">
+    <button id="save" disabled>保存并重启 DSH</button>
+    <a class="ghost-link" href="/qq-groups" target="_blank" rel="noopener noreferrer">查看群 24h 活动 ↗</a>
+    <span id="msg"></span>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let state = null;
+let pick = '';
+
+function setMsg(text, kind) {
+  $('msg').textContent = text || '';
+  $('msg').className = kind || '';
+}
+function render() {
+  const status = (state && state.status) || null;
+  const override = (state && state.override) || null;
+  const selected = (override && override.transport) || (status && status.selected) || 'onebot';
+  pick = selected;
+
+  $('selected').textContent = selected === 'official' ? 'QQ 官方机器人' : 'OneBot';
+  const connected = status && status.connected ? '已连接' : (status ? '未连接' : '未上报');
+  $('running').textContent = connected;
+  $('running').className = status && status.connected ? 'ok' : 'bad';
+  $('plugin').textContent = status ? '已上报' : '未启用 / 未上报';
+  $('plugin').className = status ? 'ok' : 'bad';
+  const officialOk = Boolean(status && status.officialConfigured);
+  $('officialCfg').textContent = officialOk ? '已配置' : '未配置';
+  $('officialCfg').className = officialOk ? 'ok' : 'bad';
+  const ownerOk = Boolean(status && status.ownerConfigured);
+  $('ownerCfg').textContent = ownerOk ? '已配置' : '未配置';
+  $('ownerCfg').className = ownerOk ? 'ok' : 'bad';
+
+  $('cardOnebot').classList.toggle('active', pick === 'onebot');
+  $('cardOfficial').classList.toggle('active', pick === 'official');
+  $('cardOfficial').classList.toggle('disabled', !officialOk);
+  $('officialNote').textContent = !officialOk
+    ? '官方凭据未配置：先在 profile 的 official 段填 appId / clientSecret，重启后再来切换。'
+    : (ownerOk
+      ? '官方凭据已配置，可以切换。'
+      : 'AppID/Secret 已配置；ownerOpenId 未配置：切到官方后私聊 bot，日志里的 user_openid 填进 ownerOpenId 再重启。');
+
+  const hasOverride = Boolean(override && override.transport);
+  $('save').disabled = !pick || (pick === selected && !hasOverride) || (pick === 'official' && !officialOk);
+  setMsg(override && override.transport ? '已保存过切换，重启 DSH 后生效。' : '', '');
+}
+
+function choose(t) {
+  const status = (state && state.status) || null;
+  const override = (state && state.override) || null;
+  const selected = (override && override.transport) || (status && status.selected) || 'onebot';
+
+  if (t === 'official' && !(status && status.officialConfigured)) {
+    setMsg('官方机器人还没配置：先在 profile 的 official 段填 appId / clientSecret，重启 DSH 后再来切换。', 'bad');
+    return;
+  }
+  if (t === selected && !(override && override.transport)) {
+    setMsg('当前已经是 ' + (selected === 'official' ? 'QQ 官方机器人' : 'OneBot') + '；要切换请选另一个 transport。');
+    return;
+  }
+
+  pick = t;
+  render();
+  $('cardOnebot').classList.toggle('active', pick === 'onebot');
+  $('cardOfficial').classList.toggle('active', pick === 'official');
+  $('save').disabled = (pick === 'official' && !(status && status.officialConfigured));
+  setMsg('已选择 ' + (pick === 'official' ? 'QQ 官方机器人' : 'OneBot') + '；保存后需要重启 DSH。');
+}
+
+$('cardOnebot').addEventListener('click', () => choose('onebot'));
+$('cardOfficial').addEventListener('click', () => choose('official'));
+
+$('save').addEventListener('click', async () => {
+  if (!pick) return;
+  $('save').disabled = true;
+  setMsg('保存中…');
+  try {
+    const r = await fetch('/api/qq-transport', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transport: pick }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    setMsg('已保存。请重启 DSH，重启后才会切换到 ' + (pick === 'official' ? 'QQ 官方机器人' : 'OneBot') + '。', 'ok');
+  } catch (e) {
+    setMsg('保存失败：' + (e && e.message ? e.message : e), 'bad');
+    $('save').disabled = false;
+  }
+});
+
+$('copyPrompt').addEventListener('click', async () => {
+  const ta = $('aiPrompt');
+  try {
+    await navigator.clipboard.writeText(ta.value);
+    $('copyMsg').textContent = '已复制，去粘贴给 AI';
+  } catch (e) {
+    try {
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      $('copyMsg').textContent = '已复制，去粘贴给 AI';
+    } catch (e2) {
+      $('copyMsg').textContent = '复制失败，请手动全选复制';
+    }
+  }
+  setTimeout(() => { $('copyMsg').textContent = ''; }, 2500);
+});
+
+async function load() {
+  try {
+    const r = await fetch('/api/qq-transport', { cache: 'no-store' });
+    const j = await r.json();
+    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    state = j;
+    render();
+  } catch (e) {
+    setMsg('读取失败：' + (e && e.message ? e.message : e), 'bad');
+  }
+}
+load();
+</script>
+</body>
+</html>

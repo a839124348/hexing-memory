@@ -55,6 +55,17 @@ check('全重复时不报错', r3.ok, JSON.stringify(r3).slice(0, 160));
 check('全重复时一条不入库', r3.added === 0, 'added=' + r3.added);
 check('全重复时草稿清空（关键：否则死循环）', draft.stats().pending === 0, 'pending=' + draft.stats().pending);
 
+// 6. 主动唤醒回复：只留在 wake.json，不进 raw/链网
+const W = {
+  t: '2026-11-06 10:03', s: 'AI', c: '在呢，今天怎么样？',
+  cid: 'session-A', v: 1, type: 'ai', origin: 'wake',
+};
+draft.add([W]);
+const r4 = refiner.run();
+check('wake 记录入库', r4.added === 1, JSON.stringify(r4).slice(0, 160));
+check('wake 记录进正式存档', store.readDay('2026-11-06').length === 4, 'len=' + store.readDay('2026-11-06').length);
+check('wake 记录不留在草稿', draft.stats().pending === 0, 'pending=' + draft.stats().pending);
+
 console.log('');
 console.log('结果：' + pass + '/' + (pass + fails.length) + ' 通过');
 fs.rmSync(TMP, { recursive: true, force: true });

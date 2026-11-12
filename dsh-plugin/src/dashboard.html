@@ -854,6 +854,15 @@
     </article>
 
     <article class="card">
+      <div class="card-label">QQ / 群 24h</div>
+      <div class="card-main" id="qqGroupCount">— <small>个群有活动</small></div>
+      <div class="card-lines">
+        <div>@ 消息：<b id="qqGroupMessages">—</b></div>
+        <div><a href="/qq-groups" target="_blank" rel="noopener noreferrer" style="color:#9fb4ff;text-decoration:none">查看 24h 活动 ↗</a></div>
+      </div>
+    </article>
+
+    <article class="card">
       <div class="card-label">Topics / 创意池</div>
       <div class="card-main" id="topicOpen">— <small>个未闭合</small></div>
       <div class="card-lines">
@@ -1189,6 +1198,10 @@ function render(s) {
   text('backfillState', bfLabels[bf.status] || '未开始');
   text('backfillProgress', bfTotal ? `${n(bf.processedRecords)} / ${n(bfTotal)} 条 · ${n(bf.batches)} 批` : '—');
   text('backfillNodes', n(bf.addedNodes));
+
+  const qq = s.qqGroups || {};
+  text('qqGroupCount', n(qq.groups));
+  text('qqGroupMessages', n(qq.messages));
 
   text('topicOpen', n(topics.open));
   text('topicPromoted', n(topics.promoted));

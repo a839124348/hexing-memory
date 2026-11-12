@@ -11,8 +11,9 @@
  */
 const COMMON_MARK = '<!-- memory-system:common -->';
 const COMMON_MAX = 4000;
-const INJECTED_RE = /^(time-context|runtime-context|memory-common)$/i;
+const INJECTED_RE = /^(time-context|runtime-context|memory-common|memory-wake|skill-catalog|tool-registry)$/i;
 const SCHEDULE_RE = /^\s*\[SCHEDULE REMINDER(?: BATCH)?\]/i;
+const WAKE_MARK = '[陪伴唤醒]';
 
 function isInjectedMessage(msg) {
   const kind = msg && msg.source && msg.source.kind;
@@ -148,6 +149,55 @@ function isScheduleMessage(text) {
   return SCHEDULE_RE.test(String(text || ''));
 }
 
+/** 取 framing 里的一行 JSON；解析失败返回 undefined。 */
+function _jsonLine(text, name) {
+  const re = new RegExp('^' + name + ':\\s*(.+)$', 'm');
+  const m = re.exec(text);
+  if (!m) return undefined;
+  try { return JSON.parse(m[1].trim()); } catch (e) { return undefined; }
+}
+
+function _stripWakeMark(prompt) {
+  return String(prompt || '').replace(/^\s*\[陪伴唤醒\]\s*/, '').trim();
+}
+
+function _scheduleItem(id, at, prompt) {
+  const rawPrompt = String(prompt || '');
+  return {
+    id: String(id || ''),
+    at: String(at || ''),
+    prompt: _stripWakeMark(rawPrompt),
+    rawPrompt,
+    companion: rawPrompt.trim().startsWith(WAKE_MARK),
+  };
+}
+
+/**
+ * 解析 DSH schedule 的合成消息。
+ * 单条：schedule_id_json / occurrence_at / reminder_prompt_json
+ * 批量：reminders_json
+ * @returns {{kind:'single'|'batch'|'unknown', items:Array}}
+ */
+function parseScheduleMessage(text) {
+  const raw = String(text || '');
+  if (!SCHEDULE_RE.test(raw)) return { kind: 'unknown', items: [] };
+
+  if (/^\s*\[SCHEDULE REMINDER BATCH\]/i.test(raw)) {
+    const arr = _jsonLine(raw, 'reminders_json');
+    if (!Array.isArray(arr)) return { kind: 'unknown', items: [] };
+    const items = arr
+      .map((x) => _scheduleItem(x && x.schedule_id, x && x.occurrence_at, x && x.reminder_prompt))
+      .filter((x) => x.id || x.prompt);
+    return { kind: 'batch', items };
+  }
+
+  const id = _jsonLine(raw, 'schedule_id_json');
+  const prompt = _jsonLine(raw, 'reminder_prompt_json');
+  const at = /^occurrence_at:\s*(.+)$/m.exec(raw);
+  if (typeof id !== 'string' || typeof prompt !== 'string') return { kind: 'unknown', items: [] };
+  return { kind: 'single', items: [_scheduleItem(id, at ? at[1].trim() : '', prompt)] };
+}
+
 /** 去重键：kind + cid + 平台消息 ID/文本；插件再哈希成短键 */
 function dedupeKey(kind, cid, identity) {
   return [String(kind || ''), String(cid || ''), String(identity || '')].join('\u0000');
@@ -161,6 +211,8 @@ module.exports = {
   stripNoise,
   pickLastUserMessage,
   isScheduleMessage,
+  parseScheduleMessage,
+  WAKE_MARK,
   readResidentSpecFrom,
   readManualIndexFrom,
   fitLines,

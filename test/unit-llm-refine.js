@@ -32,6 +32,13 @@ check('提示词含对话原文', prompt.user.includes('我喜欢西瓜'));
 check('提示词含链索引', prompt.user.includes('身份链'));
 check('提示词带输出契约', prompt.system.includes('"chains"'));
 check('梗/表情默认不自动建节点', prompt.system.includes('梗、表情用法、口头禅、一次性玩笑默认不建节点'));
+const wakePrompt = buildRefinePrompt([
+  ...records,
+  { t: '2026-11-07 23:32', s: '小绪', c: '午饭吃了吗', origin: 'wake', cid: 'c1', v: 1 },
+], chain.list());
+check('提示词带 origin=wake', wakePrompt.user.includes('"origin":"wake"'));
+check('提示词区分 AI 主动表达', wakePrompt.system.includes('AI 主动醒来说的话'));
+check('提示词有日常关心概要规则', wakePrompt.system.includes('关心对话概要'));
 
 // 2. 解析：合法 JSON（带围栏）
 const valid = '```json\n' + JSON.stringify({

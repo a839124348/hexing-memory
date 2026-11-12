@@ -1,9 +1,55 @@
 # Changelog
 
 本项目遵循 [SemVer](https://semver.org/)；每个版本记录新增、变更、修复和**已知问题**。
-用户反馈时，请带上启动日志或诊断报告里的版本号（`v0.4.5`）。
+用户反馈时，请带上启动日志或诊断报告里的版本号（`v0.4.6`）。
 
 > 用户向的星核卖点见 [docs/星核卖点.md](docs/星核卖点.md)；本文件保留技术明细。
+
+## [0.4.6] - 2026-11-13
+
+QQ 双 transport：保留 OneBot，新增官方机器人；群聊改成 stateless。
+
+### Security
+
+- **移除公开示例里的个人化文本**：群聊话术、`aiName` / `ownerName` 示例、验收单里的称呼与关系全部改成中性占位符；插件的群自我介绍不再预设任何关系。
+- 新增配置项 `relation`（默认空）：留空只说“记忆助手”，由用户自己决定要不要写关系。
+- **旧版本下载包清理**：v0.4.4 / v0.4.5 的 zip 与解压副本里含上述示例文本，已下载的副本不会自动更新。`INSTALL-FOR-AI.md` 新增 0.5 节、`repair/` 新增 `legacy-download-cleanup` 条目：安装/升级时由用户的 AI 先确认并删除旧副本，再往下装。只清我们自己发出去的包，不扫描用户文档或记忆库。
+
+### Added
+
+- `QQTransport` 接口 + `OneBotTransport` 包装；DSH 侧只认归一化消息，不再直接绑 OneBot。
+- `OfficialTransport`：AppID/AppSecret → access_token、WebSocket gateway、`GROUP_AT_MESSAGE_CREATE` / `C2C_MESSAGE_CREATE` 归一化、被动回复 `msg_id + msg_seq + <@openid>`；单测覆盖 token/握手/发送。
+- 群聊 `groupMode: 'stateless'`：不建 DSH 群会话，只走「群友 24h 分板 + 当前 @」→ 一次 LLM 回复；`session` 作为旧行为回退。
+- `GroupBoard.sweep()` + 每小时定时清扫；启动也清一次，24h 删除，空板/空目录清掉。
+- 总览页「QQ 群 24h 活动」卡 + `/qq-groups` 只读页 + `/api/qq-groups`；只显示 @ 消息和回复，24h 消失，不进主记忆。
+- 侧边栏「QQ 接入」切换向导：`/qq-switch` + `/api/qq-transport`；写 `qq/transport.json`，保存后重启 DSH；明确不会同时在线。
+- `qq-plugin` 写 `transport-status.json` / `group-names.json`（只写是否配置/连接状态，不写 token/secret）。
+
+### Changed
+
+- 群聊默认不再建 `qq:group:` DSH 会话；旧群会话不再使用，群板按 24h 清理。
+- 私聊 `qq:owner` 路径不变：继续进主记忆，绑定/`[QQ私聊]`/回合来源过滤不变。
+
+### 自动唤醒（第一版）
+
+- 陪伴唤醒用 `[陪伴唤醒]` 标记；普通提醒不受限。
+- 默认 6 次/天：4 次日常 + 午饭/晚饭各一次（午饭 11:30–13:00、晚饭 17:30–19:30 内随机，每天重排）；最小间隔 45 分钟、23:00–08:00 安静；不再因为“用户刚说过话”跳过，目标会话忙时排队。
+- 连续 12 次（约 2 天）没回应：最后一次放行，让她自己撒娇/生气/说“我先安静几天”，然后暂停 3 天；用户回话解除暂停。
+- 唤醒简报只给时间和场景（“午饭时间，你醒了”），不写关心台词、不注入上次概要；说什么、说多长、要不要查记忆，由模型自己决定。
+- 唤醒轮工具策略：只读 + 追加允许；删除、覆盖、执行任务拒绝（`bash` / `write` / `edit` / `schedule_*` / `memory_chain header·rename·delete` 等）。
+- 唤醒回复标 `origin:'wake'`，进 raw/链网；提炼时当“AI 侧的关系事件”，不据此推断用户状态；没回应不升级约定/话题。
+- 关心对话的概要进「日常」链（1–2 句，索引用），不拆成用户偏好事实；下次醒来她自己查，不直接注入。
+- 新增 `memory_wake`：`status` / `bind` / `unbind` / `enable` / `disable` / `replan`；唤醒目标像 QQ 私聊一样按会话绑定（current/title/id）。
+- 陪伴唤醒改成插件内部 30 秒定时器，直接往绑定会话投 `memory-wake` notice，不再创建 DSH 自动化任务/时钟；DSH 关掉不醒，重启从 `nextWakeAt` 恢复，错过 >15 分钟跳过。
+- 修复 `autoCapture` sticky bug：不再因为历史里有 `memory-wake` 就让整个会话以后都不记用户消息，只跳过“最后一条真实 user 是 wake”的轮次。
+- 作息记录器 `common/wake-profile.json`（30 天，首次从 raw 回填）；7 天关心 `common/wake-care.json`（两侧各 ≥5 天样本 + open 话题证据 + 7 天冷却）。
+- 状态 `common/wake.json`，日志 `common/wake-log.jsonl`（只记时间/ID/决定，不记正文）。
+
+### Tests
+
+- 新增 `unit-wake` 67 项、`unit-wake-tools` 31 项、`unit-wake-profile` 16 项、`unit-wake-care` 12 项、`unit-wake-scheduler` 30 项；`unit-adapter-pure` / `unit-validate` / `unit-refine-dedup` / `unit-llm-refine` 补用例。
+- 新增 `transport` 6 项、`official-transport` 5 项、`qq-group-responder` 4 项、`qq-stateless-group` 1 项；GroupBoard 增加 sweep 用例。
+- 现有 QQ 桥 31 项、DSH QQ 插件 11+4 项全过。
 
 ## [0.4.5] - 2026-11-11
 

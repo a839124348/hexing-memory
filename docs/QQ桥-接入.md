@@ -80,6 +80,11 @@ node tools/list-sessions.js
         agentPreset: 'standard'
         groupPreset: 'minimal'
         groupEnabled: false
+        # 群聊默认 stateless：不建 DSH 会话，只走 24h 分板 + 一次性回复；
+        # 没有 provider/model 时自动回退到 group session。
+        groupMode: 'stateless'
+        # 传输二选一：onebot（默认）| official；官方 transport 阶段 3 再开。
+        transport: 'onebot'
         cwd: '~/.dsh/qq-workspace'
         # A：留空；B 一般也留空，由模型 qq_bind_session 绑定；
         # 只有工具不可用时才手填已有会话 id（例如 'dsh:xxxx'）
@@ -98,17 +103,45 @@ node tools/list-sessions.js
 - `groupEnabled` 先保持 `false`；群模式等 owner 跑通再开。
 - `guard.enabled: false` 是**停止发送的 kill switch**（不是只关限流）；群限流默认 1 条/10 秒，私聊默认不卡，重复文本 3 秒内只发一次。
 
-### 2.1 可选字段
+### 2.1 官方机器人 transport（可选）
+
+不想维护 NapCat/LLOneBot 时，可以二选一换成 QQ 官方机器人。**同一时间只连一个。**
+
+```yaml
+        transport: 'official'
+        # 官方模式的 owner 是 user_openid，不是 QQ 号
+        ownerOpenId: '<你的 user_openid>'
+        official:
+          appId: '<q.qq.com 的 AppID>'
+          clientSecret: '<q.qq.com 的 ClientSecret>'
+          sandbox: false
+          groupNames:
+            '<group_openid>': '你的群名'
+```
+
+- 先在 [q.qq.com](https://q.qq.com/) 建机器人，拿 AppID / ClientSecret；**这两个东西只放本机 profile，不要进 Git、不要发群里**。
+- 群主要把机器人加进群；官方只收 **@ 机器人** 的消息，不拉历史、不做主动消息、不做全量群。
+- `ownerOpenId` 怎么拿：用你的 QQ 私聊机器人发一句；DSH 日志会出现 `私聊 <openid>`，把 `<openid>` 填进来，重启。
+- 群名拿不到时用 `groupNames` 配；不配就显示 `QQ群 <openid>`。
+- 切换入口：DSH 左侧栏「QQ 接入」→ 选择 → 保存 → **重启 DSH**；或直接改 `transport` 后重启。不会热切换、不会同时在线。
+- 官方模式回复是一轮一条、被动回复（群 5 分钟 / 私聊 60 分钟窗口）；模型处理太久会失败，长任务不要走官方群聊。
+
+### 2.2 可选字段
 
 | 字段 | 默认 | 作用 |
 |:--|:--|:--|
-| `ownerName` | 空 | 私聊/群提示里 owner 的称呼，例如「明明」 |
+| `ownerName` | 空 | 私聊/群提示里 owner 的称呼，例如「你希望它怎么叫你」 |
 | `ownerGroupName` | 空 | owner 在群里的昵称；owner 在群里说话时会自动更新 |
-| `aiName` | 空 | 机器人在群里的公开名字，例如「星绪」；用于“我是谁”自我介绍 |
+| `aiName` | 空 | 机器人在群里的公开名字，例如「小忆」；用于“我是谁”自我介绍 |
+| `relation` | 空 | AI 与 owner 的关系（如「助手」「朋友」）；留空则只说“记忆助手”，不预设关系 |
 | `privateTitle` | `大号私聊会话` | 专用 `qq:owner` 会话的标题 |
 | `memoryRoot` | `%APPDATA%\dsh-memory` | 记忆根目录；公开项目白名单从这里读 |
 | `qqRoot` | `<memoryRoot>\qq` | 群友 24h 分板目录 |
 | `groupPrefix` | 空 | 覆盖默认群提示词；一般不用填 |
+| `transport` | `onebot` | `onebot` / `official` 二选一；切换后重启 DSH |
+| `groupMode` | `stateless` | 群聊不建 DSH 会话；`session` 为旧行为回退 |
+| `ownerOpenId` | 空 | 官方模式 owner 的 `user_openid`（不是 QQ 号） |
+| `official` | `{}` | 官方 AppID/Secret、sandbox、群名映射 |
 
 ## 3. 验证
 

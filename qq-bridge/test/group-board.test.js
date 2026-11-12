@@ -55,6 +55,27 @@ test('空板删文件', () => {
   assert.strictEqual(fs.existsSync(file), false);
 });
 
+test('sweep 清扫：旧板删除，新板保留，空目录清掉', () => {
+  const root = tmpRoot();
+  let now = 1760000000000;
+  const board = new GroupBoard({ root, now: () => now });
+
+  board.append({ gid: '200', uid: '300', role: 'user', text: '旧' });
+  board.append({ gid: '201', uid: '301', role: 'user', text: '也旧' });
+
+  now += DAY_MS + 1000;
+  board.append({ gid: '200', uid: '302', role: 'user', text: '新' });
+
+  const r = board.sweep();
+  assert.strictEqual(r.scanned, 3);
+  assert.strictEqual(r.kept, 1);
+  assert.strictEqual(r.prunedFiles, 2);
+  assert.strictEqual(fs.existsSync(board.fileFor('200', '300')), false);
+  assert.strictEqual(fs.existsSync(board.fileFor('201', '301')), false);
+  assert.strictEqual(fs.existsSync(board.fileFor('200', '302')), true);
+  assert.strictEqual(fs.existsSync(path.join(root, 'groups', '201')), false);
+});
+
 test('不同群/不同人分开', () => {
   const root = tmpRoot();
   const board = new GroupBoard({ root, now: () => 1760000000000 });
