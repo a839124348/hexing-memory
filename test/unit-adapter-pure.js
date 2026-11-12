@@ -2,8 +2,8 @@
  * unit-adapter-pure.js — 插件适配层纯函数
  */
 const {
-  extractText, stripNoise, pickLastUserMessage, isScheduleMessage,
-  readResidentSpecFrom, readManualIndexFrom, composeCommonText, dedupeKey,
+  extractText, stripNoise, pickLastUserMessage, isScheduleMessage, parseScheduleMessage,
+  isInjectedMessage, readResidentSpecFrom, readManualIndexFrom, composeCommonText, dedupeKey,
 } = require('../src/adapter_pure');
 
 let pass = 0;
@@ -135,6 +135,41 @@ check('不同 cid 键不同', dedupeKey('user', 'c1', 'm1') !== dedupeKey('user'
 check('识别 [SCHEDULE REMINDER]', isScheduleMessage('[SCHEDULE REMINDER] 起来喝水'));
 check('识别 [SCHEDULE REMINDER BATCH]', isScheduleMessage('[SCHEDULE REMINDER BATCH] 两条'));
 check('普通用户话不误判', !isScheduleMessage('提醒我喝水'));
+
+// 9. schedule framing 解析（自动唤醒依赖 schedule_id / prompt）
+const single = [
+  '[SCHEDULE REMINDER]',
+  'This is a scheduled message from the user',
+  'schedule_id_json: "schedule-abc"',
+  'occurrence_at: 2026-11-11T12:00:00.000Z',
+  'reminder_prompt_json: "[陪伴唤醒] 关心一下她"',
+].join('\n');
+const p1 = parseScheduleMessage(single);
+check('单条 kind=single', p1.kind === 'single');
+check('单条 id', p1.items[0] && p1.items[0].id === 'schedule-abc');
+check('单条 companion', p1.items[0] && p1.items[0].companion === true);
+check('单条 prompt 去掉标记', p1.items[0] && p1.items[0].prompt === '关心一下她');
+
+const batch = [
+  '[SCHEDULE REMINDER BATCH]',
+  'This is a scheduled message from the user',
+  'reminders_json: [{"schedule_id":"s1","occurrence_at":"2026-11-11T12:00:00.000Z","reminder_prompt":"[陪伴唤醒] 看看她"},{"schedule_id":"s2","occurrence_at":"2026-11-11T12:01:00.000Z","reminder_prompt":"喝水"}]',
+].join('\n');
+const p2 = parseScheduleMessage(batch);
+check('批量 2 条', p2.kind === 'batch' && p2.items.length === 2);
+check('批量 companion 只认标记', p2.items[0].companion === true && p2.items[1].companion === false);
+check('批量普通提醒保留原文', p2.items[1].prompt === '喝水');
+
+const p3 = parseScheduleMessage('[SCHEDULE REMINDER]\nThis is a scheduled message from the user');
+check('缺 JSON 时 unknown', p3.kind === 'unknown' && p3.items.length === 0);
+check('普通文本不解析', parseScheduleMessage('提醒我喝水').kind === 'unknown');
+
+// 10. 唤醒简报是注入消息，不是用户原话
+check('memory-wake 算注入', isInjectedMessage({ source: { kind: 'memory-wake' } }));
+check('skill-catalog 算注入', isInjectedMessage({ source: { kind: 'skill-catalog' } }));
+check('只有 memory-wake 时没有真话', pickLastUserMessage([user('[WAKE] 简报', 'memory-wake')]) === null);
+check('memory-wake 后面的真话能选中',
+  pickLastUserMessage([user('[WAKE] 简报', 'memory-wake'), user('真实发言', 'human')]).text === '真实发言');
 
 console.log('\n结果：' + pass + '/' + (pass + fails.length) + ' 通过');
 if (fails.length) { console.log('失败：\n' + fails.join('\n')); process.exit(1); }

@@ -75,19 +75,25 @@ class GroupBoard {
     return rows.filter((r) => r.ts >= cutoff);
   }
 
-  append({ gid, uid, role, text, mid = '', ts } = {}) {
+  append({ gid, uid, role, text, mid = '', ts, name = '' } = {}) {
     const body = String(text || '').trim().slice(0, this.maxText);
     if (!gid || !uid || !body) return { ok: false, error: '缺 gid/uid/text' };
     const now = this.now();
     const file = this.fileFor(gid, uid);
     const rows = this._prune(this._read(file), now);
-    rows.push({
+    const who = role === 'assistant' ? 'assistant' : 'user';
+    const row = {
       ts: Number(ts) || now,
       at: localAt(Number(ts) || now),
-      role: role === 'assistant' ? 'assistant' : 'user',
+      role: who,
       text: body,
       mid: String(mid || ''),
-    });
+    };
+    // 2026-11-13：群友的群昵称也写进分板——不然总览页只能显示一串 uid。
+    // 只在用户消息上带；assistant 行不带名字（它就是这个机器人）。
+    const nick = String(name || '').trim().slice(0, 40);
+    if (who === 'user' && nick) row.name = nick;
+    rows.push(row);
     this._write(file, rows);
     return { ok: true, kept: rows.length };
   }
@@ -105,6 +111,46 @@ class GroupBoard {
     const rows = this._prune(this._read(file), this.now());
     this._write(file, rows);
     return { ok: true, kept: rows.length };
+  }
+
+  /** 全量清扫：删掉所有超过 24h 的板，不依赖有没有人读写。 */
+  sweep() {
+    const result = { ok: true, scanned: 0, kept: 0, prunedFiles: 0 };
+    const groupsDir = path.join(this.root, 'groups');
+    if (!fs.existsSync(groupsDir)) return result;
+
+    for (const g of fs.readdirSync(groupsDir, { withFileTypes: true })) {
+      if (!g.isDirectory()) continue;
+      const membersDir = path.join(groupsDir, g.name, 'members');
+      if (!fs.existsSync(membersDir)) continue;
+
+      for (const m of fs.readdirSync(membersDir, { withFileTypes: true })) {
+        if (!m.isFile() || !m.name.endsWith('.jsonl')) continue;
+        const file = path.join(membersDir, m.name);
+        const rows = this._prune(this._read(file), this.now());
+        result.scanned++;
+        if (rows.length) {
+          result.kept += rows.length;
+          this._write(file, rows);
+        } else {
+          result.prunedFiles++;
+          this._write(file, []);
+        }
+      }
+
+      try {
+        if (fs.existsSync(membersDir) && fs.readdirSync(membersDir).length === 0) fs.rmdirSync(membersDir);
+      } catch (e) { /* ignore */ }
+      try {
+        const groupDir = path.join(groupsDir, g.name);
+        if (fs.existsSync(groupDir) && fs.readdirSync(groupDir).length === 0) fs.rmdirSync(groupDir);
+      } catch (e) { /* ignore */ }
+    }
+
+    try {
+      if (fs.readdirSync(groupsDir).length === 0) fs.rmdirSync(groupsDir);
+    } catch (e) { /* ignore */ }
+    return result;
   }
 }
 

@@ -42,7 +42,7 @@ try {
 
 console.log('');
 console.log('【3】单元测试');
-const tests = ['unit-validate.js', 'unit-store.js', 'unit-refine-dedup.js', 'unit-identity-rules.js', 'unit-stripnoise.js', 'unit-chain.js', 'unit-manual.js', 'unit-import.js', 'unit-onboarding.js'];
+const tests = ['unit-validate.js', 'unit-store.js', 'unit-refine-dedup.js', 'unit-identity-rules.js', 'unit-stripnoise.js', 'unit-chain.js', 'unit-manual.js', 'unit-import.js', 'unit-onboarding.js', 'unit-adapter-pure.js', 'unit-wake.js', 'unit-wake-profile.js', 'unit-wake-care.js', 'unit-wake-scheduler.js', 'unit-wake-tools.js'];
 for (const t of tests) {
   try {
     const out = execSync(`node "${path.join(__dirname, t)}"`, { encoding: 'utf8', stdio: 'pipe' });

@@ -55,6 +55,27 @@ test('空板删文件', () => {
   assert.strictEqual(fs.existsSync(file), false);
 });
 
+test('sweep 清扫：旧板删除，新板保留，空目录清掉', () => {
+  const root = tmpRoot();
+  let now = 1760000000000;
+  const board = new GroupBoard({ root, now: () => now });
+
+  board.append({ gid: '200', uid: '300', role: 'user', text: '旧' });
+  board.append({ gid: '201', uid: '301', role: 'user', text: '也旧' });
+
+  now += DAY_MS + 1000;
+  board.append({ gid: '200', uid: '302', role: 'user', text: '新' });
+
+  const r = board.sweep();
+  assert.strictEqual(r.scanned, 3);
+  assert.strictEqual(r.kept, 1);
+  assert.strictEqual(r.prunedFiles, 2);
+  assert.strictEqual(fs.existsSync(board.fileFor('200', '300')), false);
+  assert.strictEqual(fs.existsSync(board.fileFor('201', '301')), false);
+  assert.strictEqual(fs.existsSync(board.fileFor('200', '302')), true);
+  assert.strictEqual(fs.existsSync(path.join(root, 'groups', '201')), false);
+});
+
 test('不同群/不同人分开', () => {
   const root = tmpRoot();
   const board = new GroupBoard({ root, now: () => 1760000000000 });
@@ -66,4 +87,29 @@ test('不同群/不同人分开', () => {
   assert.strictEqual(board.recent({ gid: '200', uid: '300' })[0].text, 'A');
   assert.strictEqual(board.recent({ gid: '200', uid: '301' })[0].text, 'B');
   assert.strictEqual(board.recent({ gid: '201', uid: '300' })[0].text, 'C');
+});
+
+// 2026-11-13：总览页要认人，群昵称得跟着消息落盘
+test('群昵称随用户消息落盘；assistant 行不带；改名取最新', () => {
+  const root = tmpRoot();
+  let now = 1760000000000;
+  const board = new GroupBoard({ root, now: () => now });
+
+  board.append({ gid: '200', uid: '300', role: 'user', text: '在吗', name: '阿明' });
+  board.append({ gid: '200', uid: '300', role: 'assistant', text: '在' });
+
+  let rows = board.recent({ gid: '200', uid: '300' });
+  assert.strictEqual(rows[0].name, '阿明');
+  assert.strictEqual(rows[1].name, undefined);
+
+  now += 1000;
+  board.append({ gid: '200', uid: '300', role: 'user', text: '又来了', name: '阿明（群昵称）' });
+  rows = board.recent({ gid: '200', uid: '300' });
+  assert.strictEqual(rows[rows.length - 1].name, '阿明（群昵称）');
+
+  // 没给名字就不该凭空造一个字段
+  now += 1000;
+  board.append({ gid: '200', uid: '300', role: 'user', text: '匿名' });
+  rows = board.recent({ gid: '200', uid: '300' });
+  assert.strictEqual(rows[rows.length - 1].name, undefined);
 });

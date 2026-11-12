@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QQ 接入 · 核星记忆</title>
+<style>
+  :root{
+    --bg:#04060d;
+    --bg-2:#070b16;
+    --panel:rgba(13,18,32,.72);
+    --panel-solid:#0b1120;
+    --line:rgba(150,175,255,.13);
+    --line-strong:rgba(150,175,255,.26);
+    --text:#eef2ff;
+    --muted:#93a0c8;
+    --dim:#6a789f;
+    --blue:#6f8cff;
+    --violet:#8b6bff;
+    --gold:#ffd479;
+    --green:#7fe0a8;
+    --red:#ff8d9d;
+    --radius:18px;
+    --ease:cubic-bezier(.22,.61,.36,1);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;min-height:100vh;color:var(--text);
+    font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    background:var(--bg);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* 背景：三层光晕 + 细网格 */
+  body::before{
+    content:"";position:fixed;inset:-20%;z-index:-2;pointer-events:none;
+    background:
+      radial-gradient(900px 620px at 18% 0%, rgba(58,86,190,.30), transparent 62%),
+      radial-gradient(760px 560px at 88% 12%, rgba(120,60,180,.20), transparent 62%),
+      radial-gradient(900px 700px at 60% 110%, rgba(30,90,120,.18), transparent 62%);
+    animation:drift 26s var(--ease) infinite alternate;
+  }
+  body::after{
+    content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.5;
+    background-image:
+      linear-gradient(rgba(140,165,255,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(140,165,255,.045) 1px, transparent 1px);
+    background-size:64px 64px;
+    mask-image:radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 75%);
+    -webkit-mask-image:radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 75%);
+  }
+  @keyframes drift{
+    from{transform:translate3d(-1.5%,-1%,0) scale(1)}
+    to{transform:translate3d(1.5%,1.5%,0) scale(1.06)}
+  }
+  @media (prefers-reduced-motion: reduce){ body::before{animation:none} }
+
+  .wrap{max-width:1040px;margin:0 auto;padding:0 26px 120px}
+
+  /* ── 顶部 ── */
+  .hero{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:44px 0 22px;flex-wrap:wrap}
+  .brand{display:flex;gap:16px;align-items:center}
+  .orb{
+    width:44px;height:44px;border-radius:14px;flex:none;position:relative;
+    background:linear-gradient(145deg,#26356b,#0d1430);
+    border:1px solid rgba(150,175,255,.28);
+    box-shadow:0 0 24px rgba(111,140,255,.35), inset 0 1px 0 rgba(255,255,255,.10);
+    display:grid;place-items:center;
+  }
+  .orb svg{width:22px;height:22px;display:block}
+  .eyebrow{
+    margin:0 0 6px;font-size:10px;letter-spacing:.22em;color:var(--dim);
+    text-transform:uppercase;
+  }
+  h1{margin:0;font-size:27px;font-weight:500;letter-spacing:.10em;line-height:1.2}
+  .sub{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.8;letter-spacing:.02em}
+  .sub em{font-style:normal;color:#c8d3ff}
+  .back{
+    flex:none;display:inline-flex;align-items:center;gap:8px;
+    color:#b9c8ff;text-decoration:none;font-size:12px;
+    border:1px solid var(--line);border-radius:999px;padding:10px 16px;
+    background:rgba(12,18,34,.55);
+    transition:border-color .25s var(--ease), color .25s var(--ease), transform .25s var(--ease);
+  }
+  .back:hover{border-color:var(--line-strong);color:#fff;transform:translateY(-1px)}
+
+  /* ── 状态轨 ── */
+  .rail{
+    display:flex;flex-wrap:wrap;align-items:stretch;
+    margin-top:14px;border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(16,22,40,.82),rgba(9,13,26,.86));
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    overflow:hidden;
+  }
+  .rail-item{
+    flex:1 1 150px;min-width:132px;padding:14px 18px;
+    border-right:1px solid rgba(150,175,255,.08);
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .rail-item:last-child{border-right:0}
+  .rail-k{display:flex;align-items:center;gap:7px;font-size:10px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--dim);box-shadow:0 0 0 3px rgba(150,175,255,.07)}
+  .dot.ok{background:var(--green);box-shadow:0 0 0 3px rgba(127,224,168,.12),0 0 10px rgba(127,224,168,.6)}
+  .dot.bad{background:var(--red);box-shadow:0 0 0 3px rgba(255,141,157,.12)}
+  .rail-v{font-size:13.5px;font-weight:500;letter-spacing:.02em;color:var(--text)}
+  .rail-v.ok{color:var(--green)} .rail-v.bad{color:var(--red)}
+
+  /* ── 区块标题 ── */
+  .sect{margin-top:38px}
+  .sect-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+  .sect-no{font-size:10px;letter-spacing:.18em;color:var(--dim);font-variant-numeric:tabular-nums}
+  .sect-title{margin:0;font-size:13px;font-weight:500;letter-spacing:.16em;color:#c3cff2}
+  .sect-rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line-strong),transparent)}
+
+  /* ── 传输卡 ── */
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{
+    position:relative;padding:22px;border-radius:var(--radius);cursor:pointer;
+    border:1px solid var(--line);
+    background:linear-gradient(165deg,rgba(17,24,43,.86),rgba(9,13,26,.9));
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    transition:transform .3s var(--ease), border-color .3s var(--ease), box-shadow .3s var(--ease);
+    overflow:hidden;
+  }
+  .card::after{
+    content:"";position:absolute;inset:0;pointer-events:none;opacity:0;
+    background:linear-gradient(115deg,transparent 35%,rgba(180,200,255,.07) 48%,transparent 60%);
+    transform:translateX(-40%);transition:opacity .4s var(--ease), transform .9s var(--ease);
+  }
+  .card:hover{transform:translateY(-2px);border-color:var(--line-strong);box-shadow:0 16px 40px rgba(3,6,16,.55)}
+  .card:hover::after{opacity:1;transform:translateX(40%)}
+  .card:focus-visible{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(111,140,255,.25)}
+  .card.active{
+    border-color:rgba(255,212,121,.52);
+    box-shadow:0 0 0 1px rgba(255,212,121,.10) inset, 0 18px 46px rgba(3,6,16,.6), 0 0 34px rgba(255,212,121,.07);
+    background:linear-gradient(165deg,rgba(26,26,38,.9),rgba(12,14,26,.92));
+  }
+  .card.disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .card.disabled:hover{transform:none;border-color:var(--line);box-shadow:none}
+  .card.disabled::after{display:none}
+
+  .card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}
+  .glyph{
+    width:42px;height:42px;border-radius:13px;flex:none;display:grid;place-items:center;
+    background:linear-gradient(150deg,rgba(52,70,140,.5),rgba(12,18,36,.9));
+    border:1px solid rgba(150,175,255,.22);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .glyph svg{width:21px;height:21px}
+  .card.active .glyph{border-color:rgba(255,212,121,.4);background:linear-gradient(150deg,rgba(96,78,32,.45),rgba(20,16,10,.9))}
+
+  .radio{
+    width:19px;height:19px;border-radius:50%;flex:none;margin-top:2px;
+    border:1px solid var(--line-strong);position:relative;
+    transition:border-color .25s var(--ease), box-shadow .25s var(--ease);
+  }
+  .card.active .radio{border-color:var(--gold);box-shadow:0 0 12px rgba(255,212,121,.35)}
+  .card.active .radio::after{
+    content:"";position:absolute;inset:4px;border-radius:50%;
+    background:var(--gold);box-shadow:0 0 8px rgba(255,212,121,.8);
+  }
+
+  .card h2{margin:0 0 3px;font-size:17px;font-weight:500;letter-spacing:.05em;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .tag{
+    font-size:9.5px;letter-spacing:.14em;color:var(--dim);
+    border:1px solid var(--line);border-radius:999px;padding:3px 8px;font-weight:400;
+    text-transform:uppercase;
+  }
+  .card.active .tag{color:rgba(255,212,121,.85);border-color:rgba(255,212,121,.28)}
+  .lede{margin:10px 0 0;color:var(--muted);font-size:12.5px;line-height:1.85}
+
+  .facts{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:9px}
+  .facts li{
+    position:relative;padding-left:16px;font-size:12px;line-height:1.75;color:#a9b6dd;
+  }
+  .facts li::before{
+    content:"";position:absolute;left:2px;top:8px;width:5px;height:5px;
+    background:rgba(150,175,255,.5);border-radius:1px;transform:rotate(45deg);
+  }
+  .facts b{color:#dbe3ff;font-weight:500}
+  .note{
+    margin-top:16px;padding:10px 12px;border-radius:11px;
+    background:rgba(255,212,121,.05);border:1px solid rgba(255,212,121,.16);
+    color:#e8cf9a;font-size:11.5px;line-height:1.75;
+  }
+  .card.disabled .note{background:rgba(255,141,157,.05);border-color:rgba(255,141,157,.18);color:#ffc3cb}
+
+  /* ── 折叠面板 ── */
+  details.panel{
+    margin-top:16px;border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(14,20,37,.75),rgba(8,12,24,.85));
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    overflow:hidden;
+  }
+  details.panel > summary{
+    cursor:pointer;list-style:none;padding:16px 20px;
+    display:flex;align-items:center;gap:11px;font-size:12.5px;color:#c6d2f7;
+    transition:color .2s var(--ease), background .2s var(--ease);
+  }
+  details.panel > summary::-webkit-details-marker{display:none}
+  details.panel > summary:hover{color:#fff;background:rgba(150,175,255,.04)}
+  details.panel > summary .chev{
+    margin-left:auto;width:8px;height:8px;border-right:1px solid var(--dim);border-bottom:1px solid var(--dim);
+    transform:rotate(-45deg);transition:transform .25s var(--ease)
+  }
+  details.panel[open] > summary .chev{transform:rotate(45deg)}
+  .panel-body{padding:0 20px 20px;color:var(--muted);font-size:12px;line-height:1.85}
+  .panel-body p{margin:0 0 10px}
+
+  pre{
+    margin:12px 0;padding:14px 16px;border-radius:12px;overflow:auto;
+    background:rgba(4,8,18,.85);border:1px solid rgba(150,175,255,.12);
+    color:#dfe6ff;font-family:Consolas,"Cascadia Mono",monospace;font-size:11.5px;line-height:1.75;
+  }
+  code{font-family:Consolas,"Cascadia Mono",monospace;color:#b9c8ff;font-size:11.5px;
+    background:rgba(111,140,255,.08);padding:1px 5px;border-radius:5px}
+
+  /* ── AI 说明书 ── */
+  .console{
+    margin-top:16px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+    background:linear-gradient(180deg,rgba(12,17,32,.86),rgba(7,10,20,.92));
+  }
+  .console-bar{
+    display:flex;align-items:center;gap:10px;padding:11px 16px;
+    border-bottom:1px solid rgba(150,175,255,.09);background:rgba(6,10,20,.6);
+  }
+  .lights{display:flex;gap:6px}
+  .lights i{width:8px;height:8px;border-radius:50%;display:block;background:#2b355a}
+  .lights i:nth-child(1){background:#ff6b6b;opacity:.7}
+  .lights i:nth-child(2){background:#ffd479;opacity:.7}
+  .lights i:nth-child(3){background:#7fe0a8;opacity:.7}
+  .console-title{font-size:11px;letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+  .console-body{padding:18px 20px 20px}
+  .console-body h3{margin:0 0 8px;font-size:14px;font-weight:500;letter-spacing:.04em}
+  .console-body p{margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.8}
+  textarea{
+    width:100%;height:250px;margin-top:4px;padding:15px 16px;border-radius:12px;
+    border:1px solid rgba(150,175,255,.14);background:rgba(3,6,14,.9);color:#cfd8f7;
+    font-family:Consolas,"Cascadia Mono",monospace;font-size:11.5px;line-height:1.85;
+    resize:vertical;transition:border-color .25s var(--ease), box-shadow .25s var(--ease);
+  }
+  textarea:focus{outline:none;border-color:rgba(111,140,255,.5);box-shadow:0 0 0 3px rgba(111,140,255,.12)}
+  .copy-row{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+  .links{margin:14px 0 0;font-size:12px;color:var(--dim)}
+  .links a{color:#9fb4ff;text-decoration:none;border-bottom:1px solid transparent;transition:border-color .2s}
+  .links a:hover{border-bottom-color:rgba(159,180,255,.5)}
+
+  /* ── 提示条 ── */
+  .warn{
+    margin-top:26px;padding:16px 18px 16px 20px;border-radius:14px;
+    border:1px solid rgba(255,141,157,.22);border-left:3px solid rgba(255,141,157,.7);
+    background:linear-gradient(90deg,rgba(255,141,157,.07),rgba(255,141,157,.02));
+    color:#ffc9d1;font-size:12px;line-height:1.9;
+  }
+  .warn b{color:#ffe3e7;font-weight:500}
+
+  /* ── 底部操作条 ── */
+  .bar{
+    position:fixed;left:0;right:0;bottom:0;z-index:20;
+    border-top:1px solid var(--line);
+    background:rgba(5,9,19,.82);
+    backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);
+  }
+  .bar-inner{
+    max-width:1040px;margin:0 auto;padding:13px 26px;
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  }
+  button{
+    font-family:inherit;font-size:13px;letter-spacing:.04em;cursor:pointer;
+    border:0;border-radius:12px;padding:12px 22px;color:#fff;
+    background:linear-gradient(135deg,#5f7cff,#8b6bff);
+    box-shadow:0 8px 24px rgba(95,124,255,.28), inset 0 1px 0 rgba(255,255,255,.16);
+    transition:transform .2s var(--ease), box-shadow .2s var(--ease), opacity .2s;
+  }
+  button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 12px 30px rgba(95,124,255,.38), inset 0 1px 0 rgba(255,255,255,.2)}
+  button:active:not(:disabled){transform:translateY(0)}
+  button:disabled{
+    opacity:1;cursor:not-allowed;color:#8d9ac2;
+    background:rgba(92,112,170,.16);border:1px solid var(--line);box-shadow:none;
+  }
+  button.ghost{
+    background:transparent;border:1px solid var(--line);color:#c2cff7;box-shadow:none;
+  }
+  button.ghost:hover:not(:disabled){border-color:var(--line-strong);background:rgba(150,175,255,.06);box-shadow:none}
+  .ghost-link{
+    color:#b9c8ff;text-decoration:none;font-size:12px;
+    border:1px solid var(--line);border-radius:12px;padding:12px 16px;
+    transition:border-color .2s var(--ease), color .2s, background .2s;
+  }
+  .ghost-link:hover{border-color:var(--line-strong);color:#fff;background:rgba(150,175,255,.05)}
+  #msg{font-size:12px;color:var(--muted);line-height:1.6}
+  #msg.ok{color:var(--green)} #msg.bad{color:var(--red)}
+  #copyMsg{font-size:11.5px;color:var(--muted)}
+
+  @media (max-width:820px){
+    .cards{grid-template-columns:1fr}
+    .wrap{padding:0 16px 168px}
+    .hero{padding:32px 0 18px}
+    h1{font-size:23px}
+    .rail-item{flex-basis:50%;border-bottom:1px solid rgba(150,175,255,.08)}
+    .rail-item:nth-child(2n){border-right:0}
+    .bar-inner{padding:12px 16px;gap:10px}
+    button{padding:11px 18px}
+    .console-body,.panel-body{padding-left:16px;padding-right:16px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="brand">
+      <div class="orb" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#9fb4ff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v5"/><path d="M12 16v5"/><path d="M5 12h5"/><path d="M14 12h5"/>
+          <circle cx="12" cy="12" r="3.4"/>
+          <circle cx="12" cy="3" r="1.1"/><circle cx="12" cy="21" r="1.1"/>
+          <circle cx="3" cy="12" r="1.1"/><circle cx="21" cy="12" r="1.1"/>
+        </svg>
+      </div>
+      <div>
+        <p class="eyebrow">Hexing Memory · Bridge</p>
+        <h1>QQ 接入</h1>
+        <p class="sub">两种连接方式二选一 · <em>同一时间只连一条线</em> · 切换后需重启 DSH</p>
+      </div>
+    </div>
+    <a class="back" href="/">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      返回总览
+    </a>
+  </header>
+
+  <section class="rail" aria-label="当前状态">
+    <div class="rail-item">
+      <span class="rail-k"><i class="dot" id="dotSelected"></i>当前选择</span>
+      <span class="rail-v" id="selected">—</span>
+    </div>
+    <div class="rail-item">
+      <span class="rail-k"><i class="dot" id="dotRunning"></i>运行状态</span>
+      <span class="rail-v" id="running">—</span>
+    </div>
+    <div class="rail-item">
+      <span class="rail-k"><i class="dot" id="dotPlugin"></i>QQ 插件</span>
+      <span class="rail-v" id="plugin">—</span>
+    </div>
+    <div class="rail-item">
+      <span class="rail-k"><i class="dot" id="dotOfficial"></i>官方凭据</span>
+      <span class="rail-v" id="officialCfg">—</span>
+    </div>
+    <div class="rail-item">
+      <span class="rail-k"><i class="dot" id="dotOwner"></i>owner openid</span>
+      <span class="rail-v" id="ownerCfg">—</span>
+    </div>
+  </section>
+
+  <section class="sect">
+    <div class="sect-head">
+      <span class="sect-no">01</span>
+      <h2 class="sect-title">选择连接方式</h2>
+      <span class="sect-rule"></span>
+    </div>
+
+    <div class="cards">
+      <div class="card" id="cardOnebot" data-transport="onebot" role="button" tabindex="0" aria-label="选择 OneBot">
+        <div class="card-top">
+          <div class="glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#b6c6ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="4" width="6" height="6" rx="1.6"/>
+              <rect x="14" y="4" width="6" height="6" rx="1.6"/>
+              <rect x="9" y="14" width="6" height="6" rx="1.6"/>
+              <path d="M7 10v2h10v-2"/><path d="M12 12v2"/>
+            </svg>
+          </div>
+          <span class="radio" aria-hidden="true"></span>
+        </div>
+        <h2>OneBot <span class="tag">自建基座</span></h2>
+        <p class="lede">自己准备 QQ 小号、基座和 OneBot 11 WS。基座能看到全群，但桥只处理 @；能主动、有本地历史。</p>
+        <ul class="facts">
+          <li>群：<b>只处理 @</b>；非 @ 不记录、不进分板</li>
+          <li>私聊：<b>进主记忆</b></li>
+          <li>风险：账号 / 协议 / 封号，自己承担</li>
+        </ul>
+        <div class="note">适合：能自己维护基座、接受自备小号与 WS。群聊仍只处理 @。</div>
+      </div>
+
+      <div class="card" id="cardOfficial" data-transport="official" role="button" tabindex="0" aria-label="选择 QQ 官方机器人">
+        <div class="card-top">
+          <div class="glyph" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#b6c6ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3l7 3v5.5c0 4.3-2.9 7.6-7 9.5-4.1-1.9-7-5.2-7-9.5V6l7-3z"/>
+              <path d="M9 12.2l2.1 2.1L15.4 10"/>
+            </svg>
+          </div>
+          <span class="radio" aria-hidden="true"></span>
+        </div>
+        <h2>QQ 官方机器人 <span class="tag">Official API</span></h2>
+        <p class="lede">在 q.qq.com 建 bot，群主把它加进群。稳定、合规，但只回 @。</p>
+        <ul class="facts">
+          <li>群：<b>只收 @ 机器人</b>的消息</li>
+          <li>私聊：用户先私聊 bot；<b>进主记忆</b></li>
+          <li>限制：不做主动消息、不拉历史</li>
+        </ul>
+        <div class="note" id="officialNote">需要先在 profile 配 official.appId / clientSecret。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sect">
+    <div class="sect-head">
+      <span class="sect-no">02</span>
+      <h2 class="sect-title">配置与说明</h2>
+      <span class="sect-rule"></span>
+    </div>
+
+    <details class="panel help">
+      <summary>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9fb4ff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.8-.9 1.5v.4"/><circle cx="12" cy="17" r=".7" fill="#9fb4ff" stroke="none"/></svg>
+        官方机器人怎么配？
+        <span class="chev"></span>
+      </summary>
+      <div class="panel-body">
+        <p>先在 <code>q.qq.com</code> 建机器人，拿 AppID / ClientSecret；把下面这段加进 DSH profile 的 <code>hexing-qq</code> config，重启 DSH。不要把这些发到群里。</p>
+        <pre>transport: 'official'
+ownerOpenId: '&lt;你的 user_openid&gt;'
+official:
+  appId: '&lt;AppID&gt;'
+  clientSecret: '&lt;ClientSecret&gt;'
+  sandbox: false
+  groupNames:
+    '&lt;group_openid&gt;': '测试群'</pre>
+        <p>然后让群主把机器人加进群。官方只收 @ 机器人的消息；不拉历史、不做主动消息。ownerOpenId 用你的 QQ 私聊机器人发一句，DSH 日志里的「私聊 &lt;openid&gt;」就是。</p>
+      </div>
+    </details>
+  </section>
+
+  <section class="sect">
+    <div class="sect-head">
+      <span class="sect-no">03</span>
+      <h2 class="sect-title">交给模型</h2>
+      <span class="sect-rule"></span>
+    </div>
+
+    <div class="console" id="aiManual">
+      <div class="console-bar">
+        <span class="lights"><i></i><i></i><i></i></span>
+        <span class="console-title">Runbook · 复制给 DSH 里的模型</span>
+      </div>
+      <div class="console-body">
+        <h3>模型不会连？把这段整段复制给它</h3>
+        <p>包含 OneBot / 官方两条路线、配置位置和验收步骤；让它先读完文档再动手，不要只看一半、也不要猜。</p>
+        <textarea id="aiPrompt" readonly spellcheck="false">你是 DSH 里的模型。请帮我把「核星记忆」的 QQ 桥接好。
+先完整读完仓库里的 docs/QQ桥-FOR-AI.md 和 docs/QQ桥-接入.md，再动手；不要只看一半，也不要猜。
+
+当前情况：
+- 仓库路径：[填绝对路径]
+- DSH profile：%USERPROFILE%\.dsh\profiles\web\cordis.patch.yml
+- 已有 hexing-qq 配置；没有就按文档加。
+- 传输二选一：onebot 或 official，同一时间只开一个。
+
+路线 A：OneBot
+1. 让用户启动 NapCat/LLOneBot，小号登录，OneBot 11 正向 WS 在 127.0.0.1:3001，token 与配置一致。
+2. hexing-qq config：transport: 'onebot'；onebot.url/token；ownerId=用户 QQ 号；groupEnabled: true；groupMode: 'stateless'。
+3. 重启 DSH，日志看到 [hexing-qq] 已连接、机器人已登录。
+4. 私聊测试；群里 @ 测试。群聊不建 DSH 会话，只写 24h 分板。
+5. 不代登录、不代扫码、不代开端口；不要用主号。
+
+路线 B：QQ 官方机器人
+1. 用户在 q.qq.com 建 bot，拿 AppID/ClientSecret；不要把值发到聊天或仓库。
+2. hexing-qq config：transport: 'official'；official.appId/clientSecret；ownerOpenId 先留空。
+3. 重启 DSH；让用户私聊 bot 一句；日志出现「私聊 [openid]」后，把 openid 填进 ownerOpenId，再重启。
+4. 群主把 bot 加进测试群；官方只收 @，不拉历史、不主动。
+5. 被动回复：群 5 分钟/5 次，私聊 60 分钟/4-5 次；一轮只发一条。
+6. 主体未认证 / 不能加群就告诉用户平台限制，不要绕。
+
+通用：
+- 改 profile 前先备份；不要写死别人的路径；不要把 token/secret 写进仓库或聊天。
+- 每一步先验证日志/接口，再下一步；失败就停下来告诉用户卡在哪，不要装成功。
+- 切换 transport 后必须重启 DSH；不会同时在线；群板 24h 清理，私聊会话保留。</textarea>
+        <div class="copy-row">
+          <button type="button" class="ghost" id="copyPrompt">复制给 AI</button>
+          <span id="copyMsg"></span>
+        </div>
+        <p class="links">完整文档：
+          <a href="https://github.com/a839124348/hexing-memory/blob/main/docs/QQ桥-FOR-AI.md" target="_blank" rel="noopener noreferrer">QQ桥-FOR-AI.md</a>
+          ·
+          <a href="https://github.com/a839124348/hexing-memory/blob/main/docs/QQ桥-接入.md" target="_blank" rel="noopener noreferrer">QQ桥-接入.md</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="warn">
+    <b>切换前确认：</b>会停掉当前连接，不会同时在线；保存后必须重启 DSH 才生效。
+    群聊默认 stateless，不建 DSH 群会话；24h 分板按 24h 清理，旧群会话不再使用。
+    <b>私聊会话保留，继续进主记忆。</b>
+  </div>
+</div>
+
+<div class="bar">
+  <div class="bar-inner">
+    <button id="save" disabled>保存并重启 DSH</button>
+    <a class="ghost-link" href="/qq-groups" target="_blank" rel="noopener noreferrer">查看群 24h 活动 ↗</a>
+    <span id="msg"></span>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let state = null;
+let pick = '';
+
+function setMsg(text, kind) {
+  $('msg').textContent = text || '';
+  $('msg').className = kind || '';
+}
+
+function dot(id, kind) {
+  const el = $(id);
+  if (el) el.className = 'dot' + (kind ? ' ' + kind : '');
+}
+
+function render() {
+  const status = (state && state.status) || null;
+  const override = (state && state.override) || null;
+  const selected = (override && override.transport) || (status && status.selected) || 'onebot';
+  // 2026-11-13 修复：原来这里无条件 pick = selected，会把用户在 choose() 里的选择冲掉，
+  // 点另一张卡后 active 又弹回去、保存送的还是旧值。只在还没选过时初始化。
+  if (!pick) pick = selected;
+
+  $('selected').textContent = selected === 'official' ? 'QQ 官方机器人' : 'OneBot';
+  dot('dotSelected', 'ok');
+
+  const connected = status && status.connected ? '已连接' : (status ? '未连接' : '未上报');
+  $('running').textContent = connected;
+  $('running').className = 'rail-v ' + (status && status.connected ? 'ok' : 'bad');
+  dot('dotRunning', status && status.connected ? 'ok' : 'bad');
+
+  $('plugin').textContent = status ? '已上报' : '未启用 / 未上报';
+  $('plugin').className = 'rail-v ' + (status ? 'ok' : 'bad');
+  dot('dotPlugin', status ? 'ok' : 'bad');
+
+  const officialOk = Boolean(status && status.officialConfigured);
+  $('officialCfg').textContent = officialOk ? '已配置' : '未配置';
+  $('officialCfg').className = 'rail-v ' + (officialOk ? 'ok' : 'bad');
+  dot('dotOfficial', officialOk ? 'ok' : 'bad');
+
+  const ownerOk = Boolean(status && status.ownerConfigured);
+  $('ownerCfg').textContent = ownerOk ? '已配置' : '未配置';
+  $('ownerCfg').className = 'rail-v ' + (ownerOk ? 'ok' : 'bad');
+  dot('dotOwner', ownerOk ? 'ok' : 'bad');
+
+  $('cardOnebot').classList.toggle('active', pick === 'onebot');
+  $('cardOfficial').classList.toggle('active', pick === 'official');
+  $('cardOfficial').classList.toggle('disabled', !officialOk);
+  $('officialNote').textContent = !officialOk
+    ? '官方凭据未配置：先在 profile 的 official 段填 appId / clientSecret，重启后再来切换。'
+    : (ownerOk
+      ? '官方凭据已配置，可以切换。'
+      : 'AppID/Secret 已配置；ownerOpenId 未配置：切到官方后私聊 bot，日志里的 user_openid 填进 ownerOpenId 再重启。');
+
+  const hasOverride = Boolean(override && override.transport);
+  $('save').disabled = !pick || (pick === selected && !hasOverride) || (pick === 'official' && !officialOk);
+  setMsg(override && override.transport ? '已保存过切换，重启 DSH 后生效。' : '', '');
+}
+
+function choose(t) {
+  const status = (state && state.status) || null;
+  const override = (state && state.override) || null;
+  const selected = (override && override.transport) || (status && status.selected) || 'onebot';
+
+  if (t === 'official' && !(status && status.officialConfigured)) {
+    setMsg('官方机器人还没配置：先在 profile 的 official 段填 appId / clientSecret，重启 DSH 后再来切换。', 'bad');
+    return;
+  }
+  if (t === selected && !(override && override.transport)) {
+    setMsg('当前已经是 ' + (selected === 'official' ? 'QQ 官方机器人' : 'OneBot') + '；要切换请选另一个 transport。');
+    return;
+  }
+
+  pick = t;
+  render();
+  $('cardOnebot').classList.toggle('active', pick === 'onebot');
+  $('cardOfficial').classList.toggle('active', pick === 'official');
+  $('save').disabled = (pick === 'official' && !(status && status.officialConfigured));
+  setMsg('已选择 ' + (pick === 'official' ? 'QQ 官方机器人' : 'OneBot') + '；保存后需要重启 DSH。');
+}
+
+$('cardOnebot').addEventListener('click', () => choose('onebot'));
+$('cardOfficial').addEventListener('click', () => choose('official'));
+
+// 键盘可达：Enter / Space 等同于点击
+['cardOnebot', 'cardOfficial'].forEach((id) => {
+  $(id).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      choose($(id).dataset.transport);
+    }
+  });
+});
+
+$('save').addEventListener('click', async () => {
+  if (!pick) return;
+  $('save').disabled = true;
+  setMsg('保存中…');
+  try {
+    const r = await fetch('/api/qq-transport', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transport: pick }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    setMsg('已保存。请重启 DSH，重启后才会切换到 ' + (pick === 'official' ? 'QQ 官方机器人' : 'OneBot') + '。', 'ok');
+  } catch (e) {
+    setMsg('保存失败：' + (e && e.message ? e.message : e), 'bad');
+    $('save').disabled = false;
+  }
+});
+
+$('copyPrompt').addEventListener('click', async () => {
+  const ta = $('aiPrompt');
+  try {
+    await navigator.clipboard.writeText(ta.value);
+    $('copyMsg').textContent = '已复制，去粘贴给 AI';
+  } catch (e) {
+    try {
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      $('copyMsg').textContent = '已复制，去粘贴给 AI';
+    } catch (e2) {
+      $('copyMsg').textContent = '复制失败，请手动全选复制';
+    }
+  }
+  setTimeout(() => { $('copyMsg').textContent = ''; }, 2500);
+});
+
+async function load() {
+  try {
+    const r = await fetch('/api/qq-transport', { cache: 'no-store' });
+    const j = await r.json();
+    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    state = j;
+    render();
+  } catch (e) {
+    setMsg('读取失败：' + (e && e.message ? e.message : e), 'bad');
+  }
+}
+load();
+</script>
+</body>
+</html>

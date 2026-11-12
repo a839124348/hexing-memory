@@ -2,6 +2,21 @@
 
 > 状态：owner 私聊已实测；群聊与绑定模式按验收单做最终真实验收；群模式默认关闭。
 
+## 上游现状（2026-11，动手前先看这段）
+
+第三方 QQ 协议端这一年在收缩，**仓库地址会变，别照着旧教程装**：
+
+| 项目 | 现状（2026-11-13 核对） |
+|:--|:--|
+| NapCat 原仓库 `SnowLuma/NapCatQQ` | **已 404**：2026-11-09 作者称收到腾讯律师函，转私有仓库、README 只剩「Ending」，官方群解散 |
+| NapCat 社区接续 `NapNeko/NapCatQQ` | 仍在维护（2026-11-12 有推送），原仓库的星标/用户已迁过来 |
+| LLOneBot → `LuckyLilliaDev/LuckyLilliaBot` | 改名换组织，仍在维护（2026-11-12 有推送），支持 OneBot 11 / Satori / Milky |
+| `LagrangeDev/Lagrange.Core` | 仍在维护；V1（Lagrange.OneBot）2025-10 归档，V2 转为协议库 |
+
+**边界再强调一次**：本项目**只提供桥代码**，不推荐、不分发、不代为获取任何非官方协议端，也不评判它们的合法性。要不要用、用哪个、从哪里取，由你自己决定并自担风险——包括但不限于账号封禁、项目随时下架、法律风险。
+
+也正因为如此，**官方机器人 transport 是更可持续的那条路**：插件在没显式指定 `transport` 时，检测到官方 `appId/clientSecret` 会**优先走官方**，没有才回落 OneBot。
+
 ## 0. 提供边界
 
 我们提供 **QQ 桥代码 + 接入说明**；下面这些需要你自行准备：
@@ -80,6 +95,11 @@ node tools/list-sessions.js
         agentPreset: 'standard'
         groupPreset: 'minimal'
         groupEnabled: false
+        # 群聊默认 stateless：不建 DSH 会话，只走 24h 分板 + 一次性回复；
+        # 没有 provider/model 时自动回退到 group session。
+        groupMode: 'stateless'
+        # 传输二选一：onebot（默认）| official；官方 transport 阶段 3 再开。
+        transport: 'onebot'
         cwd: '~/.dsh/qq-workspace'
         # A：留空；B 一般也留空，由模型 qq_bind_session 绑定；
         # 只有工具不可用时才手填已有会话 id（例如 'dsh:xxxx'）
@@ -98,17 +118,45 @@ node tools/list-sessions.js
 - `groupEnabled` 先保持 `false`；群模式等 owner 跑通再开。
 - `guard.enabled: false` 是**停止发送的 kill switch**（不是只关限流）；群限流默认 1 条/10 秒，私聊默认不卡，重复文本 3 秒内只发一次。
 
-### 2.1 可选字段
+### 2.1 官方机器人 transport（可选）
+
+不想维护 NapCat/LLOneBot 时，可以二选一换成 QQ 官方机器人。**同一时间只连一个。**
+
+```yaml
+        transport: 'official'
+        # 官方模式的 owner 是 user_openid，不是 QQ 号
+        ownerOpenId: '<你的 user_openid>'
+        official:
+          appId: '<q.qq.com 的 AppID>'
+          clientSecret: '<q.qq.com 的 ClientSecret>'
+          sandbox: false
+          groupNames:
+            '<group_openid>': '你的群名'
+```
+
+- 先在 [q.qq.com](https://q.qq.com/) 建机器人，拿 AppID / ClientSecret；**这两个东西只放本机 profile，不要进 Git、不要发群里**。
+- 群主要把机器人加进群；官方只收 **@ 机器人** 的消息，不拉历史、不做主动消息、不做全量群。
+- `ownerOpenId` 怎么拿：用你的 QQ 私聊机器人发一句；DSH 日志会出现 `私聊 <openid>`，把 `<openid>` 填进来，重启。
+- 群名拿不到时用 `groupNames` 配；不配就显示 `QQ群 <openid>`。
+- 切换入口：DSH 左侧栏「QQ 接入」→ 选择 → 保存 → **重启 DSH**；或直接改 `transport` 后重启。不会热切换、不会同时在线。
+- 官方模式回复是一轮一条、被动回复（群 5 分钟 / 私聊 60 分钟窗口）；模型处理太久会失败，长任务不要走官方群聊。
+
+### 2.2 可选字段
 
 | 字段 | 默认 | 作用 |
 |:--|:--|:--|
-| `ownerName` | 空 | 私聊/群提示里 owner 的称呼，例如「明明」 |
+| `ownerName` | 空 | 私聊/群提示里 owner 的称呼，例如「你希望它怎么叫你」 |
 | `ownerGroupName` | 空 | owner 在群里的昵称；owner 在群里说话时会自动更新 |
-| `aiName` | 空 | 机器人在群里的公开名字，例如「星绪」；用于“我是谁”自我介绍 |
+| `aiName` | 空 | 机器人在群里的公开名字，例如「小忆」；用于“我是谁”自我介绍 |
+| `relation` | 空 | AI 与 owner 的关系（如「助手」「朋友」）；留空则只说“记忆助手”，不预设关系 |
 | `privateTitle` | `大号私聊会话` | 专用 `qq:owner` 会话的标题 |
 | `memoryRoot` | `%APPDATA%\dsh-memory` | 记忆根目录；公开项目白名单从这里读 |
 | `qqRoot` | `<memoryRoot>\qq` | 群友 24h 分板目录 |
 | `groupPrefix` | 空 | 覆盖默认群提示词；一般不用填 |
+| `transport` | 空（自动） | `onebot` / `official` 二选一；**留空则按凭据自动**：有官方 appId/clientSecret 走官方，没有回落 OneBot；切换后重启 DSH |
+| `groupMode` | `stateless` | 群聊不建 DSH 会话；`session` 为旧行为回退 |
+| `ownerOpenId` | 空 | 官方模式 owner 的 `user_openid`（不是 QQ 号） |
+| `official` | `{}` | 官方 AppID/Secret、sandbox、群名映射 |
 
 ## 3. 验证
 
@@ -156,7 +204,7 @@ node tools/list-sessions.js
 
 ### 5.1 启动顺序
 
-1. 先启动 NapCat / LLOneBot，用小号登录，确认 `127.0.0.1:3001` 在监听；
+1. 先启动底座（NapCat 用 `NapNeko/NapCatQQ`，LLBot 用 `LuckyLilliaDev/LuckyLilliaBot`；别用已经 404 的旧地址），用小号登录，确认 `127.0.0.1:3001` 在监听；
 2. 再启动 DSH；插件会自动连接 OneBot，断线会退避重连；
 3. 看日志出现 `[hexing-qq] 机器人已登录` 才算就绪。
 

@@ -45,11 +45,11 @@ const check = (n, c, d) => { if (c) { pass++; console.log('PASS ' + n); } else {
 
 // 场景 2：有 aiName，只补空的 userTitle → 直接写，不影响其他
 {
-  const old = { aiName: '助手', userTitle: '', relation: '伴侣' };
+  const old = { aiName: '助手', userTitle: '', relation: '朋友' };
   const r = applyIdentity({ userTitle: '用户' }, old);
   check('补空字段：写入成功', r.filled.includes('userTitle'), JSON.stringify(r.filled));
   check('补空字段：aiName 没被动', r.meta.aiName === '助手');
-  check('补空字段：relation 没被动', r.meta.relation === '伴侣');
+  check('补空字段：relation 没被动', r.meta.relation === '朋友');
 }
 
 // 场景 3：想改已有值，但用户没要求 → 静默忽略（不写、不提示）
@@ -80,7 +80,7 @@ const check = (n, c, d) => { if (c) { pass++; console.log('PASS ' + n); } else {
 // 场景 6：混合（补空的 + 擅自改）→ 空的写，擅自改的忽略
 {
   const old = { aiName: '助手', userTitle: '用户', relation: '' };
-  const r = applyIdentity({ relation: '伴侣', userTitle: '小用户' }, old);
+  const r = applyIdentity({ relation: '朋友', userTitle: '小用户' }, old);
   check('混合：空的写入', r.filled.includes('relation'), JSON.stringify(r.filled));
   check('混合：擅自改的被忽略', r.ignored.includes('userTitle'), JSON.stringify(r.ignored));
   check('混合：原值保持', r.meta.userTitle === '用户');

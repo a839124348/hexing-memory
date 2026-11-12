@@ -72,10 +72,10 @@
 
 如果没有，给用户官方入口，让用户自己下载/解压/启动：
 
-- NapCat：`https://github.com/NapNeko/NapCatQQ/releases`
-- LLOneBot：`https://github.com/LLOneBot/LLOneBot/releases`
+- NapCat：`https://github.com/NapNeko/NapCatQQ/releases`（社区接续仓库；原 `SnowLuma/NapCatQQ` 已于 2026-11-09 下架，**不要**再去旧地址或来路不明的 fork）
+- LLBot（原 LLOneBot）：`https://github.com/LuckyLilliaDev/LuckyLilliaBot/releases`
 
-只给官方 GitHub 链接；不要让用户从网盘、群文件、第三方站点下载。
+只给官方 GitHub 链接；不要让用户从网盘、群文件、第三方站点下载。也不要代下载、代安装、代登录——第三方协议端随时可能下架，风险和选择权都在用户那边。
 
 启动后：
 
