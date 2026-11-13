@@ -735,13 +735,12 @@ function buildCommonText(app: MemoryApp): string {
   let inheritance = ''
   try { if (app.onboarding) inheritance = app.onboarding.commonText() } catch (e) { /* 迁移档案读不到不阻塞 */ }
   // 心路历程：开关关着、或今天没写，loadText 返回 '' —— 那一整段就不会出现
-  let heart = ''
+  let heart: any = ''
   let heartHint = ''
   try {
     if (app.heart) {
-      heart = app.heart.loadText()
-      // 工具描述在工具列表里，但「能不能写 / 要不要问」是行为规范，得进常驻段。
-      // 三种状态各一行：开着 → 允许写；没设置过 → 只问一次；用户关了 → 不写也不再问。
+      // 不给固定字数上限：compose 会把当轮剩余预算交给它，正常就是当天全量
+      heart = (budget: number) => app.heart.loadText(undefined, { maxChars: budget })
       const st = app.heart.state()
       if (st.enabled) {
         heartHint = '**心路历程（简称日记）**：开着。想起就写 `memory_heart action=write`，≤150 字，写具体那一刻；没有就不写，0 条正常。回看用 `action=search`。'

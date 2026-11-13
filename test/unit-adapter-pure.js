@@ -128,6 +128,20 @@ check('日记提示进常驻段', withHeartHint.includes('心路历程（简称�
 check('日记提示只出现一次', (withHeartHint.match(/心路历程（简称日记）/g) || []).length === 1);
 check('无提示时不出现', !common.includes('心路历程（简称日记）'));
 
+// 5d. 日记正文：函数形式拿到当轮预算（没有固定阈值）
+let seenBudget = 0;
+const withHeartFn = composeCommonText({
+  profile: '# 身份\n## 我是谁\n验收身份',
+  resident,
+  manualIndex: index,
+  chains: '- 身份链（3 节点）',
+  heart: (budget) => { seenBudget = budget; return '- 今天有点心软'; },
+});
+check('日记拿到正预算', seenBudget > 0, seenBudget);
+check('日记正文进常识层', withHeartFn.includes('## 今天的心路历程') && withHeartFn.includes('有点心软'));
+check('日记在索引之间', withHeartFn.indexOf('## 说明书索引') < withHeartFn.indexOf('## 今天的心路历程')
+  && withHeartFn.indexOf('## 今天的心路历程') < withHeartFn.indexOf('## 链网索引'));
+
 // 6. 超长裁剪：身份+摘要保留，目录/链网被裁
 const longCommon = composeCommonText({
   profile: '# 身份\n' + '身份'.repeat(200),

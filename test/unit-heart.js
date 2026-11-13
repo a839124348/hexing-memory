@@ -119,6 +119,17 @@ function tmpRoot() {
   const lines = cut.split('\n');
   check('超预算从最近往前截', cut.includes('C') && !cut.includes('A'), lines);
   check('截断后有计数行', lines[lines.length - 1].includes('另有 2 条'), lines);
+  check('预算为 0 就不带', h.loadText('2026-11-13', { maxChars: 0 }) === '');
+
+  // 2026-11-14：没有固定阈值——不传就跟当天全量，哪怕超过 1200 字
+  const many = new Heart(tmpRoot());
+  many.setEnabled(true, 'user');
+  for (let i = 0; i < 15; i++) {
+    many.append({ t: '2026-11-13 ' + String(8 + i).padStart(2, '0') + ':00', text: '第' + i + '条' + '字'.repeat(95) });
+  }
+  const full = many.loadText('2026-11-13');
+  check('不传上限就是全量', full.split('\n').length === 15, full.split('\n').length);
+  check('全量超过 1200 字也不截', full.length > 1200, full.length);
 }
 
 // 场景 8：坏行不影响读取

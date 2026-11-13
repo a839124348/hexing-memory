@@ -23,7 +23,6 @@ const TIME_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 const MAX_TEXT = 300;          // 硬上限（规范写 ≤150，这里留余量防截断半句）
 const SOFT_TEXT = 150;         // 超过就给模型一个提醒
 const MAX_TAGS = 2;
-const DEFAULT_LOAD_CHARS = 1200; // 加载安全阀（正常一天约 600 字，碰不到）
 
 // 检索用的粗分类。不是情绪的定义——只是让「那次我不高兴」能被搜到。
 const VOCAB = [
@@ -86,22 +85,19 @@ class Heart {
         configured: typeof j.enabled === 'boolean',
         updatedAt: String(j.updatedAt || ''),
         updatedBy: String(j.updatedBy || ''),
-        maxLoadChars: Number(j.maxLoadChars) > 0 ? Number(j.maxLoadChars) : DEFAULT_LOAD_CHARS,
       };
     } catch (e) {
-      return { enabled: false, configured: false, updatedAt: '', updatedBy: '', maxLoadChars: DEFAULT_LOAD_CHARS };
+      return { enabled: false, configured: false, updatedAt: '', updatedBy: '' };
     }
   }
 
   /** 开关写盘：原子 + 锁。by = 'model' | 'user' */
   setEnabled(enabled, by = 'user') {
     return withWriteLock(this.root, () => {
-      const cur = this.state();
       const next = {
         enabled: Boolean(enabled),
         updatedAt: new Date().toISOString(),
         updatedBy: String(by || 'user'),
-        maxLoadChars: cur.maxLoadChars,
       };
       fs.mkdirSync(path.dirname(this.stateFile), { recursive: true });
       const tmp = this.stateFile + '.' + process.pid + '.tmp';
@@ -254,8 +250,12 @@ class Heart {
   }
 
   /**
-   * 给常识层用的当天文本。全量带；超过 maxChars 从最近往前截，留一行计数。
-   * 返回 '' 表示"没有可带的内容"（关着/没写），调用方据此决定整段要不要出现。
+   * 给常识层用的当天文本。
+   *
+   * 默认**全量**，没有固定字数阈值。调用方（adapter_pure）会把当轮常识层
+   * 剩下的预算传进来；真装不下时从最早的一条开始整条丢（不截半句），留一行计数。
+   * maxChars = 0 表示这一轮没有预算；不传 = 不限（测试/导出用）。
+   * 返回 '' 表示"没有可带的内容"（关着/没写/没预算），调用方据此决定整段要不要出现。
    */
   loadText(date, { maxChars } = {}) {
     const st = this.state();
@@ -264,7 +264,10 @@ class Heart {
     const list = this.entriesFor(d);
     if (!list.length) return '';
 
-    const cap = Number(maxChars) > 0 ? Number(maxChars) : st.maxLoadChars;
+    const unlimited = maxChars === undefined || maxChars === null;
+    const cap = unlimited ? Infinity : Math.max(0, Number(maxChars) || 0);
+    if (!cap) return '';
+
     const picked = [];
     let used = 0;
     for (let i = list.length - 1; i >= 0; i--) {
@@ -280,4 +283,4 @@ class Heart {
   }
 }
 
-module.exports = { Heart, deriveTags, todayStr, VOCAB, MAX_TEXT, SOFT_TEXT, DEFAULT_LOAD_CHARS };
+module.exports = { Heart, deriveTags, todayStr, VOCAB, MAX_TEXT, SOFT_TEXT };

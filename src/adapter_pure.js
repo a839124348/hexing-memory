@@ -125,14 +125,28 @@ function composeCommonText({ profile, resident, residentExtra, manualIndex, chai
     return head.slice(0, maxChars);
   }
 
-  // 心路历程（简称日记）：只在开关打开且有内容时出现，整段由 heart.loadText 控制长度。
+  // 心路历程（简称日记）：只在开关打开且有内容时出现。
   // 位置放在索引之前——今天的自己比链网索引更该先看到；索引可以被裁，它优先。
-  const heartBody = heart ? String(heart).trim() : '';
-  const heartPart = heartBody ? '\n\n## 今天的心路历程（我自己写的，是当时的自述，不一定还成立）\n' + heartBody : '';
-
+  //
+  // 没有固定字数阈值：正常全量带；内存紧的时候把这个回合剩下的预算交给
+  // loadText，由它从最早的一条开始整条丢（不截半句）。heart 既可以是
+  // 格式化好的字符串（测试/离线），也可以是一个接收预算的函数。
   const topicPart = topics ? '\n\n## 话题栈\n' + topics : '';
   const afterHead = maxChars - head.length - 80;
-  // 心路历程整段放不下就整段不要（截半段会把自述读成断句），索引让位
+  const HEART_HEAD = '\n\n## 今天的心路历程（我自己写的，是当时的自述，不一定还成立）\n';
+
+  let heartBody = '';
+  try {
+    if (typeof heart === 'function') {
+      const budget = Math.max(0, afterHead - topicPart.length - HEART_HEAD.length);
+      heartBody = String(heart(budget) || '').trim();
+    } else if (heart) {
+      heartBody = String(heart).trim();
+    }
+  } catch (e) { heartBody = ''; }
+
+  const heartPart = heartBody ? HEART_HEAD + heartBody : '';
+  // 一条都放不下（比如单条就超了整层预算）就整段不要，别把自述读成断句
   const heartText = heartPart.length > afterHead ? '' : heartPart;
   let body = '\n\n## 说明书索引\n' + (manualIndex || '- （RULES.md 未找到）')
     + topicPart
