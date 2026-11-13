@@ -29,7 +29,7 @@
 - 手动备注名：`/qq-groups` 里点成员名直接改名，写同一份 `qq/member-names.json`（`manual:true`），**手动优先于自动**。官方接口没权限时靠它让页面有人名，不必退回「群友」两字。
 - 侧边栏新增「QQ 接入」入口（QQ 图标）+ `/qq-switch` 切换向导 + `/api/qq-transport`；写 `qq/transport.json`，保存后重启 DSH；明确不会同时在线。页面按星舱风格重做：状态轨（选中/运行/插件/凭据/owner）+ 双卡选择 + 键盘可达，窄到 400px 也不挤。
 - `qq-plugin` 写 `transport-status.json` / `group-names.json`（只写是否配置/连接状态，不写 token/secret）。
-- **心路历程（简称日记）**：`data/heart/YYYY/MM/YYYY-MM-DD.jsonl` —— 一天一个文件、**只追加**（年/月/日三层目录）；条目 `{t, text, tags?, cid?}`；格式见 `schema/heart.schema.json`（与 raw 的 MemoryRecord 分开，不复用，因为 raw 的 schema 锁死了字段）。
+- **心路历程（简称日记）**：`data/heart/YYYY/MM/YYYY-MM-DD.jsonl` —— 一天一个文件、**只追加**（年/月/日三层目录）；条目 `{v, t, text, tags?, cid?}`（`v:1` 是格式版本，旧条目读取时按 1 补齐）；格式见 `schema/heart.schema.json`（与 raw 的 MemoryRecord 分开，不复用，因为 raw 的 schema 锁死了字段）。
 - `src/heart.js`：`append` / `entriesFor` / `days` / `statsOf` / `loadText` / `state` / `setEnabled`；写盘走 `withWriteLock` + 原子写，坏行跳过；早期平铺路径只读兼容。
 - `memory_heart` 工具：`write`（默认）/ `today` / `search` / `status` / `enable` / `disable`；开关关着时 `write` 返回 `disabled`；**群聊 / 公开模式拒绝写**。
 - `search` 回看：`query`（正文或标签包含，忽略大小写）/ `tag`（词表标签精确）/ `from` / `to`（日期闭区间）/ `limit`（默认 10，最多 50）；`total` 是命中总数、`hits` 是截断后的列表。只扫 `data/heart/`，不走向量、不碰 raw；**关着也能查**（关掉的是继续写，不是已经写过的不能读）。
@@ -39,7 +39,7 @@
 - 总览页顶部新增「鱼的心路历程 →」入口（和「链网宇宙」同级），点进 `/heart` 独立页面：开关（**开的时候行内确认一次，关立即生效**）+ **年 / 月 / 日三级目录**（最上层只到年，往下点月、点日）+ 当天条目；打开时读一次，不轮询。页面上没有任何文件路径，接口只认 `YYYY-MM-DD`，跳不进别的目录。
 - `/api/heart`：GET 返回开关状态 + 日期目录 + 指定日期（默认当天）的条目；POST 切开关。
 - **自动唤醒有了自己的页面**：总览页顶部「自动唤醒 →」（和「链网宇宙」「鱼的心路历程」同级）+ `/wake` 独立页：状态、下次唤醒、今日次数、绑定会话、不打扰时段 + 开关；`/api/wake` GET 读状态、POST 切 `enabled`。开的时候行内确认一次，关立即生效；未绑定会话时页面直接写「未绑定（不会叫醒）」。
-- **关心账本补 `response`**：之前 `common/wake-care.json` 只记"关心过什么"，`response` 字段永远空着，看不出有没有被接住。现在用户 24 小时内回话 → 回填 `replied` + `repliedAt` + `replyGapMin`；超时未回 → 下一次关心落账时标 `ignored`。只回填最近一条、只填一次，不追认更早的（避免把"隔天想起别的事"记成回应）。
+- **关心账本补 `response`**：之前 `common/wake-care.json` 只记"关心过什么"，`response` 字段永远空着，看不出有没有被接住。现在用户 24 小时内回话 → 回填 `replied` + `repliedAt` + `replyGapMin`，并记下**回复开头 30 字**（`replyHead`）和**词面有没有碰到这次线索**（`replyOnEvidence`，中文按 2 字片段比，`false` 只代表没对上词）；超时未回 → 下一次关心落账时标 `ignored`。只回填最近一条、只填一次，不追认更早的（避免把"隔天想起别的事"记成回应）。
 - **关心账本可自查**：`memory_wake action=care` 返回最近 N 条（观察/证据/response/间隔），`status` 里带最近一次摘要。系统仍然**不往唤醒简报里注入**关心历史——她想看时自己查。
 
 ### Changed
@@ -77,10 +77,10 @@
 
 ### Tests
 
-- 新增 `unit-wake` 67 项、`unit-wake-tools` 31 项、`unit-wake-profile` 16 项、`unit-wake-care` 19 项、`unit-wake-scheduler` 30 项；`unit-adapter-pure` / `unit-validate` / `unit-refine-dedup` / `unit-llm-refine` 补用例。
+- 新增 `unit-wake` 67 项、`unit-wake-tools` 31 项、`unit-wake-profile` 16 项、`unit-wake-care` 27 项、`unit-wake-scheduler` 30 项；`unit-adapter-pure` / `unit-validate` / `unit-refine-dedup` / `unit-llm-refine` 补用例。
 - 唤醒可模拟时间点：`wake.json` 的 `simNow` 配合 `MEMORY_WAKE_DEBUG`，能测 09:00 / 12:30 / 18:30 / 15:00 / 21:30 / 23:30 各档；同时修掉了 `whenIdle` 清理竞态导致的时间错乱。
 - 新增 `transport` 6 项、`official-transport` 5 项、`qq-group-responder` 4 项、`qq-stateless-group` 1 项；GroupBoard 增加 sweep 用例。
-- 新增 `unit-heart` 40 项：默认关、落盘路径、重复跳过、超长拒绝、标签过滤、日期目录倒序、加载截断与计数行、坏行跳过、检索（关键词/标签/日期区间/limit/关着可查/旧平铺文件）；`unit-adapter-pure` 补 `residentExtra` 3 项。
+- 新增 `unit-heart` 43 项：默认关、落盘路径、重复跳过、超长拒绝、标签过滤、日期目录倒序、加载截断与计数行、坏行跳过、检索（关键词/标签/日期区间/limit/关着可查/旧平铺文件）、格式版本 `v:1` 与旧条目兼容；`unit-adapter-pure` 补 `residentExtra` 3 项。
 - 现有 QQ 桥 31 项、DSH QQ 插件 11+4 项全过。
 
 ### Known

@@ -196,6 +196,30 @@ function shouldCare(root, now = Date.now()) {
 }
 
 /**
+ * 词面重合：回复里有没有出现这次关心线索里的实词片段。
+ * 只做线索，不做判断——false 只代表"没对上词"，不代表没接住；
+ * 所以账本里它永远和 replyHead 一起出现，让人自己看那句话。
+ */
+function mentionsEvidence(reply, evidence) {
+  const r = String(reply || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const ev = String(evidence || '').toLowerCase();
+  if (!r || !ev) return false;
+  // evidence 的格式是「类型：摘要」，类型（项目/学习/关系…）太泛，先剥掉
+  const body = ev.includes('：') ? ev.slice(ev.indexOf('：') + 1) : ev;
+  const runs = body.split(/[^\p{Script=Han}a-z0-9]+/u).filter((x) => x.length >= 2);
+  for (const run of runs) {
+    if (r.includes(run)) return true;
+    // 长词允许部分命中（中文没有空格，整词对不上很常见）
+    if (run.length >= 3) {
+      for (let i = 0; i + 2 <= run.length; i++) {
+        if (r.includes(run.slice(i, i + 2))) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * 关心之后用户回话了 → 回填 response（2026-11-14 补）。
  *
  * 为什么补：wake-care.json 的 response 字段一直没人写，账本只能记"关心过什么"，
@@ -204,8 +228,11 @@ function shouldCare(root, now = Date.now()) {
  *
  * 口径：只回填最近一条、24 小时内、还没写过的。更早的不追认——用户可能只是
  * 隔天想起别的事，硬记成"回应了关心"反而是假数据。
+ *
+ * 2026-11-14 追加：带上回复开头 30 字（replyHead）和词面是否碰到线索
+ * （replyOnEvidence）。只记事实，不记"接得好不好"。
  */
-function noteCareReply(root, now = Date.now(), windowHours = 24) {
+function noteCareReply(root, now = Date.now(), windowHours = 24, opts = {}) {
   const data = readCare(root);
   const h = data.history;
   const cutoff = now - windowHours * 3600000;
@@ -220,15 +247,21 @@ function noteCareReply(root, now = Date.now(), windowHours = 24) {
   }
   if (target < 0) return { ok: true, filled: -1 };
   const gap = Math.round((now - Date.parse(h[target].at)) / 60000);
+  const reply = String((opts && opts.text) || '').replace(/\s+/g, ' ').trim().slice(0, 30);
+  const onEvidence = reply ? mentionsEvidence(reply, h[target].evidence) : false;
   _mutate(root, (d) => {
     const row = d.history[target];
     if (!row || row.response) return d.history.length;
     row.response = 'replied';
     row.repliedAt = new Date(now).toISOString();
     row.replyGapMin = gap;
+    if (reply) {
+      row.replyHead = reply;
+      row.replyOnEvidence = onEvidence;
+    }
     return d.history.length;
   });
-  return { ok: true, filled: target, gapMin: gap };
+  return { ok: true, filled: target, gapMin: gap, replyHead: reply, onEvidence };
 }
 
 /** 超过窗口还没回应的，下一次关心落账时顺手标成 ignored，不留悬空记录。 */
@@ -268,4 +301,5 @@ module.exports = {
   shouldCare,
   markCare,
   noteCareReply,
+  mentionsEvidence,
 };

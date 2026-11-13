@@ -45,6 +45,10 @@ function tmpRoot() {
   check('读回 1 条', rows.length === 1 && rows[0].text.includes('不好意思'));
   check('带 cid', rows[0].cid === 'sess_abc');
   check('状态记录了来源', h.state().updatedBy === 'user');
+  // 2026-11-14：条目带格式版本，旧条目读的时候按 1 补齐
+  const firstLine = JSON.parse(fs.readFileSync(f, 'utf8').trim().split('\n')[0]);
+  check('新条目写 v:1', firstLine.v === 1, firstLine);
+  check('读回带 v', rows[0].v === 1, rows[0]);
 }
 
 // 场景 3：重复写入跳过
@@ -177,6 +181,7 @@ function tmpRoot() {
   );
   h.setEnabled(true, 'user');
   check('平铺旧文件进检索', h.search({ q: '平铺' }).total === 1);
+  check('旧条目没有 v 也按 1 读', h.entriesFor('2026-11-10')[0].v === 1, h.entriesFor('2026-11-10')[0]);
 }
 
 console.log('');

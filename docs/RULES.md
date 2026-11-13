@@ -277,7 +277,7 @@
     - `memory_wake`：`status` / `bind`（current / title / id，像 QQ 私聊绑定） / `unbind` / `enable` / `disable` / `replan`。用户说“自动唤醒绑到当前会话/某某会话”“打开/关闭自动唤醒”“多叫醒我几次”“重新排时间”时用它。
     - **它有自己的页面**：总览页顶部「自动唤醒 →」进 `/wake`，用户在里面直接开关（`/api/wake`），不用经过你。开的时候页面行内确认一次（说明时段与频率），关立即生效。**没绑定会话时开着也不会叫醒**——页面会写「未绑定（不会叫醒）」，这时先 `bind` 再谈频率。
     - 作息记录器只记用户发消息的本地小时（不记内容），首次启动从 raw 回填 30 天；7 天关心比较本周 vs 上周，样本 ≥5 天且有 open 话题证据才说，7 天内不重复。DSH 拿不到鼠标键盘，曲线是”说话时间”，不是在线时长。
-    - **关心的账在 `common/wake-care.json`**（保留 52 条）：每条记 `weekStart / observation / evidence / at / response`。用户 24 小时内回话 → `response=replied`（带 `replyGapMin` 间隔分钟）；超时未回 → 下一次关心落账时标 `ignored`。这份账只用来调时机和话术，**不要在对话里引用它**。
+    - **关心的账在 `common/wake-care.json`**（保留 52 条）：每条记 `weekStart / observation / evidence / at / response`。用户 24 小时内回话 → `response=replied`（带 `replyGapMin` 间隔分钟、`replyHead` 回复开头 30 字、`replyOnEvidence` 词面有没有碰到这次线索）；超时未回 → 下一次关心落账时标 `ignored`。`replyOnEvidence` 只是**词面重合**（中文没有空格，整词对不上就按 2 字片段比），`false` 不代表没接住——真要判断，看 `replyHead` 那句话。这份账只用来调时机和话术，**不要在对话里引用它**。
 
 ---
 
@@ -561,7 +561,7 @@ memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，�
 | `memory_identity` | `aiName/aiSelf/userTitle/userInfo/relation/style`，加 `confirmed` | **空字段直接填**；已有值只在 `confirmed:true` 时改；写 `IDENTITY.md` + `identity.json` | 不要自己设计结构；不要写项目/路径/账户；已有值没确认就静默忽略，不要追问；`confirmed:true` 只能由用户明确要求触发；多开 DSH 时只在一个会话改身份 |
 | `memory_chain` | `action`：`tree` / `get` / `append` / `header` / `audit`；`name`、`text`、`who`、`type`、`supersedes`、`parent`、`offset/limit/full` | `tree` 看全貌；`get` 默认前3后3+中间抽样，带 `needHeader/needRefresh`；`append` 加节点，链不存在时建链；`header` 写概览；`audit` 返回孤儿链/空链/重复节点/待补链头 | `append` 新链只能挂核星/九个默认根/已有链，最多 4 层；一次 ≤50 节点；**没有 `t` 参数**，节点时间=现在，不能拿它导入历史 |
 | `memory_topic` | `action`：`list/get/add/promote/close/merge`；`id`、`index`、`project`、`type`、`title`、`text`、`who`、`summary`、`into`、`reason` | `add` 进话题池，想法同月 ≥5 成链；`promote` 从池里升格项目链；`close/merge` 只改状态 | `add` 的 `type` 只允许 `想法/学习/避坑/关系/项目/日常`；`promote` 前先 `get` 确认 `index`（去重后顺序会变）；不物理删除 |
-| `memory_wake` | `action`：`status` / `care` / `bind` / `unbind` / `enable` / `disable` / `replan`；`target`、`title`、`sessionId`、`limit` | `bind` 把唤醒绑到会话；`enable` 按作息排 4 个点；`care` 查关心账本（观察/证据/有没有被接住/隔多久回）；`status` 里带最近一次关心摘要 | 没绑定会话时开着也不会叫醒；`care` 只读，不要在对话里引用账本内容；开关优先让用户在 `/wake` 页面点 |
+| `memory_wake` | `action`：`status` / `care` / `bind` / `unbind` / `enable` / `disable` / `replan`；`target`、`title`、`sessionId`、`limit` | `bind` 把唤醒绑到会话；`enable` 按作息排 4 个点；`care` 查关心账本（观察/证据/有没有被接住/隔多久回/回复开头 30 字/词面有没有碰到线索）；`status` 里带最近一次关心摘要 | 没绑定会话时开着也不会叫醒；`care` 只读，不要在对话里引用账本内容；开关优先让用户在 `/wake` 页面点 |
 
 **工具不会做的事**：不会删记忆、不会改原文、不会重命名链、不会合并链文件、不会把旧对话按原时间导入链、不会手动跑提炼。需要这些，只能按第十节迁移或第十五节修复流程来。
 
@@ -833,7 +833,8 @@ memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，�
 ### 19.5 存在哪
 
 - `data/heart/YYYY/MM/YYYY-MM-DD.jsonl`，一天一个文件，**只追加**（年/月/日三层目录，目录本身当索引；365 个文件不平铺在根目录）。
-- 一行一条：`{"t":"YYYY-MM-DD HH:MM","text":"…","tags":["心软"]?,"cid":"…"?}`
+- 一行一条：`{"v":1,"t":"YYYY-MM-DD HH:MM","text":"…","tags":["心软"]?,"cid":"…"?}`
+- `v` 是条目格式版本，2026-11-14 起写入；旧条目没有这个字段，读的时候按 `1` 补齐（以后加字段能分清老格式）。
 - 格式见 `schema/heart.schema.json`；**不复用 raw 的格式**（raw 的 schema 锁死字段）。
 - **不进 raw、不进链网、不进提炼**；**群聊 / 公开模式不写**。
 

@@ -133,7 +133,7 @@ class Heart {
       .filter((x) => VOCAB.some(([tag]) => tag === x));
     const merged = [...new Set([...fromText, ...fromModel])].slice(0, MAX_TAGS);
 
-    const rec = { t: time, text: body };
+    const rec = { v: 1, t: time, text: body };
     if (merged.length) rec.tags = merged;
     if (cid) rec.cid = String(cid).slice(0, 128);
 
@@ -162,6 +162,9 @@ class Heart {
         // 只认条目行：必须有 t 和 text。以后加别的行类型也不会把这里读坏。
         if (r && TIME_RE.test(String(r.t || '')) && typeof r.text === 'string' && r.text.trim()) {
           out.push({
+            // 2026-11-14 起写 v:1。旧条目没有这个字段，读的时候按 1 补齐——
+            // 以后加字段（情绪强度/来源轮次）时，能分清"老条目"和"新格式"。
+            v: Number(r.v) > 0 ? Number(r.v) : 1,
             t: r.t,
             text: r.text,
             ...(Array.isArray(r.tags) && r.tags.length ? { tags: r.tags.slice(0, MAX_TAGS) } : {}),

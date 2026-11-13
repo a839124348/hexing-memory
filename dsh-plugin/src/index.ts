@@ -1834,7 +1834,7 @@ export function apply(ctx: Context) {
   // ── 工具：无感自动唤醒（绑定会话 + 插件定时器）──────
   ctx.tools.register(defineTool({
     name: 'memory_wake',
-    description: '无感自动唤醒。action：status / care / bind / unbind / enable / disable / replan。bind 支持 current（当前会话）、title（按会话名找）、id；enable 按作息排 4 个时间点，到点直接在绑定会话里醒来，不创建自动化任务。care 查关心账本（每次关心挂了什么观察、用户有没有接住、隔了多久回）。用户说“自动唤醒绑到当前会话/某某会话”“打开/关闭自动唤醒”“多叫醒我几次”“重新排时间”时调用；用户问“你之前关心过我什么/上次那事你问过没”时用 care。',
+    description: '无感自动唤醒。action：status / care / bind / unbind / enable / disable / replan。bind 支持 current（当前会话）、title（按会话名找）、id；enable 按作息排 4 个时间点，到点直接在绑定会话里醒来，不创建自动化任务。care 查关心账本（每次关心挂了什么观察、用户有没有接住、隔了多久回、回复开头 30 字、词面有没有碰到线索）。用户说“自动唤醒绑到当前会话/某某会话”“打开/关闭自动唤醒”“多叫醒我几次”“重新排时间”时调用；用户问“你之前关心过我什么/上次那事你问过没”时用 care。',
     parameters: {
       action: { type: 'string', required: true, description: 'status / care / bind / unbind / enable / disable / replan' },
       target: { type: 'string', description: 'bind：current / title / id' },
@@ -1943,6 +1943,8 @@ export function apply(ctx: Context) {
                   at: last.at,
                   observation: last.observation,
                   response: last.response || '',
+                  replyHead: last.replyHead || '',
+                  replyOnEvidence: last.replyOnEvidence === true,
                   canCareNow: wakeCare.shouldCare(DATA_ROOT),
                   total: h.length,
                 }
@@ -1964,6 +1966,8 @@ export function apply(ctx: Context) {
           observation: x.observation,
           response: x.response || '',
           replyGapMin: x.replyGapMin,
+          replyHead: x.replyHead || '',
+          replyOnEvidence: x.replyOnEvidence === true,
           evidence: x.evidence,
         }))
         return cleanJson({
@@ -2461,7 +2465,8 @@ export function apply(ctx: Context) {
         wakeProfile.noteActivity(DATA_ROOT)
         wakeCore.noteUserMessage(DATA_ROOT)
         // 关心之后用户回话了 → 回填账本（24h 内、最近一条、只填一次）
-        wakeCare.noteCareReply(DATA_ROOT)
+        // 带上回复开头 30 字：账本记事实，判断留给回看的人
+        wakeCare.noteCareReply(DATA_ROOT, Date.now(), 24, { text })
       } catch (e: any) {
         console.warn('[memory-system] 唤醒记录更新失败：' + (e && e.message))
       }
