@@ -178,6 +178,31 @@ function readJsonBody(req: any, limit = 1_000_000): Promise<any> {
   })
 }
 
+/**
+ * 404 也给人看：纯文本 "not found" 在深色浏览器里就是一片黑，
+ * 看不出是「页面没做」还是「进程没重启」。这里给一张能读的卡片。
+ */
+function notFoundPage(msg: string): string {
+  const safe = String(msg || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' } as any)[c])
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>404 · 核星记忆</title>
+<style>
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#04060d;color:#eef2ff;
+    font-family:"Microsoft YaHei UI",system-ui,sans-serif;padding:24px}
+  .card{max-width:520px;padding:26px 28px;border:1px solid rgba(150,175,255,.16);border-radius:16px;
+    background:rgba(13,18,32,.88);line-height:1.95;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+  h1{margin:0 0 12px;font-size:18px;font-weight:500;letter-spacing:.06em}
+  p{margin:0 0 9px;color:#93a0c8;font-size:12.5px}
+  b{color:#dfe6ff;font-weight:500}
+  a{color:#9fb4ff;text-decoration:none;border:1px solid rgba(150,175,255,.22);padding:8px 15px;
+    border-radius:9px;display:inline-block;margin-top:14px;font-size:12px}
+</style></head><body><div class="card">
+<h1>找不到这个页面</h1>
+<p>${safe}</p>
+<p>如果是刚更新的版本，<b>重启 DSH</b> 后新页面才生效——路由是插件启动时注册的，静态页是每次现读磁盘的，所以会出现"按钮更新了、点进去 404"。</p>
+<a href="/">返回总览</a></div></body></html>`
+}
+
 function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: any) {
   const port = Number(process.env.MEMORY_VIEWER_PORT || 3099)
 
@@ -386,20 +411,22 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: an
             : (url.pathname === '/qq-groups' ? 'qq-groups.html'
               : (url.pathname === '/qq-switch' ? 'qq-switch.html'
                 : ((url.pathname === '/universe' || url.pathname === '/viewer') ? 'viewer.html' : '')))))
-      if (page) {
-        const file = path.join(__dirname, page)
-        if (fs.existsSync(file)) {
+        if (page) {
+          const file = path.join(__dirname, page)
+          if (fs.existsSync(file)) {
+            res.setHeader('Content-Type', 'text/html; charset=utf-8')
+            res.end(fs.readFileSync(file, 'utf8'))
+            return
+          }
+          res.statusCode = 404
           res.setHeader('Content-Type', 'text/html; charset=utf-8')
-          res.end(fs.readFileSync(file, 'utf8'))
+          res.end(notFoundPage(page + ' 缺失'))
           return
         }
-        res.statusCode = 404
-        res.end(page + ' 缺失')
-        return
-      }
 
-      res.statusCode = 404
-      res.end('not found')
+        res.statusCode = 404
+        res.setHeader('Content-Type', 'text/html; charset=utf-8')
+        res.end(notFoundPage('页面不存在：' + url.pathname))
     } catch (e: any) {
       res.statusCode = 500
       res.setHeader('Content-Type', 'application/json; charset=utf-8')
