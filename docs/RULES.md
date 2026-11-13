@@ -275,6 +275,7 @@
     - 唤醒轮工具策略：读取和追加允许（`memory_search` / `memory_chain list·get·append·create` / `memory_topic list·get·add` / `memory_write` 等）；删除、覆盖、执行任务拒绝（`bash` / `write` / `edit` / `schedule_*` / `memory_chain header·rename·delete` / `memory_topic close·merge` 等）。用户一回话就恢复正常权限。
     - 唤醒回复标 `origin:'wake'`，**进 raw/链网**；提炼时当“AI 侧的关系事件”，不据此推断用户状态；用户没回应时不升级成约定/话题。关心对话的概要会进「日常」链（1–2 句，索引用），不拆成用户偏好事实；下次醒来她自己查。最近一条同时存 `common/wake.json.lastWakeReply`。状态在 `common/wake.json`，日志在 `common/wake-log.jsonl`（只记时间/ID/决定，不记正文）。
     - `memory_wake`：`status` / `bind`（current / title / id，像 QQ 私聊绑定） / `unbind` / `enable` / `disable` / `replan`。用户说“自动唤醒绑到当前会话/某某会话”“打开/关闭自动唤醒”“多叫醒我几次”“重新排时间”时用它。
+    - **总览页也有开关**（`/api/wake`）：用户在记忆总览点一下就能开关，不用经过你。开的时候页面会行内确认一次（说明时段与频率），关立即生效。**没绑定会话时开着也不会叫醒**——卡片上会写「未绑定（不会叫醒）」，这时先 `bind` 再谈频率。
     - 作息记录器只记用户发消息的本地小时（不记内容），首次启动从 raw 回填 30 天；7 天关心比较本周 vs 上周，样本 ≥5 天且有 open 话题证据才说，7 天内不重复。DSH 拿不到鼠标键盘，曲线是“说话时间”，不是在线时长。
 
 ---

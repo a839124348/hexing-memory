@@ -283,6 +283,22 @@
   .card-main small { font-size: 11px; color: var(--muted); margin-left: 5px; }
   .card-lines { margin-top: 12px; display: grid; gap: 5px; font-size: 11px; color: var(--muted); line-height: 1.4; }
   .card-lines b { color: #a9bce8; font-weight: 500; }
+  .mini {
+    font-family: inherit; font-size: 11px; cursor: pointer; padding: 5px 11px;
+    border-radius: 8px; border: 1px solid rgba(150,175,255,.22);
+    background: transparent; color: #b9c8ff; margin-top: 2px;
+    transition: border-color .2s, background .2s, color .2s;
+  }
+  .mini:hover { border-color: rgba(150,175,255,.45); background: rgba(150,175,255,.07); color: #fff; }
+  .mini.on { border-color: rgba(255,212,121,.45); color: #ffd479; }
+  .mini.on:hover { background: rgba(255,212,121,.10); }
+  .wake-confirm {
+    display: none; margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid rgba(255,212,121,.22); background: rgba(255,212,121,.05);
+    font-size: 11px; line-height: 1.75; color: #e8d7ae;
+  }
+  .wake-confirm.show { display: block; }
+  .wake-actions { display: flex; gap: 8px; margin-top: 8px; }
   .warn { color: #ffd18a !important; }
   .bad { color: var(--red) !important; }
   .good { color: var(--teal) !important; }
@@ -872,6 +888,24 @@
     </article>
 
     <article class="card">
+      <div class="card-label">Wake / 自动唤醒</div>
+      <div class="card-main" id="wakeState">—</div>
+      <div class="card-lines">
+        <div>下次：<b id="wakeNext">—</b></div>
+        <div>绑定：<b id="wakeBound">—</b></div>
+        <div>今日：<b id="wakeToday">—</b></div>
+        <div><button class="mini" id="wakeToggle">—</button></div>
+      </div>
+      <div class="wake-confirm" id="wakeConfirm">
+        开启后她会在日常时间和饭点自己醒来找你：默认一天 6 次、最小间隔 45 分钟、23:00–08:00 不打扰。
+        <div class="wake-actions">
+          <button class="mini on" id="wakeDoEnable">开启</button>
+          <button class="mini" id="wakeCancel">算了</button>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
       <div class="card-label">Topics / 创意池</div>
       <div class="card-main" id="topicOpen">— <small>个未闭合</small></div>
       <div class="card-lines">
@@ -1268,9 +1302,75 @@ async function loadHeart() {
   }
 }
 
-$('refresh').addEventListener('click', () => { load(); loadHeart(); });
+// 自动唤醒：开关就在总览页；打开时读一次，不轮询（用户 2026-11-13 定）
+let wakeInfo = null;
+
+function fmtWake(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function renderWake() {
+  const on = Boolean(wakeInfo && wakeInfo.enabled);
+  $('wakeState').textContent = on ? '已开启' : '已关闭';
+  $('wakeToggle').textContent = on ? '关闭' : '打开';
+  $('wakeToggle').className = 'mini' + (on ? ' on' : '');
+  $('wakeNext').textContent = on ? fmtWake(wakeInfo && wakeInfo.nextWakeAt) : '（已关）';
+  const bound = (wakeInfo && wakeInfo.targetSessionId) || '';
+  $('wakeBound').textContent = bound || '未绑定（不会叫醒）';
+  $('wakeBound').style.color = bound ? '' : '#ff8d9d';
+  const n = (wakeInfo && wakeInfo.countToday) || 0;
+  const max = (wakeInfo && wakeInfo.maxPerDay) || 0;
+  $('wakeToday').textContent = n + ' / ' + max + ' 次';
+}
+
+async function loadWake() {
+  if (!$('wakeState')) return;
+  try {
+    const r = await fetch('/api/wake', { cache: 'no-store' });
+    const j = await r.json();
+    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    wakeInfo = j;
+    renderWake();
+  } catch (e) {
+    $('wakeState').textContent = '读不到';
+  }
+}
+
+async function postWake(enabled) {
+  try {
+    const r = await fetch('/api/wake', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    await loadWake();
+  } catch (e) {
+    $('wakeState').textContent = '切换失败';
+  }
+}
+
+// 开的时候确认一次（说明会在什么时候叫、不打扰的时段）；关立即生效
+$('wakeToggle').addEventListener('click', () => {
+  if (!wakeInfo) return;
+  if (wakeInfo.enabled) { postWake(false); return; }
+  $('wakeConfirm').classList.add('show');
+});
+$('wakeDoEnable').addEventListener('click', () => {
+  $('wakeConfirm').classList.remove('show');
+  postWake(true);
+});
+$('wakeCancel').addEventListener('click', () => $('wakeConfirm').classList.remove('show'));
+
+$('refresh').addEventListener('click', () => { load(); loadHeart(); loadWake(); });
 load();
 loadHeart();
+loadWake();
 setInterval(load, 10000);
 </script>
 <script>

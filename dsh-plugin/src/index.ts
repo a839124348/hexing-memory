@@ -256,6 +256,38 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: an
         res.end(JSON.stringify({ ok: false, error: 'method not allowed' }))
         return
       }
+      // 2026-11-13：自动唤醒开关（总览页直接切）。GET 打开页面读一次，POST 切开关。
+      if (url.pathname === '/api/wake') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        if (req.method === 'GET') {
+          const s = wakeCore.readState(DATA_ROOT)
+          res.end(JSON.stringify({
+            ok: true,
+            enabled: Boolean(s.enabled),
+            nextWakeAt: s.nextWakeAt || null,
+            targetSessionId: String(s.targetSessionId || ''),
+            countToday: Number(s.countToday) || 0,
+            maxPerDay: Number(s.maxPerDay) || 0,
+            quietHours: s.quietHours,
+          }))
+          return
+        }
+        if (req.method === 'POST') {
+          try {
+            const body = await readJsonBody(req)
+            const enabled = Boolean(body && body.enabled)
+            wakeCore.mutateState(DATA_ROOT, (s: any) => { s.enabled = enabled; return s })
+            res.end(JSON.stringify({ ok: true, enabled }))
+          } catch (e: any) {
+            res.statusCode = 400
+            res.end(JSON.stringify({ ok: false, error: e && e.message ? e.message : String(e) }))
+          }
+          return
+        }
+        res.statusCode = 405
+        res.end(JSON.stringify({ ok: false, error: 'method not allowed' }))
+        return
+      }
       if (url.pathname === '/api/qq-groups') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         res.end(JSON.stringify(readQQGroups()))
