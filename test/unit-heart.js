@@ -121,6 +121,15 @@ function tmpRoot() {
   check('截断后有计数行', lines[lines.length - 1].includes('另有 2 条'), lines);
   check('预算为 0 就不带', h.loadText('2026-11-13', { maxChars: 0 }) === '');
 
+  // 预算按落进常识层后的字符算：正文 + "- " + 换行，不是纯正文
+  const z = new Heart(tmpRoot());
+  z.setEnabled(true, 'user');
+  z.append({ t: '2026-11-13 09:00', text: 'A'.repeat(50) });
+  z.append({ t: '2026-11-13 10:00', text: 'B'.repeat(50) });
+  const fitsOne = z.loadText('2026-11-13', { maxChars: 104 });
+  check('格式开销算进预算', fitsOne.split('\n')[0] === '- ' + 'B'.repeat(50), fitsOne);
+  check('预算连一条都放不下就不带', z.loadText('2026-11-13', { maxChars: 60 }) === '');
+
   // 2026-11-14：没有固定阈值——不传就跟当天全量，哪怕超过 1200 字
   const many = new Heart(tmpRoot());
   many.setEnabled(true, 'user');

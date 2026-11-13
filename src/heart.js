@@ -268,17 +268,29 @@ class Heart {
     const cap = unlimited ? Infinity : Math.max(0, Number(maxChars) || 0);
     if (!cap) return '';
 
+    // 预算按“落进常识层之后的字符数”算，不是纯正文。
+    // 每条实际占 text.length + 2（"- "）+ 1（换行）；不计这个会算少，导致整段被丢掉。
+    const LINE_COST = 3;
+    const countLine = (n) => `- （另有 ${n} 条，点记忆总览「鱼的心路历程」看）`;
+
     const picked = [];
     let used = 0;
     for (let i = list.length - 1; i >= 0; i--) {
       const line = list[i].text;
-      if (picked.length && used + line.length > cap) break;
+      if (picked.length && used + line.length + LINE_COST > cap) break;
       picked.unshift(line);
-      used += line.length;
+      used += line.length + LINE_COST;
     }
-    const dropped = list.length - picked.length;
+    let dropped = list.length - picked.length;
+    // 截断后还要留一行计数；连这行都放不下，就再丢最早的一条
+    while (dropped > 0 && picked.length && used + countLine(dropped).length + LINE_COST > cap) {
+      const line = picked.shift();
+      used -= line.length + LINE_COST;
+      dropped += 1;
+    }
     const lines = picked.map((x) => '- ' + x);
-    if (dropped > 0) lines.push(`- （另有 ${dropped} 条，点记忆总览「鱼的心路历程」看）`);
+    if (!lines.length) return '';
+    if (dropped > 0) lines.push(countLine(dropped));
     return lines.join('\n');
   }
 }
