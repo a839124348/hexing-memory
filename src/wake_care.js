@@ -195,13 +195,61 @@ function shouldCare(root, now = Date.now()) {
   });
 }
 
+/**
+ * 关心之后用户回话了 → 回填 response（2026-11-14 补）。
+ *
+ * 为什么补：wake-care.json 的 response 字段一直没人写，账本只能记"关心过什么"，
+ * 记不了"有没有被接住"。而十次关心九次没回应，正是该说的时机/话术有问题——
+ * 这个信号原来根本看不见。
+ *
+ * 口径：只回填最近一条、24 小时内、还没写过的。更早的不追认——用户可能只是
+ * 隔天想起别的事，硬记成"回应了关心"反而是假数据。
+ */
+function noteCareReply(root, now = Date.now(), windowHours = 24) {
+  const data = readCare(root);
+  const h = data.history;
+  const cutoff = now - windowHours * 3600000;
+  let target = -1;
+  for (let i = h.length - 1; i >= 0; i--) {
+    const at = Date.parse(h[i].at || '');
+    if (!Number.isFinite(at)) continue;
+    if (at < cutoff) break;
+    if (h[i].response) continue;
+    target = i;
+    break;
+  }
+  if (target < 0) return { ok: true, filled: -1 };
+  const gap = Math.round((now - Date.parse(h[target].at)) / 60000);
+  _mutate(root, (d) => {
+    const row = d.history[target];
+    if (!row || row.response) return d.history.length;
+    row.response = 'replied';
+    row.repliedAt = new Date(now).toISOString();
+    row.replyGapMin = gap;
+    return d.history.length;
+  });
+  return { ok: true, filled: target, gapMin: gap };
+}
+
+/** 超过窗口还没回应的，下一次关心落账时顺手标成 ignored，不留悬空记录。 */
+function _sweepUnanswered(history, now, windowHours = 24) {
+  const cutoff = now - windowHours * 3600000;
+  for (const row of history) {
+    if (row.response) continue;
+    const at = Date.parse(row.at || '');
+    if (Number.isFinite(at) && at < cutoff) row.response = 'ignored';
+  }
+}
+
 function markCare(root, entry) {
   return _mutate(root, (data) => {
+    const at = Number(entry.at || Date.now());
+    _sweepUnanswered(data.history, at);
     data.history.push({
       weekStart: String(entry.weekStart || ''),
       observation: String(entry.observation || ''),
       evidence: String(entry.evidence || '').slice(0, 160),
-      at: new Date(entry.at || Date.now()).toISOString(),
+      at: new Date(at).toISOString(),
       response: String(entry.response || ''),
     });
     data.history = data.history.slice(-52);
@@ -219,4 +267,5 @@ module.exports = {
   careLine,
   shouldCare,
   markCare,
+  noteCareReply,
 };

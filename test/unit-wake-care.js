@@ -92,8 +92,29 @@ care.markCare(root, {
 });
 check('7 天内不重复', care.shouldCare(root, now) === false);
 check('历史落盘', care.readCare(root).history.length === 1);
-
 fs.rmSync(root, { recursive: true, force: true });
+
+// 7. response 回填（2026-11-14 补）：关心之后用户回话 → replied；超 24h → ignored
+{
+  const r2 = fs.mkdtempSync(path.join(os.tmpdir(), 'care-resp-'));
+  care.markCare(r2, { weekStart: 'w1', observation: 'quiet', evidence: 'x', at: now });
+  const f1 = care.noteCareReply(r2, now + 30 * 60000);
+  check('24h 内回话 → 回填 replied', f1.filled === 0, JSON.stringify(f1));
+  const row1 = care.readCare(r2).history[0];
+  check('记了回复时刻与间隔', row1.response === 'replied' && row1.repliedAt && row1.replyGapMin === 30, JSON.stringify(row1));
+  check('已填过的不重复填', care.noteCareReply(r2, now + 40 * 60000).filled === -1);
+  fs.rmSync(r2, { recursive: true, force: true });
+
+  const r3 = fs.mkdtempSync(path.join(os.tmpdir(), 'care-miss-'));
+  care.markCare(r3, { weekStart: 'w2', observation: 'late', evidence: 'y', at: now });
+  check('超过 24h 不追认', care.noteCareReply(r3, now + 30 * 3600000).filled === -1);
+  check('超时那条仍是空', care.readCare(r3).history[0].response === '');
+  care.markCare(r3, { weekStart: 'w3', observation: 'quiet', evidence: 'z', at: now + 31 * 3600000 });
+  const h3 = care.readCare(r3).history;
+  check('下次落账时标 ignored', h3[0].response === 'ignored', h3[0].response);
+  check('新的一条仍是空', h3[1].response === '', h3[1].response);
+  fs.rmSync(r3, { recursive: true, force: true });
+}
 console.log('');
 console.log('结果：' + pass + '/' + (pass + fails.length) + ' 通过');
 if (fails.length) { console.log('失败：'); fails.forEach((x) => console.log('  ' + x)); process.exit(1); }

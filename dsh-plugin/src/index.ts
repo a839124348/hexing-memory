@@ -2390,6 +2390,8 @@ export function apply(ctx: Context) {
       try {
         wakeProfile.noteActivity(DATA_ROOT)
         wakeCore.noteUserMessage(DATA_ROOT)
+        // 关心之后用户回话了 → 回填账本（24h 内、最近一条、只填一次）
+        wakeCare.noteCareReply(DATA_ROOT)
       } catch (e: any) {
         console.warn('[memory-system] 唤醒记录更新失败：' + (e && e.message))
       }
