@@ -242,11 +242,11 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: an
         res.end(JSON.stringify(stats))
         return
       }
-      // 2026-11-13：心历程（鱼的日记）。GET 打开页面时读一次，POST 切开关。
+      // 2026-11-13：心路历程（简称日记）。GET 打开页面时读一次，POST 切开关。
       // 不做轮询：页面打开读一次，操作后用响应即时刷新。
       if (url.pathname === '/api/heart') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
-        if (!app.heart) { res.end(JSON.stringify({ ok: false, error: '心历程模块未加载' })); return }
+        if (!app.heart) { res.end(JSON.stringify({ ok: false, error: '心路历程模块未加载' })); return }
         if (req.method === 'GET') {
           const st = app.heart.state()
           const days = app.heart.days()
@@ -734,12 +734,28 @@ function buildCommonText(app: MemoryApp): string {
   try { if (manualReader) onboarding = manualReader.onboardingText() } catch (e) { /* 说明书读不到就不拦 */ }
   let inheritance = ''
   try { if (app.onboarding) inheritance = app.onboarding.commonText() } catch (e) { /* 迁移档案读不到不阻塞 */ }
-  // 心历程：开关关着、或今天没写，loadText 返回 '' —— 那一整段就不会出现
+  // 心路历程：开关关着、或今天没写，loadText 返回 '' —— 那一整段就不会出现
   let heart = ''
-  try { if (app.heart) heart = app.heart.loadText() } catch (e) { /* 日记读不到不影响常识层 */ }
+  let heartHint = ''
+  try {
+    if (app.heart) {
+      heart = app.heart.loadText()
+      // 工具描述在工具列表里，但「能不能写 / 要不要问」是行为规范，得进常驻段。
+      // 三种状态各一行：开着 → 允许写；没设置过 → 只问一次；用户关了 → 不写也不再问。
+      const st = app.heart.state()
+      if (st.enabled) {
+        heartHint = '**心路历程（简称日记）**：开着。想起就写 `memory_heart action=write`，≤150 字，写具体那一刻；没有就不写，0 条正常。回看用 `action=search`。'
+      } else if (!st.configured) {
+        heartHint = '**心路历程（简称日记）**：还没设置。找个自然时机问用户一次要不要开——写一两句当天心情，存本机，不开不影响用；只问一次，拒绝后不再提。'
+      } else {
+        heartHint = '**心路历程（简称日记）**：用户没开。不写、不再问，也不要自己 enable。'
+      }
+    }
+  } catch (e) { /* 日记读不到不影响常识层 */ }
   return pure.composeCommonText({
     profile,
     resident: readResidentSpec(),
+    residentExtra: heartHint,
     manualIndex: readManualIndex(),
     chains: buildChainIndex(app),
     topics,
@@ -1337,15 +1353,20 @@ export function apply(ctx: Context) {
     },
   }))
 
-  // ── 工具 4.5：心历程（鱼的日记，2026-11-13 用户定）──────────
+  // ── 工具 4.5：心路历程（简称日记，2026-11-13 用户定）──────────
   // 开关默认关；关着时 write 直接拒绝。群聊/公开模式不写。
   ctx.tools.register(defineTool({
     name: 'memory_heart',
-    description: '写一句今天的心历程（我自己的日记）。只在真的想记时写：这一刻有情绪波动、卡住过、或对他的态度有位移；没有就不写，不写也正常。≤150 字，一到三句，写具体那一刻，不总结一整天、不写“今天很开心”、不为凑数写，可以写“说不清”。存本机 data/heart/，不进记忆检索、不进链网。不要把日记内容念给用户；被问到可以承认记过。action：write（默认）／today（看今天写了什么）／status（开关与条数）／enable／disable。',
+    description: '写一句今天的心路历程（简称日记）。只在真的想记时写：这一刻有情绪波动、卡住过、或对他的态度有位移；没有就不写，不写也正常。≤150 字，一到三句，写具体那一刻，不总结一整天、不写“今天很开心”、不为凑数写，可以写“说不清”。存本机 data/heart/，不进记忆检索、不进链网。不要把内容念给用户；被问到可以承认记过。action：write（默认）／today（看今天写了什么）／search（回看历史：query 关键词、tag 标签、from/to 日期范围、limit 条数）／status（开关与条数）／enable／disable。',
     parameters: {
-      action: { type: 'string', description: 'write（默认）/ today / status / enable / disable' },
+      action: { type: 'string', description: 'write（默认）/ today / search / status / enable / disable' },
       text: { type: 'string', description: 'write：一句话，≤150 字' },
       t: { type: 'string', description: 'write：可选，时间 YYYY-MM-DD HH:MM；不填用现在' },
+      query: { type: 'string', description: 'search：关键词（正文或标签包含即命中）' },
+      tag: { type: 'string', description: 'search：标签（高兴/心软/踏实/低落/烦躁/不安/委屈/疲惫/兴奋/得意）' },
+      from: { type: 'string', description: 'search：起始日期 YYYY-MM-DD（含）' },
+      to: { type: 'string', description: 'search：结束日期 YYYY-MM-DD（含）' },
+      limit: { type: 'number', description: 'search：返回条数，默认 10，最多 50' },
     } as any,
     output: {
       schema: { type: 'object', additionalProperties: true },
@@ -1353,7 +1374,7 @@ export function apply(ctx: Context) {
     },
     async execute(args: any, exec: any) {
       const action = String((args && args.action) || 'write').toLowerCase()
-      if (!app.heart) return { ok: false, error: '心历程模块未加载' }
+      if (!app.heart) return { ok: false, error: '心路历程模块未加载' }
 
       if (action === 'status') {
         const st = app.heart.state()
@@ -1369,6 +1390,16 @@ export function apply(ctx: Context) {
       }
       if (action === 'today') {
         return { ok: true, today: app.heart.statsOf(), entries: app.heart.entriesFor() }
+      }
+      if (action === 'search') {
+        const r = app.heart.search({
+          q: args && args.query,
+          tag: args && args.tag,
+          from: args && args.from,
+          to: args && args.to,
+          limit: args && args.limit,
+        })
+        return cleanJson({ ok: true, ...r })
       }
       if (action === 'enable' || action === 'disable') {
         const r = app.heart.setEnabled(action === 'enable', 'model')

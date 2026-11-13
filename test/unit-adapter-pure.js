@@ -116,6 +116,18 @@ const withTopics = composeCommonText({
 check('有话题栈段落', withTopics.includes('## 话题栈') && withTopics.includes('未闭合 2 个'));
 check('无话题不出现段落', !common.includes('## 话题栈'));
 
+// 5c. 日记提示（residentExtra，有才出现；只出现一次）
+const withHeartHint = composeCommonText({
+  profile: '# 身份\n## 我是谁\n验收身份',
+  resident,
+  residentExtra: '**心路历程（简称日记）**：开着。想起就写 `memory_heart action=write`。',
+  manualIndex: index,
+  chains: '- 身份链（3 节点）',
+});
+check('日记提示进常驻段', withHeartHint.includes('心路历程（简称日记）') && withHeartHint.includes('memory_heart action=write'));
+check('日记提示只出现一次', (withHeartHint.match(/心路历程（简称日记）/g) || []).length === 1);
+check('无提示时不出现', !common.includes('心路历程（简称日记）'));
+
 // 6. 超长裁剪：身份+摘要保留，目录/链网被裁
 const longCommon = composeCommonText({
   profile: '# 身份\n' + '身份'.repeat(200),

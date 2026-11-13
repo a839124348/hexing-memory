@@ -59,7 +59,7 @@ node test/acceptance.js
 git init
 git add .
 git status
-git commit -m "核星记忆 v0.4.6: 自动唤醒 + QQ 双 transport + 心历程（鱼的日记）"
+git commit -m "核星记忆 v0.4.6: 自动唤醒 + QQ 双 transport + 心路历程（简称日记）"
 git branch -M main
 ```
 

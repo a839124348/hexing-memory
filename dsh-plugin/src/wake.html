@@ -311,7 +311,7 @@ async function post(enabled) {
   }
 }
 
-// 开要确认一次；关立即生效（和鱼的日记同一套口径）
+// 开要确认一次；关立即生效（和心路历程同一套口径）
 $('toggle').addEventListener('click', (ev) => {
   if (!info) return;
   if (info.enabled) { ev.preventDefault(); $('toggle').checked = false; post(false); return; }

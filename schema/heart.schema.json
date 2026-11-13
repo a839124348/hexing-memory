@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://xingxv.memory/schema/heart.schema.json",
   "title": "HeartEntry",
-  "description": "心历程（鱼的日记）条目格式 v1。一天一个文件，路径 data/heart/YYYY/MM/YYYY-MM-DD.jsonl（年/月/日三层），一行一条，只追加。与 raw 的 MemoryRecord 是两套格式：日记是 AI 的自述，不进 raw、不进链网、不进提炼。",
+  "description": "心路历程（简称日记）条目格式 v1。一天一个文件，路径 data/heart/YYYY/MM/YYYY-MM-DD.jsonl（年/月/日三层），一行一条，只追加。与 raw 的 MemoryRecord 是两套格式：日记是 AI 的自述，不进 raw、不进链网、不进提炼。",
   "type": "object",
   "required": ["t", "text"],
   "additionalProperties": false,

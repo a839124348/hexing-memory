@@ -1,5 +1,5 @@
 /**
- * heart.js — 心历程（鱼的日记）
+ * heart.js — 心路历程（简称日记）
  *
  * 定位：AI 自己写的 1–3 句自述。不是 reasoning，不是用户的话，不是提炼摘要。
  *       判据：能从 raw 推出来的是事实；推不出来的才是这里的。
@@ -211,6 +211,39 @@ class Heart {
     return out.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   }
 
+  /**
+   * 回看：按关键词 / 标签 / 日期范围查历史条目。
+   * - q：正文或标签包含即命中（忽略大小写）；空 = 不限
+   * - tag：精确命中某个词表标签
+   * - from / to：YYYY-MM-DD 闭区间
+   * - limit：默认 10，最多 50（只截返回，不截扫描；total 是命中的全量）
+   * 关着也能查：关掉的是「继续写」，不是「已经写过的不能再读」。
+   */
+  search({ q, tag, from, to, limit } = {}) {
+    const kw = String(q || '').trim().toLowerCase();
+    const tagWant = String(tag || '').trim();
+    const fromD = /^\d{4}-\d{2}-\d{2}$/.test(String(from || '')) ? String(from) : '';
+    const toD = /^\d{4}-\d{2}-\d{2}$/.test(String(to || '')) ? String(to) : '';
+    const max = Math.min(50, Math.max(1, Number(limit) || 10));
+
+    const hits = [];
+    let scanned = 0;
+    const days = this.days();
+    for (const d of days) {
+      if (fromD && d.date < fromD) continue;
+      if (toD && d.date > toD) continue;
+      for (const r of this.entriesFor(d.date)) {
+        scanned++;
+        const tags = Array.isArray(r.tags) ? r.tags : [];
+        if (tagWant && !tags.includes(tagWant)) continue;
+        if (kw && !(r.text.toLowerCase().includes(kw) || tags.some((x) => x.toLowerCase().includes(kw)))) continue;
+        hits.push({ date: d.date, t: r.t, text: r.text, ...(tags.length ? { tags } : {}) });
+      }
+    }
+    hits.sort((a, b) => (a.t < b.t ? 1 : a.t > b.t ? -1 : 0));
+    return { total: hits.length, scanned, days: days.length, hits: hits.slice(0, max) };
+  }
+
   /** 当天统计：条数 + 字数 */
   statsOf(date) {
     const list = this.entriesFor(date);
@@ -239,7 +272,7 @@ class Heart {
     }
     const dropped = list.length - picked.length;
     const lines = picked.map((x) => '- ' + x);
-    if (dropped > 0) lines.push(`- （另有 ${dropped} 条，点记忆总览「鱼的日记」看）`);
+    if (dropped > 0) lines.push(`- （另有 ${dropped} 条，点记忆总览「鱼的心路历程」看）`);
     return lines.join('\n');
   }
 }

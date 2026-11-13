@@ -102,7 +102,7 @@ function fitLines(text, budget) {
  * 组装常识层：身份 + 常驻摘要 + 说明书索引 + 链网索引。
  * 动态内容（当前状态/最近会话/草稿/链正文）不进来。
  */
-function composeCommonText({ profile, resident, manualIndex, chains, topics, onboarding, inheritance, heart, maxChars = COMMON_MAX }) {
+function composeCommonText({ profile, resident, residentExtra, manualIndex, chains, topics, onboarding, inheritance, heart, maxChars = COMMON_MAX }) {
   const cleanProfile = String(profile || '')
     .replace(/##\s*记忆系统说明[\s\S]*$/m, '')
     .trim()
@@ -116,6 +116,7 @@ function composeCommonText({ profile, resident, manualIndex, chains, topics, onb
     '',
     '## 常驻规范',
     resident || '（RULES.md 的常驻摘要未找到；按“先查再答、原文不改、草稿/存档分开”执行）',
+    ...(residentExtra ? ['', String(residentExtra).trim()] : []),
     ...(onboarding ? ['', String(onboarding).trim()] : []),
     ...(inheritance ? ['', String(inheritance).trim()] : []),
   ].join('\n');
@@ -124,14 +125,14 @@ function composeCommonText({ profile, resident, manualIndex, chains, topics, onb
     return head.slice(0, maxChars);
   }
 
-  // 心历程（鱼的日记）：只在开关打开且有内容时出现，整段由 heart.loadText 控制长度。
+  // 心路历程（简称日记）：只在开关打开且有内容时出现，整段由 heart.loadText 控制长度。
   // 位置放在索引之前——今天的自己比链网索引更该先看到；索引可以被裁，它优先。
   const heartBody = heart ? String(heart).trim() : '';
-  const heartPart = heartBody ? '\n\n## 今天的心历程（我的日记，是当时的自述，不一定还成立）\n' + heartBody : '';
+  const heartPart = heartBody ? '\n\n## 今天的心路历程（我自己写的，是当时的自述，不一定还成立）\n' + heartBody : '';
 
   const topicPart = topics ? '\n\n## 话题栈\n' + topics : '';
   const afterHead = maxChars - head.length - 80;
-  // 心历程整段放不下就整段不要（截半段会把自述读成断句），索引让位
+  // 心路历程整段放不下就整段不要（截半段会把自述读成断句），索引让位
   const heartText = heartPart.length > afterHead ? '' : heartPart;
   let body = '\n\n## 说明书索引\n' + (manualIndex || '- （RULES.md 未找到）')
     + topicPart

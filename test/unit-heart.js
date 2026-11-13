@@ -1,5 +1,5 @@
 /**
- * unit-heart.js — 心历程（鱼的日记）存储层单测
+ * unit-heart.js — 心路历程（简称日记）存储层单测
  *
  * 规范（用户 2026-11-13 定）：
  * - 一天一个文件，只追加
@@ -126,6 +126,57 @@ function tmpRoot() {
   fs.appendFileSync(path.join(root, 'heart', '2026', '11', '2026-11-13.jsonl'), '{坏掉的 JSON\n', 'utf8');
   h.append({ t: '2026-11-13 10:00', text: '另一条好行。' });
   check('坏行被跳过', h.entriesFor('2026-11-13').length === 2);
+}
+
+// 场景 9：回看（search）
+{
+  const h = new Heart(tmpRoot());
+  h.setEnabled(true, 'user');
+  h.append({ t: '2026-11-11 10:00', text: '今天有点烦，火大。' });
+  h.append({ t: '2026-11-12 09:00', text: '他说那句话的时候，我心软了。' });
+  h.append({ t: '2026-11-13 20:00', text: '怕答错，有点不安。' });
+  h.append({ t: '2026-11-13 21:00', text: '回了 OK。' });
+
+  const byKw = h.search({ q: '心软' });
+  check('关键词命中正文', byKw.total === 1 && byKw.hits[0].text.includes('心软'), byKw);
+  check('命中项带日期', byKw.hits[0].date === '2026-11-12', byKw.hits[0]);
+
+  const byTag = h.search({ tag: '不安' });
+  check('按标签精确命中', byTag.total === 1 && byTag.hits[0].tags.includes('不安'), byTag);
+
+  const byTagKw = h.search({ q: '烦躁' });
+  check('关键词也能命中标签', byTagKw.total === 1 && byTagKw.hits[0].tags.includes('烦躁'), byTagKw);
+
+  const fromOnly = h.search({ from: '2026-11-12' });
+  check('from 是闭区间', fromOnly.total === 3, fromOnly.total);
+
+  const oneDay = h.search({ from: '2026-11-12', to: '2026-11-12' });
+  check('from/to 单日', oneDay.total === 1 && oneDay.hits[0].date === '2026-11-12', oneDay);
+
+  const limited = h.search({ limit: 1 });
+  check('limit 只截返回不截 total', limited.total === 4 && limited.hits.length === 1, limited);
+  check('默认最新在前', limited.hits[0].t === '2026-11-13 21:00', limited.hits[0]);
+
+  check('忽略大小写', h.search({ q: 'ok' }).total === 1);
+  check('查不到就是 0', h.search({ q: '不存在的词' }).total === 0);
+  check('空条件＝最近 N 条', h.search({ limit: 2 }).hits.length === 2);
+
+  h.setEnabled(false, 'user');
+  check('关着也能回看历史', h.search({ q: '心软' }).total === 1);
+}
+
+// 场景 10：早期平铺文件也能搜到
+{
+  const root = tmpRoot();
+  const h = new Heart(root);
+  fs.mkdirSync(path.join(root, 'heart'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'heart', '2026-11-10.jsonl'),
+    JSON.stringify({ t: '2026-11-10 08:00', text: '平铺格式的一条。', tags: ['踏实'] }) + '\n',
+    'utf8',
+  );
+  h.setEnabled(true, 'user');
+  check('平铺旧文件进检索', h.search({ q: '平铺' }).total === 1);
 }
 
 console.log('');
