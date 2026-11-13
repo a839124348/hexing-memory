@@ -781,6 +781,8 @@
     </div>
     <div class="actions">
       <a class="btn primary" href="/universe">链网宇宙 →</a>
+      <a class="btn" href="/heart">鱼的日记 →</a>
+      <a class="btn" href="/wake">自动唤醒 →</a>
       <button class="btn" id="refresh" type="button">刷新</button>
     </div>
   </header>
@@ -875,33 +877,6 @@
       <div class="card-lines">
         <div>@ 消息：<b id="qqGroupMessages">—</b></div>
         <div><a href="/qq-groups" target="_blank" rel="noopener noreferrer" style="color:#9fb4ff;text-decoration:none">查看 24h 活动 ↗</a></div>
-      </div>
-    </article>
-
-    <article class="card">
-      <div class="card-label">Heart / 鱼的日记</div>
-      <div class="card-main" id="heartCount">— <small>条 · 今天</small></div>
-      <div class="card-lines">
-        <div>开关：<b id="heartState">—</b></div>
-        <div><a href="/heart" style="color:#9fb4ff;text-decoration:none">去看她的日记 ↗</a></div>
-      </div>
-    </article>
-
-    <article class="card">
-      <div class="card-label">Wake / 自动唤醒</div>
-      <div class="card-main" id="wakeState">—</div>
-      <div class="card-lines">
-        <div>下次：<b id="wakeNext">—</b></div>
-        <div>绑定：<b id="wakeBound">—</b></div>
-        <div>今日：<b id="wakeToday">—</b></div>
-        <div><button class="mini" id="wakeToggle">—</button></div>
-      </div>
-      <div class="wake-confirm" id="wakeConfirm">
-        开启后她会在日常时间和饭点自己醒来找你：默认一天 6 次、最小间隔 45 分钟、23:00–08:00 不打扰。
-        <div class="wake-actions">
-          <button class="mini on" id="wakeDoEnable">开启</button>
-          <button class="mini" id="wakeCancel">算了</button>
-        </div>
       </div>
     </article>
 
@@ -1285,92 +1260,8 @@ async function load() {
   }
 }
 
-// 鱼的日记：只在页面打开时读一次，不跟 stats 的 10 秒轮询（用户 2026-11-13 定）
-async function loadHeart() {
-  const cnt = $('heartCount');
-  const st = $('heartState');
-  if (!cnt || !st) return;
-  try {
-    const r = await fetch('/api/heart', { cache: 'no-store' });
-    const j = await r.json();
-    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
-    cnt.innerHTML = (j.entries || []).length + ' <small>条 · 今天</small>';
-    st.textContent = j.enabled ? '已开' : (j.configured ? '已关' : '未设置');
-  } catch (e) {
-    cnt.textContent = '—';
-    st.textContent = '读不到';
-  }
-}
-
-// 自动唤醒：开关就在总览页；打开时读一次，不轮询（用户 2026-11-13 定）
-let wakeInfo = null;
-
-function fmtWake(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  const p = (n) => String(n).padStart(2, '0');
-  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
-function renderWake() {
-  const on = Boolean(wakeInfo && wakeInfo.enabled);
-  $('wakeState').textContent = on ? '已开启' : '已关闭';
-  $('wakeToggle').textContent = on ? '关闭' : '打开';
-  $('wakeToggle').className = 'mini' + (on ? ' on' : '');
-  $('wakeNext').textContent = on ? fmtWake(wakeInfo && wakeInfo.nextWakeAt) : '（已关）';
-  const bound = (wakeInfo && wakeInfo.targetSessionId) || '';
-  $('wakeBound').textContent = bound || '未绑定（不会叫醒）';
-  $('wakeBound').style.color = bound ? '' : '#ff8d9d';
-  const n = (wakeInfo && wakeInfo.countToday) || 0;
-  const max = (wakeInfo && wakeInfo.maxPerDay) || 0;
-  $('wakeToday').textContent = n + ' / ' + max + ' 次';
-}
-
-async function loadWake() {
-  if (!$('wakeState')) return;
-  try {
-    const r = await fetch('/api/wake', { cache: 'no-store' });
-    const j = await r.json();
-    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
-    wakeInfo = j;
-    renderWake();
-  } catch (e) {
-    $('wakeState').textContent = '读不到';
-  }
-}
-
-async function postWake(enabled) {
-  try {
-    const r = await fetch('/api/wake', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled }),
-    });
-    const j = await r.json();
-    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
-    await loadWake();
-  } catch (e) {
-    $('wakeState').textContent = '切换失败';
-  }
-}
-
-// 开的时候确认一次（说明会在什么时候叫、不打扰的时段）；关立即生效
-$('wakeToggle').addEventListener('click', () => {
-  if (!wakeInfo) return;
-  if (wakeInfo.enabled) { postWake(false); return; }
-  $('wakeConfirm').classList.add('show');
-});
-$('wakeDoEnable').addEventListener('click', () => {
-  $('wakeConfirm').classList.remove('show');
-  postWake(true);
-});
-$('wakeCancel').addEventListener('click', () => $('wakeConfirm').classList.remove('show'));
-
-$('refresh').addEventListener('click', () => { load(); loadHeart(); loadWake(); });
+$('refresh').addEventListener('click', load);
 load();
-loadHeart();
-loadWake();
 setInterval(load, 10000);
 </script>
 <script>

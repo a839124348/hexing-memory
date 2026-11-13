@@ -382,9 +382,10 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: an
       const page = (url.pathname === '/' || url.pathname === '/dashboard')
         ? 'dashboard.html'
         : (url.pathname === '/heart' ? 'heart.html'
-          : (url.pathname === '/qq-groups' ? 'qq-groups.html'
-            : (url.pathname === '/qq-switch' ? 'qq-switch.html'
-              : ((url.pathname === '/universe' || url.pathname === '/viewer') ? 'viewer.html' : ''))))
+          : (url.pathname === '/wake' ? 'wake.html'
+            : (url.pathname === '/qq-groups' ? 'qq-groups.html'
+              : (url.pathname === '/qq-switch' ? 'qq-switch.html'
+                : ((url.pathname === '/universe' || url.pathname === '/viewer') ? 'viewer.html' : '')))))
       if (page) {
         const file = path.join(__dirname, page)
         if (fs.existsSync(file)) {
