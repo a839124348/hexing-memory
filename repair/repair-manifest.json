@@ -31,6 +31,23 @@
       "risk": "旧副本可能已被转发，收不回；只保证本机干净。删除前列给用户确认",
       "boundary": "只清我们自己发出去的包；不扫描用户文档/聊天记录；不动 %APPDATA%\\dsh-memory 下的数据",
       "tools": []
+    },
+    {
+      "id": "transport-default-auto",
+      "title": "v0.4.6 起 transport 留空＝按凭据自动，老配置可能被静默切到官方线路",
+      "affects": [
+        "0.4.0",
+        "0.4.1",
+        "0.4.2",
+        "0.4.3",
+        "0.4.4",
+        "0.4.5"
+      ],
+      "detect": "profile 的 hexing-qq config 里有没有显式写 transport；没有写、又填了 official.appId/clientSecret 的，升级后会自动走官方机器人",
+      "fix": "升级前问用户一句：这版默认会优先官方线路。想固定走 OneBot 就在 profile 里显式写 transport: 'onebot'；想固定官方写 transport: 'official'；不写＝自动（官方凭据齐走官方，否则回落 OneBot）",
+      "risk": "自动切换后 OneBot 那条不再连，群里 @ 的回复来源会变；切换必须重启 DSH，不会同时在线",
+      "boundary": "只改 profile 的一个键，不动任何数据；改前备份 cordis.patch.yml",
+      "tools": []
     }
   ]
 }

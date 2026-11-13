@@ -561,6 +561,7 @@ memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，�
 | `memory_identity` | `aiName/aiSelf/userTitle/userInfo/relation/style`，加 `confirmed` | **空字段直接填**；已有值只在 `confirmed:true` 时改；写 `IDENTITY.md` + `identity.json` | 不要自己设计结构；不要写项目/路径/账户；已有值没确认就静默忽略，不要追问；`confirmed:true` 只能由用户明确要求触发；多开 DSH 时只在一个会话改身份 |
 | `memory_chain` | `action`：`tree` / `get` / `append` / `header` / `audit`；`name`、`text`、`who`、`type`、`supersedes`、`parent`、`offset/limit/full` | `tree` 看全貌；`get` 默认前3后3+中间抽样，带 `needHeader/needRefresh`；`append` 加节点，链不存在时建链；`header` 写概览；`audit` 返回孤儿链/空链/重复节点/待补链头 | `append` 新链只能挂核星/九个默认根/已有链，最多 4 层；一次 ≤50 节点；**没有 `t` 参数**，节点时间=现在，不能拿它导入历史 |
 | `memory_topic` | `action`：`list/get/add/promote/close/merge`；`id`、`index`、`project`、`type`、`title`、`text`、`who`、`summary`、`into`、`reason` | `add` 进话题池，想法同月 ≥5 成链；`promote` 从池里升格项目链；`close/merge` 只改状态 | `add` 的 `type` 只允许 `想法/学习/避坑/关系/项目/日常`；`promote` 前先 `get` 确认 `index`（去重后顺序会变）；不物理删除 |
+| `memory_wake` | `action`：`status` / `care` / `bind` / `unbind` / `enable` / `disable` / `replan`；`target`、`title`、`sessionId`、`limit` | `bind` 把唤醒绑到会话；`enable` 按作息排 4 个点；`care` 查关心账本（观察/证据/有没有被接住/隔多久回）；`status` 里带最近一次关心摘要 | 没绑定会话时开着也不会叫醒；`care` 只读，不要在对话里引用账本内容；开关优先让用户在 `/wake` 页面点 |
 
 **工具不会做的事**：不会删记忆、不会改原文、不会重命名链、不会合并链文件、不会把旧对话按原时间导入链、不会手动跑提炼。需要这些，只能按第十节迁移或第十五节修复流程来。
 

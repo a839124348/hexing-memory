@@ -1803,12 +1803,13 @@ export function apply(ctx: Context) {
   // ── 工具：无感自动唤醒（绑定会话 + 插件定时器）──────
   ctx.tools.register(defineTool({
     name: 'memory_wake',
-    description: '无感自动唤醒。action：status / bind / unbind / enable / disable / replan。bind 支持 current（当前会话）、title（按会话名找）、id；enable 按作息排 4 个时间点，到点直接在绑定会话里醒来，不创建自动化任务。用户说“自动唤醒绑到当前会话/某某会话”“打开/关闭自动唤醒”“多叫醒我几次”“重新排时间”时调用。',
+    description: '无感自动唤醒。action：status / care / bind / unbind / enable / disable / replan。bind 支持 current（当前会话）、title（按会话名找）、id；enable 按作息排 4 个时间点，到点直接在绑定会话里醒来，不创建自动化任务。care 查关心账本（每次关心挂了什么观察、用户有没有接住、隔了多久回）。用户说“自动唤醒绑到当前会话/某某会话”“打开/关闭自动唤醒”“多叫醒我几次”“重新排时间”时调用；用户问“你之前关心过我什么/上次那事你问过没”时用 care。',
     parameters: {
-      action: { type: 'string', required: true, description: 'status / bind / unbind / enable / disable / replan' },
+      action: { type: 'string', required: true, description: 'status / care / bind / unbind / enable / disable / replan' },
       target: { type: 'string', description: 'bind：current / title / id' },
       title: { type: 'string', description: 'bind target=title 时的会话标题，可只给一部分' },
       sessionId: { type: 'string', description: 'bind target=id 时的精确 session id' },
+      limit: { type: 'number', description: 'care：返回最近几条，默认 10，最多 30' },
     } as any,
     output: {
       schema: { type: 'object', additionalProperties: true },
@@ -1901,10 +1902,48 @@ export function apply(ctx: Context) {
           ignoredStreak: s.ignoredStreak,
           pausedUntil: s.pausedUntil,
           profile: { sampleDays: profile.sampleDays, activeHours: profile.activeHours, cold: profile.cold },
+          // 关心的最近一次（要看全部用 action=care）
+          care: (() => {
+            try {
+              const h = wakeCare.readCare(DATA_ROOT).history
+              const last = h[h.length - 1]
+              return last
+                ? {
+                  at: last.at,
+                  observation: last.observation,
+                  response: last.response || '',
+                  canCareNow: wakeCare.shouldCare(DATA_ROOT),
+                  total: h.length,
+                }
+                : { canCareNow: wakeCare.shouldCare(DATA_ROOT), total: 0 }
+            } catch (e) { return { total: 0 } }
+          })(),
         })
       }
 
       if (action === 'status') return status()
+
+      // 关心账本：她自己查（2026-11-14）——系统不往简报里注入，想看时自己翻。
+      if (action === 'care') {
+        const hist = wakeCare.readCare(DATA_ROOT).history
+        const n = Math.max(1, Math.min(30, Number(args.limit) || 10))
+        const recent = hist.slice(-n).map((x: any) => ({
+          at: x.at,
+          weekStart: x.weekStart,
+          observation: x.observation,
+          response: x.response || '',
+          replyGapMin: x.replyGapMin,
+          evidence: x.evidence,
+        }))
+        return cleanJson({
+          ok: true,
+          cooldownDays: wakeCare.COOLDOWN_DAYS,
+          minSampleDays: wakeCare.MIN_SAMPLE_DAYS,
+          canCareNow: wakeCare.shouldCare(DATA_ROOT),
+          total: hist.length,
+          recent,
+        })
+      }
 
       if (action === 'unbind') {
         wakeCore.mutateState(DATA_ROOT, (s: any) => {
