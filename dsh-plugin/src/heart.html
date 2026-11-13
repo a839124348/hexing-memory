@@ -6,202 +6,193 @@
 <title>鱼的日记 · 核星记忆</title>
 <style>
   :root{
-    --ink:#04060e;
-    --panel:rgba(14,20,36,.78);
-    --line:rgba(150,175,255,.12);
-    --line-2:rgba(150,175,255,.24);
-    --text:#eef2ff;
-    --muted:#93a0c8;
-    --dim:#6a789f;
+    --bg:#050814;
+    --panel:rgba(13,21,43,.76);
+    --line:rgba(110,145,235,.18);
+    --line-2:rgba(170,195,255,.24);
+    --text:#dbe6ff;
+    --muted:#6d80ad;
+    --dim:#45557c;
+    --blue:#7aa2ff;
+    --teal:#6ee7c7;
     --gold:#ffd479;
-    --gold-2:#ffbe4d;
-    --blue:#7c9cff;
-    --violet:#9d7bff;
-    --green:#7fe0a8;
-    --red:#ff8d9d;
-    --r:20px;
-    --ease:cubic-bezier(.22,.61,.36,1);
-    --star:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cg fill='%23ffffff' fill-opacity='0.30'%3E%3Ccircle cx='42' cy='66' r='.9'/%3E%3Ccircle cx='168' cy='34' r='.7'/%3E%3Ccircle cx='296' cy='92' r='1'/%3E%3Ccircle cx='430' cy='48' r='.7'/%3E%3Ccircle cx='92' cy='188' r='.8'/%3E%3Ccircle cx='232' cy='214' r='.6'/%3E%3Ccircle cx='364' cy='166' r='.9'/%3E%3Ccircle cx='476' cy='238' r='.6'/%3E%3Ccircle cx='58' cy='312' r='.7'/%3E%3Ccircle cx='188' cy='356' r='.9'/%3E%3Ccircle cx='330' cy='300' r='.6'/%3E%3Ccircle cx='450' cy='372' r='.8'/%3E%3Ccircle cx='108' cy='452' r='.6'/%3E%3Ccircle cx='252' cy='486' r='.8'/%3E%3Ccircle cx='392' cy='440' r='.7'/%3E%3C/g%3E%3C/svg%3E");
+    --red:#ff8f9b;
+    --ease:.25s ease;
   }
   *{box-sizing:border-box}
-  html,body{min-height:100%}
+  html,body{min-height:100%;background:var(--bg)}
   body{
-    margin:0;color:var(--text);background:var(--ink);
-    font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;
-    -webkit-font-smoothing:antialiased;letter-spacing:.01em;
-  }
-  body::before{
-    content:"";position:fixed;inset:-25%;z-index:-3;pointer-events:none;
+    margin:0;
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    color:var(--text);
     background:
-      radial-gradient(1000px 700px at 18% -6%, rgba(66,96,210,.34), transparent 60%),
-      radial-gradient(820px 620px at 88% 8%, rgba(132,72,196,.22), transparent 62%),
-      radial-gradient(900px 760px at 62% 108%, rgba(26,96,132,.20), transparent 62%);
-    animation:drift 30s var(--ease) infinite alternate;
+      radial-gradient(1100px 560px at 72% -18%, rgba(255,190,90,.10), transparent 62%),
+      radial-gradient(900px 500px at 12% -8%, rgba(55,88,190,.22), transparent 60%),
+      radial-gradient(700px 500px at 96% 18%, rgba(100,65,170,.14), transparent 60%),
+      radial-gradient(700px 500px at 50% 110%, rgba(30,100,130,.12), transparent 60%),
+      var(--bg);
+    min-height:100vh;
+    padding:32px clamp(18px,4vw,56px) 56px;
   }
   body::after{
-    content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
-    background-image:var(--star);
-    background-size:520px 520px;
-    opacity:.5;mask-image:linear-gradient(180deg,#000,transparent 78%);
-    -webkit-mask-image:linear-gradient(180deg,#000,transparent 78%);
-  }
-  .grid{
-    position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.55;
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    opacity:.22;mix-blend-mode:soft-light;
     background-image:
-      linear-gradient(rgba(140,165,255,.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(140,165,255,.05) 1px, transparent 1px);
-    background-size:72px 72px;
-    mask-image:radial-gradient(ellipse 78% 55% at 50% 0%, #000 25%, transparent 72%);
-    -webkit-mask-image:radial-gradient(ellipse 78% 55% at 50% 0%, #000 25%, transparent 72%);
+      radial-gradient(rgba(255,255,255,.07) .5px, transparent .5px),
+      radial-gradient(rgba(0,0,0,.10) .5px, transparent .5px);
+    background-size:3px 3px, 4px 4px;
+    background-position:0 0, 1px 1px;
   }
-  @keyframes drift{ from{transform:translate3d(-1.4%,-1%,0)} to{transform:translate3d(1.4%,1.4%,0) scale(1.05)} }
-  @media (prefers-reduced-motion: reduce){ body::before{animation:none} }
-
-  .wrap{max-width:940px;margin:0 auto;padding:44px 26px 96px}
-
-  /* ── 头部 ── */
-  .hero{display:flex;align-items:flex-start;justify-content:space-between;gap:26px;flex-wrap:wrap;padding-bottom:26px}
-  .eyebrow{margin:0 0 8px;font-size:9.5px;letter-spacing:.26em;color:var(--dim);text-transform:uppercase}
-  h1{margin:0;font-size:30px;font-weight:500;letter-spacing:.14em;line-height:1.2}
-  .sub{margin:9px 0 0;color:var(--muted);font-size:12.5px;line-height:1.8;max-width:52ch}
-  .back{
-    flex:none;display:inline-flex;align-items:center;gap:8px;color:#c2cff7;text-decoration:none;
-    font-size:12px;padding:10px 16px;border-radius:999px;border:1px solid var(--line);
-    background:rgba(12,18,34,.6);transition:border-color .25s var(--ease),color .25s var(--ease),transform .25s var(--ease)
-  }
-  .back:hover{border-color:var(--line-2);color:#fff;transform:translateY(-1px)}
-
-  /* ── 面板 ── */
-  .panel{
-    position:relative;border-radius:var(--r);overflow:hidden;
-    border:1px solid var(--line);
-    background:linear-gradient(180deg,rgba(17,24,44,.88),rgba(8,12,24,.9));
-    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
-    box-shadow:0 24px 70px rgba(2,5,14,.62), inset 0 1px 0 rgba(255,255,255,.05);
-  }
-  .panel::before{
-    content:"";position:absolute;inset:0;pointer-events:none;border-radius:var(--r);
-    background:linear-gradient(120deg,rgba(124,156,255,.10),transparent 38%,rgba(255,212,121,.06) 100%);
-    opacity:.7;
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:
+      radial-gradient(1px 1px at 8% 18%, rgba(180,205,255,.55), transparent),
+      radial-gradient(1px 1px at 22% 72%, rgba(150,180,255,.35), transparent),
+      radial-gradient(1px 1px at 41% 12%, rgba(255,225,180,.45), transparent),
+      radial-gradient(1px 1px at 67% 28%, rgba(170,200,255,.35), transparent),
+      radial-gradient(1px 1px at 83% 64%, rgba(190,215,255,.45), transparent),
+      radial-gradient(1px 1px at 94% 9%, rgba(255,225,180,.30), transparent),
+      radial-gradient(1px 1px at 54% 86%, rgba(170,200,255,.34), transparent);
+    background-size:100% 100%;
   }
 
-  .head{position:relative;display:flex;align-items:center;gap:18px;padding:24px 26px;flex-wrap:wrap}
-  .head .grow{flex:1;min-width:200px}
-  .status{display:flex;align-items:center;gap:10px;font-size:17px;letter-spacing:.05em}
-  .dot{width:8px;height:8px;border-radius:50%;background:#5b6688;box-shadow:0 0 0 4px rgba(150,175,255,.06)}
-  .dot.on{background:var(--green);box-shadow:0 0 0 4px rgba(127,224,168,.12),0 0 14px rgba(127,224,168,.7)}
-  .hint{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.8;max-width:56ch}
-  .meta{margin-top:9px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .wrap{position:relative;z-index:1;max-width:1000px;margin:0 auto}
 
-  /* 开关 */
-  .switch{position:relative;width:58px;height:31px;flex:none;cursor:pointer}
+  header{
+    display:flex;align-items:flex-end;justify-content:space-between;gap:24px;
+    margin-bottom:28px;flex-wrap:wrap;
+  }
+  .eyebrow{font-size:11px;letter-spacing:3.4px;text-transform:uppercase;color:#7185b4;margin:0 0 8px}
+  h1{
+    margin:0;
+    font-family:"Songti SC","STSong","Noto Serif SC","SimSun",serif;
+    font-size:clamp(28px,3.4vw,42px);font-weight:400;letter-spacing:.10em;color:#f2f6ff;
+    text-shadow:0 0 30px rgba(122,162,255,.14);
+  }
+  .sub{margin:8px 0 0;font-size:12px;color:var(--muted)}
+  .actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+  .btn{
+    appearance:none;border:1px solid var(--line);background:rgba(20,31,62,.72);
+    color:#b9c9f2;border-radius:999px;padding:9px 15px;font-size:12px;font-family:inherit;
+    cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px;
+    transition:var(--ease);
+  }
+  .btn:hover{border-color:rgba(122,162,255,.55);color:#eaf2ff;background:rgba(35,54,105,.78)}
+  .btn.gold{border-color:rgba(255,212,121,.35);color:#ffe0a3}
+  .btn.gold:hover{background:rgba(255,212,121,.10);color:#fff0c9}
+
+  /* 卡片：和首页 hero-card 同一套 */
+  .card{
+    position:relative;overflow:hidden;border-radius:22px;padding:22px 24px;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.09), transparent 34%, rgba(255,255,255,.018) 66%, transparent),
+      linear-gradient(135deg, rgba(20,33,70,.72), rgba(11,17,36,.60));
+    border:1px solid var(--line-2);border-top-color:rgba(210,225,255,.36);
+    backdrop-filter:blur(24px) saturate(145%);
+    -webkit-backdrop-filter:blur(24px) saturate(145%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.12),
+      inset 0 -1px 0 rgba(0,0,0,.22),
+      0 26px 60px rgba(0,0,0,.28);
+  }
+  .card::after{
+    content:"";position:absolute;right:-40px;top:-60px;width:190px;height:190px;border-radius:50%;
+    background:radial-gradient(circle, rgba(122,162,255,.16), transparent 68%);pointer-events:none;
+  }
+  .card > *{position:relative;z-index:2}
+
+  .head{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-bottom:4px}
+  .head .grow{flex:1;min-width:210px}
+  .status{display:flex;align-items:center;gap:9px;font-size:17px;letter-spacing:.04em;color:#eef4ff}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--dim);box-shadow:none;transition:var(--ease)}
+  .dot.on{background:var(--teal);box-shadow:0 0 10px rgba(110,231,199,.8)}
+  .hint{margin-top:8px;font-size:11.5px;color:var(--muted);line-height:1.8;max-width:58ch}
+  .meta{margin-top:8px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+
+  .switch{position:relative;width:54px;height:29px;flex:none;cursor:pointer}
   .switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
   .track{
-    position:absolute;inset:0;border-radius:999px;border:1px solid var(--line-2);
-    background:rgba(84,100,146,.22);transition:background .28s var(--ease),border-color .28s var(--ease)
+    position:absolute;inset:0;border-radius:999px;border:1px solid rgba(110,145,235,.30);
+    background:rgba(13,21,43,.75);transition:var(--ease)
   }
   .knob{
-    position:absolute;top:4px;left:4px;width:21px;height:21px;border-radius:50%;
-    background:#98a5cc;box-shadow:0 2px 6px rgba(0,0,0,.35);
-    transition:transform .28s var(--ease),background .28s var(--ease),box-shadow .28s var(--ease)
+    position:absolute;top:4px;left:4px;width:19px;height:19px;border-radius:50%;
+    background:#5b6a92;transition:var(--ease)
   }
-  .switch input:checked + .track{background:rgba(255,212,121,.24);border-color:rgba(255,212,121,.55)}
-  .switch input:checked + .track .knob{transform:translateX(27px);background:var(--gold);box-shadow:0 0 16px rgba(255,212,121,.6)}
+  .switch input:checked + .track{background:rgba(255,212,121,.18);border-color:rgba(255,212,121,.45)}
+  .switch input:checked + .track .knob{transform:translateX(25px);background:var(--gold);box-shadow:0 0 14px rgba(255,212,121,.55)}
 
-  /* 确认条 */
-  .confirm{display:none;padding:0 26px 24px}
-  .confirm.on{display:block;animation:slide .3s var(--ease)}
-  @keyframes slide{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+  .confirm{display:none;margin-top:16px}
+  .confirm.on{display:block}
   .confirm-box{
-    border:1px solid rgba(255,212,121,.24);border-radius:14px;padding:15px 17px;
-    background:linear-gradient(180deg,rgba(255,212,121,.07),rgba(255,212,121,.03));
-    font-size:12px;line-height:1.9;color:#ecdcb4
+    border:1px solid rgba(255,212,121,.22);border-radius:16px;padding:14px 16px;
+    background:rgba(255,212,121,.05);font-size:11.5px;line-height:1.9;color:#e6d6ae
   }
-  .confirm-actions{display:flex;gap:10px;margin-top:13px;flex-wrap:wrap}
-  button{
-    font-family:inherit;font-size:12.5px;letter-spacing:.03em;cursor:pointer;border:0;border-radius:11px;
-    padding:10px 20px;color:#fff;background:linear-gradient(135deg,#5f7cff,#8b6bff);
-    box-shadow:0 8px 22px rgba(95,124,255,.28),inset 0 1px 0 rgba(255,255,255,.15);
-    transition:transform .2s var(--ease),box-shadow .2s var(--ease),opacity .2s
-  }
-  button:hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(95,124,255,.36),inset 0 1px 0 rgba(255,255,255,.2)}
-  button.ghost{background:transparent;border:1px solid var(--line);color:#c2cff7;box-shadow:none}
-  button.ghost:hover{border-color:var(--line-2);background:rgba(150,175,255,.06);box-shadow:none}
+  .confirm-actions{display:flex;gap:9px;margin-top:12px;flex-wrap:wrap}
 
-  /* ── 日期三级 ── */
-  .nav{position:relative;padding:16px 26px 18px;border-top:1px solid var(--line);display:grid;gap:9px}
-  .nav-row{display:flex;gap:9px;overflow-x:auto;padding-bottom:2px}
+  .nav{margin-top:20px;padding-top:18px;border-top:1px solid var(--line);display:grid;gap:9px}
+  .nav-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
   .nav-row:empty{display:none}
-  .nav-row::-webkit-scrollbar{height:6px}
-  .nav-row::-webkit-scrollbar-thumb{background:rgba(150,175,255,.18);border-radius:3px}
+  .nav-row::-webkit-scrollbar{height:5px}
+  .nav-row::-webkit-scrollbar-thumb{background:rgba(110,145,235,.25);border-radius:3px}
   .chip{
-    flex:none;cursor:pointer;font-size:12px;letter-spacing:.02em;color:var(--muted);
-    border:1px solid var(--line);border-radius:999px;padding:7px 14px;
-    background:rgba(10,15,28,.55);font-variant-numeric:tabular-nums;
-    transition:border-color .2s var(--ease),color .2s var(--ease),background .2s var(--ease),transform .2s var(--ease)
+    flex:none;cursor:pointer;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;
+    border:1px solid var(--line);border-radius:999px;padding:7px 14px;background:rgba(20,31,62,.55);
+    transition:var(--ease)
   }
-  .chip:hover{color:#fff;border-color:var(--line-2);transform:translateY(-1px)}
-  .chip.lv2{font-size:11.5px;padding:6px 12px;color:#8290b8}
+  .chip:hover{color:#eaf2ff;border-color:rgba(122,162,255,.45);background:rgba(35,54,105,.6)}
+  .chip.lv2{font-size:11.5px;padding:6px 12px;color:#5f7099}
   .chip.on{
-    color:#1b1305;border-color:transparent;font-weight:500;
-    background:linear-gradient(135deg,var(--gold),var(--gold-2));
-    box-shadow:0 6px 18px rgba(255,190,77,.22)
+    color:#332506;border-color:rgba(255,212,121,.55);font-weight:500;
+    background:linear-gradient(135deg,var(--gold),#ffbe4d)
   }
-  .chip .n{opacity:.55;font-size:10px;margin-left:6px}
+  .chip .n{opacity:.6;font-size:10px;margin-left:6px}
 
-  /* ── 条目 ── */
-  .entries{position:relative;padding:10px 26px 26px;border-top:1px solid var(--line)}
-  .entry{position:relative;padding:16px 0 16px 24px}
+  .entries{margin-top:22px;padding-top:6px;border-top:1px solid var(--line)}
+  .entry{position:relative;padding:16px 0 16px 22px}
   .entry::before{
-    content:"";position:absolute;left:0;top:22px;width:7px;height:7px;border-radius:50%;
-    background:rgba(255,212,121,.85);box-shadow:0 0 12px rgba(255,212,121,.55)
+    content:"";position:absolute;left:0;top:22px;width:6px;height:6px;border-radius:50%;
+    background:var(--gold);box-shadow:0 0 10px rgba(255,212,121,.6)
   }
   .entry::after{
-    content:"";position:absolute;left:3px;top:32px;bottom:-6px;width:1px;
-    background:linear-gradient(180deg,rgba(150,175,255,.22),transparent)
+    content:"";position:absolute;left:2.5px;top:32px;bottom:-6px;width:1px;
+    background:linear-gradient(180deg,rgba(110,145,235,.28),transparent)
   }
   .entry:last-child::after{display:none}
-  .entry-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .entry-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:7px}
   .t{font-family:Consolas,"Cascadia Mono",monospace;font-size:11px;color:var(--dim);letter-spacing:.06em}
   .tag{
     font-size:10px;letter-spacing:.08em;color:rgba(255,212,121,.92);
-    border:1px solid rgba(255,212,121,.26);border-radius:999px;padding:2px 9px;
+    border:1px solid rgba(255,212,121,.24);border-radius:999px;padding:2px 9px;
     background:rgba(255,212,121,.05)
   }
-  .body{font-size:14px;line-height:2.05;color:#e2e9ff;white-space:pre-wrap;word-break:break-word}
+  .body{font-size:13.5px;line-height:2;color:#dbe6ff;white-space:pre-wrap;word-break:break-word}
 
-  .empty{
-    padding:64px 24px;text-align:center;color:var(--dim);font-size:13px;line-height:2
-  }
-  .empty svg{display:block;margin:0 auto 14px;opacity:.5}
+  .empty{padding:56px 20px;text-align:center;color:var(--dim);font-size:12.5px;line-height:2}
+  .empty svg{display:block;margin:0 auto 12px;opacity:.55}
 
-  @media (max-width:680px){
-    .wrap{padding:30px 15px 64px}
-    h1{font-size:24px;letter-spacing:.10em}
-    .head{padding:20px 18px}
-    .nav{padding:14px 18px 16px}
-    .entries{padding:8px 18px 22px}
-    .confirm{padding:0 18px 20px}
-    .body{font-size:13.5px;line-height:1.95}
+  @media (max-width:720px){
+    body{padding:24px 16px 44px}
+    .card{padding:18px 18px;border-radius:20px}
+    h1{letter-spacing:.08em}
+    .body{font-size:13px;line-height:1.95}
   }
 </style>
 </head>
 <body>
-<div class="grid"></div>
 <div class="wrap">
-  <header class="hero">
+  <header>
     <div>
-      <p class="eyebrow">Hexing Memory · Heart</p>
+      <div class="eyebrow">HEXING MEMORY / HEART</div>
       <h1>鱼的日记</h1>
-      <p class="sub">她自己写的当天心情。只存在这台机器上，不上传、不进记忆检索。</p>
+      <div class="sub">她自己写的当天心情 · 只存在这台机器上，不上传、不进记忆检索</div>
     </div>
-    <a class="back" href="/">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-      返回总览
-    </a>
+    <div class="actions">
+      <a class="btn" href="/">← 返回总览</a>
+    </div>
   </header>
 
-  <section class="panel">
+  <section class="card">
     <div class="head">
       <div class="grow">
         <div class="status"><span class="dot" id="dot"></span><span id="stateTitle">—</span></div>
@@ -219,8 +210,8 @@
         开启后，她会在自己觉得该记的时候写一两句当天的心情，存在你本机 <code>data/heart/</code>，
         不上传、不进记忆检索，随时可以关。
         <div class="confirm-actions">
-          <button id="doEnable">开启</button>
-          <button class="ghost" id="cancelEnable">算了</button>
+          <button class="btn gold" id="doEnable">开启</button>
+          <button class="btn" id="cancelEnable">算了</button>
         </div>
       </div>
     </div>
@@ -347,7 +338,7 @@ function renderEntries() {
 
   if (!state || !state.enabled) {
     const wrap = el('div', 'empty');
-    wrap.innerHTML = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v18H6.5A2.5 2.5 0 0 1 4 18.5z"/><path d="M8 8h7M8 12h7"/></svg>'
+    wrap.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v18H6.5A2.5 2.5 0 0 1 4 18.5z"/><path d="M8 8h7M8 12h7"/></svg>'
       + '<div>日记还没开。打开上面的开关，她才会开始写。</div>';
     box.appendChild(wrap);
     return;
@@ -355,7 +346,7 @@ function renderEntries() {
   if (!list.length) {
     const isToday = state.day === state.today;
     const wrap = el('div', 'empty');
-    wrap.innerHTML = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4.5l3 1.8"/></svg>'
+    wrap.innerHTML = '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4.5l3 1.8"/></svg>'
       + '<div>' + (isToday ? '今天还没写。' : '这天没有记录。') + '</div>';
     box.appendChild(wrap);
     return;
