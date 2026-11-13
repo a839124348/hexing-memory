@@ -863,6 +863,15 @@
     </article>
 
     <article class="card">
+      <div class="card-label">Heart / 鱼的日记</div>
+      <div class="card-main" id="heartCount">— <small>条 · 今天</small></div>
+      <div class="card-lines">
+        <div>开关：<b id="heartState">—</b></div>
+        <div><a href="/heart" style="color:#9fb4ff;text-decoration:none">去看她的日记 ↗</a></div>
+      </div>
+    </article>
+
+    <article class="card">
       <div class="card-label">Topics / 创意池</div>
       <div class="card-main" id="topicOpen">— <small>个未闭合</small></div>
       <div class="card-lines">
@@ -1242,8 +1251,26 @@ async function load() {
   }
 }
 
-$('refresh').addEventListener('click', load);
+// 鱼的日记：只在页面打开时读一次，不跟 stats 的 10 秒轮询（用户 2026-11-13 定）
+async function loadHeart() {
+  const cnt = $('heartCount');
+  const st = $('heartState');
+  if (!cnt || !st) return;
+  try {
+    const r = await fetch('/api/heart', { cache: 'no-store' });
+    const j = await r.json();
+    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    cnt.innerHTML = (j.entries || []).length + ' <small>条 · 今天</small>';
+    st.textContent = j.enabled ? '已开' : (j.configured ? '已关' : '未设置');
+  } catch (e) {
+    cnt.textContent = '—';
+    st.textContent = '读不到';
+  }
+}
+
+$('refresh').addEventListener('click', () => { load(); loadHeart(); });
 load();
+loadHeart();
 setInterval(load, 10000);
 </script>
 <script>

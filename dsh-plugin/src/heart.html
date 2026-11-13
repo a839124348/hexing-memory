@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>鱼的日记 · 核星记忆</title>
+<style>
+  :root{
+    --bg:#04060d; --panel:rgba(13,18,32,.72); --line:rgba(150,175,255,.13);
+    --line-strong:rgba(150,175,255,.26);
+    --text:#eef2ff; --muted:#93a0c8; --dim:#6a789f;
+    --gold:#ffd479; --green:#7fe0a8; --red:#ff8d9d; --blue:#6f8cff;
+    --radius:18px; --ease:cubic-bezier(.22,.61,.36,1);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;color:var(--text);
+    font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    background:var(--bg);-webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";position:fixed;inset:-20%;z-index:-2;pointer-events:none;
+    background:
+      radial-gradient(900px 620px at 20% 0%, rgba(58,86,190,.26), transparent 62%),
+      radial-gradient(760px 560px at 85% 20%, rgba(120,60,180,.16), transparent 62%);
+  }
+  .wrap{max-width:900px;margin:0 auto;padding:38px 24px 80px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;padding-bottom:22px}
+  .eyebrow{margin:0 0 6px;font-size:10px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  h1{margin:0;font-size:26px;font-weight:500;letter-spacing:.10em}
+  .sub{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.8}
+  .back{
+    color:#b9c8ff;text-decoration:none;font-size:12px;border:1px solid var(--line);
+    border-radius:999px;padding:10px 16px;background:rgba(12,18,34,.55);
+    transition:border-color .25s var(--ease), color .25s var(--ease);
+  }
+  .back:hover{border-color:var(--line-strong);color:#fff}
+
+  .panel{
+    border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,rgba(16,22,40,.82),rgba(9,13,26,.86));
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    overflow:hidden;
+  }
+  .panel-head{display:flex;align-items:center;gap:14px;padding:18px 20px;flex-wrap:wrap}
+  .panel-head .grow{flex:1;min-width:180px}
+  .title{font-size:14px;letter-spacing:.06em}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.7}
+  .meta{font-size:11px;color:var(--dim);margin-top:6px;font-variant-numeric:tabular-nums}
+
+  .switch{position:relative;width:52px;height:28px;flex:none;cursor:pointer}
+  .switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+  .track{
+    position:absolute;inset:0;border-radius:999px;border:1px solid var(--line);
+    background:rgba(90,105,150,.25);transition:background .25s var(--ease), border-color .25s var(--ease);
+  }
+  .knob{
+    position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
+    background:#8d9ac2;transition:transform .25s var(--ease), background .25s var(--ease);
+  }
+  .switch input:checked + .track{background:rgba(255,212,121,.22);border-color:rgba(255,212,121,.5)}
+  .switch input:checked + .track .knob{transform:translateX(24px);background:var(--gold);box-shadow:0 0 12px rgba(255,212,121,.5)}
+
+  .confirm{
+    padding:0 20px 18px;display:none;
+  }
+  .confirm.on{display:block}
+  .confirm-box{
+    border:1px solid rgba(255,212,121,.22);border-radius:12px;padding:14px 16px;
+    background:rgba(255,212,121,.05);font-size:12px;line-height:1.85;color:#e8d7ae;
+  }
+  .confirm-actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+  button{
+    font-family:inherit;font-size:12.5px;cursor:pointer;border:0;border-radius:10px;
+    padding:10px 18px;color:#fff;background:linear-gradient(135deg,#5f7cff,#8b6bff);
+    transition:transform .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  button:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(95,124,255,.3)}
+  button.ghost{background:transparent;border:1px solid var(--line);color:#c2cff7;box-shadow:none}
+  button.ghost:hover{border-color:var(--line-strong);background:rgba(150,175,255,.05)}
+
+  .nav{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 20px 12px}
+  .nav-row{display:flex;gap:8px;overflow-x:auto;padding:5px 0}
+  .nav-row:empty{display:none}
+  .nav-row::-webkit-scrollbar{height:6px}
+  .nav-row::-webkit-scrollbar-thumb{background:rgba(150,175,255,.2);border-radius:3px}
+  .chip{
+    flex:none;font-size:12px;letter-spacing:.02em;color:var(--muted);cursor:pointer;
+    border:1px solid var(--line);border-radius:999px;padding:6px 12px;background:rgba(10,15,28,.6);
+    transition:border-color .2s var(--ease), color .2s var(--ease), background .2s var(--ease);
+    font-variant-numeric:tabular-nums;
+  }
+  .chip:hover{color:#fff;border-color:var(--line-strong)}
+  .chip.on{color:#1a1204;background:linear-gradient(135deg,#ffd479,#ffbe4d);border-color:transparent;font-weight:500}
+  .chip.sub{font-size:11px;padding:5px 10px;color:var(--dim)}
+  .chip.sub.on{color:#1a1204}
+  .chip .n{opacity:.55;font-size:10px;margin-left:5px}
+
+  .entries{padding:6px 20px 20px}
+  .entry{padding:14px 0;border-top:1px dashed rgba(150,175,255,.09)}
+  .entry:first-child{border-top:0}
+  .entry-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .t{font-family:Consolas,monospace;font-size:11px;color:var(--dim)}
+  .tag{
+    font-size:10px;letter-spacing:.06em;color:rgba(255,212,121,.9);
+    border:1px solid rgba(255,212,121,.28);border-radius:999px;padding:2px 8px;
+  }
+  .body{font-size:13.5px;line-height:1.95;color:#dfe6ff;white-space:pre-wrap;word-break:break-word}
+  .empty{padding:56px 20px;text-align:center;color:var(--dim);font-size:13px;line-height:2}
+  @media (max-width:640px){
+    .wrap{padding:28px 14px 60px}
+    h1{font-size:22px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow">Hexing Memory · Heart</p>
+      <h1>鱼的日记</h1>
+      <p class="sub">她自己写的当天心情，只存在这台机器上。</p>
+    </div>
+    <a class="back" href="/">返回总览</a>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div class="grow">
+        <div class="title" id="stateTitle">—</div>
+        <div class="hint" id="stateHint">开启后她会在本机写日记，随时可关</div>
+        <div class="meta" id="stateMeta"></div>
+      </div>
+      <label class="switch" title="开启 / 关闭">
+        <input type="checkbox" id="toggle">
+        <span class="track"><span class="knob"></span></span>
+      </label>
+    </div>
+
+    <div class="confirm" id="confirm">
+      <div class="confirm-box">
+        开启后，她会在自己觉得该记的时候写一两句当天的心情，存在你本机 <code>data/heart/</code>，
+        不上传、不进记忆检索，随时可以关。
+        <div class="confirm-actions">
+          <button id="doEnable">开启</button>
+          <button class="ghost" id="cancelEnable">算了</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <div class="nav-row" id="yearRow"></div>
+      <div class="nav-row" id="monthRow"></div>
+      <div class="nav-row" id="dayRow"></div>
+    </div>
+    <div class="entries" id="entries"></div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let state = null;
+let currentDay = '';
+let selYear = '';
+let selMonth = '';
+
+function fmtClock(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function renderState() {
+  const on = Boolean(state && state.enabled);
+  $('toggle').checked = on;
+  $('stateTitle').textContent = on ? '已开启' : '已关闭';
+  $('stateHint').textContent = on
+    ? '她会在觉得该记的时候写一两句，存在本机；关了就不再写、也不再加载。'
+    : '开启后她会在本机写日记，随时可关。不开也完全不影响使用。';
+
+  const bits = [];
+  if (state) {
+    if (on) {
+      bits.push(`这天 ${(state.entries || []).length} 条`);
+      bits.push(`共 ${(state.days || []).length} 天`);
+    }
+    if (state.updatedAt && state.configured) {
+      const who = state.updatedBy === 'model' ? '由模型' : '由你';
+      bits.push(`${who}于 ${fmtClock(state.updatedAt)} ${on ? '开启' : '关闭'}`);
+    }
+    bits.push(`核对于 ${fmtClock(new Date().toISOString())}`);
+  }
+  $('stateMeta').textContent = bits.join(' · ');
+}
+
+function chip(text, on, onClick, count) {
+  const n = document.createElement('div');
+  n.className = 'chip' + (on ? ' on' : '');
+  n.textContent = text;
+  if (count != null) {
+    const s = document.createElement('span');
+    s.className = 'n';
+    s.textContent = count;
+    n.appendChild(s);
+  }
+  n.addEventListener('click', onClick);
+  return n;
+}
+
+// 三级目录：只到"年"这一层，往下是月、日。页面上没有任何文件路径可点，
+// 接口也只认 YYYY-MM-DD，跳不进别的文件夹。
+function renderNav() {
+  const days = (state && state.days) || [];
+  const today = (state && state.today) || '';
+  const years = [...new Set(days.map((d) => d.date.slice(0, 4)))].sort().reverse();
+
+  const yBox = $('yearRow');
+  yBox.innerHTML = '';
+  if (!years.length) {
+    if (today) yBox.appendChild(chip(today.slice(0, 4) + ' 年', true, () => {}));
+    $('monthRow').innerHTML = '';
+    $('dayRow').innerHTML = '';
+    return;
+  }
+  if (!selYear || !years.includes(selYear)) selYear = years[0];
+  const firstIn = (prefix) => (days.find((d) => d.date.startsWith(prefix)) || {}).date || '';
+  for (const y of years) {
+    yBox.appendChild(chip(y + ' 年', y === selYear, () => {
+      selYear = y; selMonth = '';
+      const n = firstIn(y);
+      if (n) load(n); else renderNav();
+    }));
+  }
+
+  const months = [...new Set(days.filter((d) => d.date.startsWith(selYear)).map((d) => d.date.slice(5, 7)))]
+    .sort().reverse();
+  if (!selMonth || !months.includes(selMonth)) selMonth = months[0] || '';
+  const mBox = $('monthRow');
+  mBox.innerHTML = '';
+  for (const m of months) {
+    mBox.appendChild(chip(parseInt(m, 10) + ' 月', m === selMonth, () => {
+      selMonth = m;
+      const n = firstIn(selYear + '-' + m);
+      if (n) load(n); else renderNav();
+    }));
+  }
+
+  const dBox = $('dayRow');
+  dBox.innerHTML = '';
+  const list = days.filter((d) => d.date.slice(0, 7) === selYear + '-' + selMonth);
+  for (const d of list) {
+    dBox.appendChild(chip(d.date.slice(5), d.date === currentDay, () => load(d.date), d.count));
+  }
+}
+
+function renderEntries() {
+  const box = $('entries');
+  box.innerHTML = '';
+  const list = (state && state.entries) || [];
+  if (!state || !state.enabled) {
+    box.appendChild(el('div', 'empty', '日记还没开。打开上面的开关，她才会开始写。'));
+    return;
+  }
+  if (!list.length) {
+    const isToday = state.day === state.today;
+    box.appendChild(el('div', 'empty', isToday ? '今天还没写。' : '这天没有记录。'));
+    return;
+  }
+  for (const r of list) {
+    const row = el('div', 'entry');
+    const head = el('div', 'entry-head');
+    head.appendChild(el('span', 't', String(r.t || '').slice(11)));
+    for (const tag of (r.tags || [])) head.appendChild(el('span', 'tag', tag));
+    head.appendChild(el('span', 't', ''));
+    row.appendChild(head);
+    row.appendChild(el('div', 'body', r.text));
+    box.appendChild(row);
+  }
+}
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+async function load(day) {
+  try {
+    const q = day ? ('?day=' + encodeURIComponent(day)) : '';
+    const r = await fetch('/api/heart' + q, { cache: 'no-store' });
+    const j = await r.json();
+    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    state = j;
+    currentDay = j.day || j.today;
+    selYear = currentDay.slice(0, 4);
+    selMonth = currentDay.slice(5, 7);
+    renderState();
+    renderNav();
+    renderEntries();
+  } catch (e) {
+    $('stateTitle').textContent = '读取失败';
+    $('stateHint').textContent = String(e && e.message ? e.message : e);
+    $('stateMeta').textContent = '';
+  }
+}
+
+// 开关：关 → 立即生效；开 → 行内确认一次（不是弹窗，也不做二次确认）
+$('toggle').addEventListener('click', async (ev) => {
+  if (!state) return;
+  if (state.enabled) {
+    ev.preventDefault();
+    $('toggle').checked = false;
+    await postEnabled(false);
+  } else {
+    ev.preventDefault();
+    $('toggle').checked = false;
+    // 已经由模型开过（configured）就不再多问一遍
+    if (state.configured) { await postEnabled(true); return; }
+    $('confirm').classList.add('on');
+  }
+});
+
+$('doEnable').addEventListener('click', async () => {
+  $('confirm').classList.remove('on');
+  await postEnabled(true);
+});
+$('cancelEnable').addEventListener('click', () => {
+  $('confirm').classList.remove('on');
+});
+
+async function postEnabled(enabled) {
+  try {
+    const r = await fetch('/api/heart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    const j = await r.json();
+    if (!r.ok || !j || j.ok === false) throw new Error((j && j.error) || ('HTTP ' + r.status));
+    await load(currentDay);
+  } catch (e) {
+    $('stateHint').textContent = '切换失败：' + (e && e.message ? e.message : e);
+    $('toggle').checked = Boolean(state && state.enabled);
+  }
+}
+
+load();
+</script>
+</body>
+</html>

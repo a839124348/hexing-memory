@@ -78,6 +78,7 @@ interface MemoryApp {
   topic: any
   usage: any
   onboarding: any
+  heart: any
 }
 
 function initCore(): MemoryApp {
@@ -90,6 +91,7 @@ function initCore(): MemoryApp {
   const { ChainSearch } = require(path.join(CORE_DIR, 'chain_search.js'))
   const { TopicStore } = require(path.join(CORE_DIR, 'topics.js'))
   const { UsageStore } = require(path.join(CORE_DIR, 'usage.js'))
+  const { Heart } = require(path.join(CORE_DIR, 'heart.js'))
   const store = new Store(DATA_ROOT)
   const draft = new Draft(DATA_ROOT)
   const refiner = new Refiner(DATA_ROOT, store, draft)
@@ -98,6 +100,7 @@ function initCore(): MemoryApp {
   const chainSearch = new ChainSearch(DATA_ROOT, chain)
   const topic = new TopicStore(DATA_ROOT)
   const usage = new UsageStore(DATA_ROOT)
+  const heart = new Heart(DATA_ROOT)
   let onboarding: any = null
   try {
     const { Onboarding } = require(path.join(CORE_DIR, 'onboarding.js'))
@@ -105,7 +108,7 @@ function initCore(): MemoryApp {
   } catch (e: any) {
     console.warn('[memory-system] 迁移问卷模块未加载：' + (e && e.message))
   }
-  return { store, draft, refiner, search, chain, chainSearch, topic, usage, onboarding }
+  return { store, draft, refiner, search, chain, chainSearch, topic, usage, onboarding, heart }
 }
 
 /**
@@ -214,6 +217,45 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: an
         res.end(JSON.stringify(stats))
         return
       }
+      // 2026-11-13：心历程（鱼的日记）。GET 打开页面时读一次，POST 切开关。
+      // 不做轮询：页面打开读一次，操作后用响应即时刷新。
+      if (url.pathname === '/api/heart') {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        if (!app.heart) { res.end(JSON.stringify({ ok: false, error: '心历程模块未加载' })); return }
+        if (req.method === 'GET') {
+          const st = app.heart.state()
+          const days = app.heart.days()
+          const today = localDay()
+          const want = String(url.searchParams.get('day') || '').trim()
+          const day = /^\d{4}-\d{2}-\d{2}$/.test(want) ? want : today
+          res.end(JSON.stringify({
+            ok: true,
+            enabled: st.enabled,
+            configured: st.configured,
+            updatedAt: st.updatedAt,
+            updatedBy: st.updatedBy,
+            today,
+            day,
+            days,
+            entries: app.heart.entriesFor(day),
+          }))
+          return
+        }
+        if (req.method === 'POST') {
+          try {
+            const body = await readJsonBody(req)
+            const r = app.heart.setEnabled(Boolean(body && body.enabled), 'user')
+            res.end(JSON.stringify({ ok: true, ...r }))
+          } catch (e: any) {
+            res.statusCode = 400
+            res.end(JSON.stringify({ ok: false, error: e && e.message ? e.message : String(e) }))
+          }
+          return
+        }
+        res.statusCode = 405
+        res.end(JSON.stringify({ ok: false, error: 'method not allowed' }))
+        return
+      }
       if (url.pathname === '/api/qq-groups') {
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         res.end(JSON.stringify(readQQGroups()))
@@ -307,9 +349,10 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: an
 
       const page = (url.pathname === '/' || url.pathname === '/dashboard')
         ? 'dashboard.html'
-        : (url.pathname === '/qq-groups' ? 'qq-groups.html'
-          : (url.pathname === '/qq-switch' ? 'qq-switch.html'
-            : ((url.pathname === '/universe' || url.pathname === '/viewer') ? 'viewer.html' : '')))
+        : (url.pathname === '/heart' ? 'heart.html'
+          : (url.pathname === '/qq-groups' ? 'qq-groups.html'
+            : (url.pathname === '/qq-switch' ? 'qq-switch.html'
+              : ((url.pathname === '/universe' || url.pathname === '/viewer') ? 'viewer.html' : ''))))
       if (page) {
         const file = path.join(__dirname, page)
         if (fs.existsSync(file)) {
@@ -631,6 +674,9 @@ function buildCommonText(app: MemoryApp): string {
   try { if (manualReader) onboarding = manualReader.onboardingText() } catch (e) { /* 说明书读不到就不拦 */ }
   let inheritance = ''
   try { if (app.onboarding) inheritance = app.onboarding.commonText() } catch (e) { /* 迁移档案读不到不阻塞 */ }
+  // 心历程：开关关着、或今天没写，loadText 返回 '' —— 那一整段就不会出现
+  let heart = ''
+  try { if (app.heart) heart = app.heart.loadText() } catch (e) { /* 日记读不到不影响常识层 */ }
   return pure.composeCommonText({
     profile,
     resident: readResidentSpec(),
@@ -639,6 +685,7 @@ function buildCommonText(app: MemoryApp): string {
     topics,
     onboarding,
     inheritance,
+    heart,
   })
 }
 
@@ -1227,6 +1274,55 @@ export function apply(ctx: Context) {
     },
     async execute() {
       return buildCommonText(app)
+    },
+  }))
+
+  // ── 工具 4.5：心历程（鱼的日记，2026-11-13 用户定）──────────
+  // 开关默认关；关着时 write 直接拒绝。群聊/公开模式不写。
+  ctx.tools.register(defineTool({
+    name: 'memory_heart',
+    description: '写一句今天的心历程（我自己的日记）。只在真的想记时写：这一刻有情绪波动、卡住过、或对他的态度有位移；没有就不写，不写也正常。≤150 字，一到三句，写具体那一刻，不总结一整天、不写“今天很开心”、不为凑数写，可以写“说不清”。存本机 data/heart/，不进记忆检索、不进链网。不要把日记内容念给用户；被问到可以承认记过。action：write（默认）／today（看今天写了什么）／status（开关与条数）／enable／disable。',
+    parameters: {
+      action: { type: 'string', description: 'write（默认）/ today / status / enable / disable' },
+      text: { type: 'string', description: 'write：一句话，≤150 字' },
+      t: { type: 'string', description: 'write：可选，时间 YYYY-MM-DD HH:MM；不填用现在' },
+    } as any,
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args: any, value: any) => [{ type: 'text', text: JSON.stringify(value) }],
+    },
+    async execute(args: any, exec: any) {
+      const action = String((args && args.action) || 'write').toLowerCase()
+      if (!app.heart) return { ok: false, error: '心历程模块未加载' }
+
+      if (action === 'status') {
+        const st = app.heart.state()
+        return {
+          ok: true,
+          enabled: st.enabled,
+          configured: st.configured,
+          updatedAt: st.updatedAt,
+          updatedBy: st.updatedBy,
+          today: app.heart.statsOf(),
+          days: app.heart.days().length,
+        }
+      }
+      if (action === 'today') {
+        return { ok: true, today: app.heart.statsOf(), entries: app.heart.entriesFor() }
+      }
+      if (action === 'enable' || action === 'disable') {
+        const r = app.heart.setEnabled(action === 'enable', 'model')
+        return cleanJson({ ok: true, ...r })
+      }
+
+      // write
+      const sid = agentSidOf(exec && exec.agent)
+      if (/qq:group:/.test(sid)) return { ok: false, error: '群聊不写日记（公开模式）' }
+      const r = app.heart.append(
+        { t: args && args.t, text: args && args.text, cid: sid },
+        { by: 'model' },
+      )
+      return cleanJson(r)
     },
   }))
 

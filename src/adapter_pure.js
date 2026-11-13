@@ -102,7 +102,7 @@ function fitLines(text, budget) {
  * 组装常识层：身份 + 常驻摘要 + 说明书索引 + 链网索引。
  * 动态内容（当前状态/最近会话/草稿/链正文）不进来。
  */
-function composeCommonText({ profile, resident, manualIndex, chains, topics, onboarding, inheritance, maxChars = COMMON_MAX }) {
+function composeCommonText({ profile, resident, manualIndex, chains, topics, onboarding, inheritance, heart, maxChars = COMMON_MAX }) {
   const cleanProfile = String(profile || '')
     .replace(/##\s*记忆系统说明[\s\S]*$/m, '')
     .trim()
@@ -124,19 +124,28 @@ function composeCommonText({ profile, resident, manualIndex, chains, topics, onb
     return head.slice(0, maxChars);
   }
 
+  // 心历程（鱼的日记）：只在开关打开且有内容时出现，整段由 heart.loadText 控制长度。
+  // 位置放在索引之前——今天的自己比链网索引更该先看到；索引可以被裁，它优先。
+  const heartBody = heart ? String(heart).trim() : '';
+  const heartPart = heartBody ? '\n\n## 今天的心历程（我的日记，是当时的自述，不一定还成立）\n' + heartBody : '';
+
   const topicPart = topics ? '\n\n## 话题栈\n' + topics : '';
-  const indexBudget = maxChars - head.length - 80;
+  const afterHead = maxChars - head.length - 80;
+  // 心历程整段放不下就整段不要（截半段会把自述读成断句），索引让位
+  const heartText = heartPart.length > afterHead ? '' : heartPart;
   let body = '\n\n## 说明书索引\n' + (manualIndex || '- （RULES.md 未找到）')
     + topicPart
+    + heartText
     + '\n\n## 链网索引\n' + (chains || '- （暂无链）')
     + '\n\n<!-- /memory-system:common -->';
 
-  if (body.length > indexBudget) {
-    const remaining = Math.max(0, indexBudget - topicPart.length);
+  if (body.length > afterHead) {
+    const remaining = Math.max(0, afterHead - topicPart.length - heartText.length);
     const chainBudget = Math.max(0, Math.floor(remaining * 0.4));
     const manualBudget = Math.max(0, remaining - chainBudget - 40);
     body = '\n\n## 说明书索引\n' + fitLines(manualIndex || '- （RULES.md 未找到）', manualBudget)
       + topicPart
+      + heartText
       + '\n\n## 链网索引\n' + fitLines(chains || '- （暂无链）', chainBudget)
       + '\n\n<!-- /memory-system:common -->';
   }

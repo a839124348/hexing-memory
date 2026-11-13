@@ -7,7 +7,7 @@
 
 ## [0.4.6] - 2026-11-13
 
-两条主线：**自动唤醒（第一版）**——不用用户先开口，它能按作息自己醒来关心；**QQ 双 transport**——保留 OneBot，新增官方机器人，群聊改成 stateless。附带一次公开示例的去个人化清理。
+三条主线：**自动唤醒（第一版）**——不用用户先开口，它能按作息自己醒来关心；**QQ 双 transport**——保留 OneBot，新增官方机器人，群聊改成 stateless；**心历程（鱼的日记）**——她自己写的当天自述，只存本机，默认关。附带一次公开示例的去个人化清理。
 
 ### Security
 
@@ -29,6 +29,13 @@
 - 手动备注名：`/qq-groups` 里点成员名直接改名，写同一份 `qq/member-names.json`（`manual:true`），**手动优先于自动**。官方接口没权限时靠它让页面有人名，不必退回「群友」两字。
 - 侧边栏新增「QQ 接入」入口（QQ 图标）+ `/qq-switch` 切换向导 + `/api/qq-transport`；写 `qq/transport.json`，保存后重启 DSH；明确不会同时在线。页面按星舱风格重做：状态轨（选中/运行/插件/凭据/owner）+ 双卡选择 + 键盘可达，窄到 400px 也不挤。
 - `qq-plugin` 写 `transport-status.json` / `group-names.json`（只写是否配置/连接状态，不写 token/secret）。
+- **心历程（鱼的日记）**：`data/heart/YYYY/MM/YYYY-MM-DD.jsonl` —— 一天一个文件、**只追加**（年/月/日三层目录）；条目 `{t, text, tags?, cid?}`；格式见 `schema/heart.schema.json`（与 raw 的 MemoryRecord 分开，不复用，因为 raw 的 schema 锁死了字段）。
+- `src/heart.js`：`append` / `entriesFor` / `days` / `statsOf` / `loadText` / `state` / `setEnabled`；写盘走 `withWriteLock` + 原子写，坏行跳过；早期平铺路径只读兼容。
+- `memory_heart` 工具：`write`（默认）/ `today` / `status` / `enable` / `disable`；开关关着时 `write` 返回 `disabled`；**群聊 / 公开模式拒绝写**。
+- 标签：10 词固定表（高兴 / 心软 / 踏实 / 低落 / 烦躁 / 不安 / 委屈 / 疲惫 / 兴奋 / 得意），按正文匹配，最多 2 个；模型自造的标签会被过滤，不命中就不带该字段。
+- 常识层：开关打开且有内容时，在「说明书索引」与「链网索引」之间插入「今天的心历程」；当天全量带，异常大时从最近往前截到 1200 字并留计数行。关着或没写时整段不出现。
+- 总览页新增「鱼的日记」卡片（今天条数 + 开关状态）；`/heart` 页面：开关（**开的时候行内确认一次，关立即生效**）+ **年 / 月 / 日三级目录**（最上层只到年，往下点月、点日）+ 当天条目；打开时读一次，不轮询。页面上没有任何文件路径，接口只认 `YYYY-MM-DD`，跳不进别的目录。
+- `/api/heart`：GET 返回开关状态 + 日期目录 + 指定日期（默认当天）的条目；POST 切开关。
 
 ### Changed
 
@@ -46,6 +53,7 @@
 - 新增 `docs/QQ双Transport-设计.md`（两种接法怎么选、边界在哪）、`docs/QQ官方机器人-接入评估.md`（官方 vs OneBot 的取舍与坑）、`docs/核星记忆-客服问答.md`（群聊/私聊常见问题口径）、`docs/答复-记忆地基问题.md`。
 - `docs/QQ桥-接入.md` 新增「上游现状（2026-11）」：NapCat 原仓库下架、社区接续仓库、LLBot 改名换组织、Lagrange V1 归档，并写明"只提供桥代码，不推荐/不分发/不代为获取非官方协议端"。
 - `docs/QQ桥-FOR-AI.md` 的下载入口指到仍在维护的仓库；`docs/RULES.md` 补同一条边界。
+- `docs/RULES.md` 新增第十九节「心历程（鱼的日记）」：是什么 / 开关 / 写什么 / 标签 / 存哪 / 何时进上下文 / 与各层关系 / 读它的规矩 / 出错处理 / 页面；工具契约补 `memory_heart`。
 
 ### 自动唤醒（第一版）
 
@@ -67,7 +75,12 @@
 - 新增 `unit-wake` 67 项、`unit-wake-tools` 31 项、`unit-wake-profile` 16 项、`unit-wake-care` 12 项、`unit-wake-scheduler` 30 项；`unit-adapter-pure` / `unit-validate` / `unit-refine-dedup` / `unit-llm-refine` 补用例。
 - 唤醒可模拟时间点：`wake.json` 的 `simNow` 配合 `MEMORY_WAKE_DEBUG`，能测 09:00 / 12:30 / 18:30 / 15:00 / 21:30 / 23:30 各档；同时修掉了 `whenIdle` 清理竞态导致的时间错乱。
 - 新增 `transport` 6 项、`official-transport` 5 项、`qq-group-responder` 4 项、`qq-stateless-group` 1 项；GroupBoard 增加 sweep 用例。
+- 新增 `unit-heart` 27 项：默认关、落盘路径、重复跳过、超长拒绝、标签过滤、日期目录倒序、加载截断与计数行、坏行跳过。
 - 现有 QQ 桥 31 项、DSH QQ 插件 11+4 项全过。
+
+### Known
+
+- 心历程关掉后，已经注入会话的那段日记要等**下一次常识层重建**才消失（注入块是历史消息，改不了）。页面上的「核对于」时间说明了它有多新。
 
 ## [0.4.5] - 2026-11-11
 
