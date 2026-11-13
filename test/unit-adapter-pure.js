@@ -75,6 +75,16 @@ const rulesText = [
 const resident = readResidentSpecFrom(rulesText);
 check('摘要取到', resident.includes('1. 先查再答') && resident.includes('2. 原文不改'), resident);
 check('摘要去掉自带标题', !resident.includes('## 常驻规范'), resident);
+
+// 4b. 真实 RULES.md：常驻块不能复胖。
+// 星核的教训是「体积从来没有被定义、测量、断言过」，所以三期都长回去了。
+{
+  const fs = require('fs');
+  const path = require('path');
+  const real = readResidentSpecFrom(fs.readFileSync(path.join(__dirname, '..', 'docs', 'RULES.md'), 'utf8'));
+  check('真实常驻块 ≤1200 字', real.length > 0 && real.length <= 1200, real.length);
+  check('真实常驻块 12 条都在', Array.from({ length: 12 }, (_, i) => i + 1).every((n) => real.includes(n + '. ')), real.length);
+}
 const index = readManualIndexFrom(rulesText);
 check('目录取到', index.includes('一、记忆系统不对用户发起询问') && index.includes('二、写什么'), index);
 check('目录排除摘要/目录/总结', !index.includes('常驻规范') && !index.includes('目录') && !index.includes('一句话总结'), index);
