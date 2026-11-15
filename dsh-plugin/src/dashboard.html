@@ -782,6 +782,7 @@
     <div class="actions">
       <a class="btn primary" href="/universe">链网宇宙 →</a>
       <a class="btn" href="/heart">鱼的心路历程 →</a>
+      <a class="btn" href="/voice">鱼的声音 →</a>
       <a class="btn" href="/wake">自动唤醒 →</a>
       <button class="btn" id="refresh" type="button">刷新</button>
     </div>
@@ -835,6 +836,17 @@
   </div>
 
   <section class="grid">
+    <article class="card" style="grid-column: span 2; border-color:rgba(99,232,214,.20)">
+      <div class="card-label">Music / 音乐陪听</div>
+      <div class="card-main"><span id="musicCount">—</span> <small>首</small></div>
+      <div class="card-lines">
+        <div id="musicLast">还没有陪听过</div>
+        <button class="btn primary" id="musicCopy" type="button"
+                title="复制：我想边听歌边聊，帮我打开音乐陪听面板，并绑定这个会话。">点击这里复制给模型开始陪听</button>
+        <div id="musicCopyHint" style="margin-top:6px; min-height:16px; color:#63e8d6; font-size:12px"></div>
+      </div>
+    </article>
+
     <article class="card">
       <div class="card-label">Draft / 草稿</div>
       <div class="card-main" id="draftPending">— <small>条待提炼</small></div>
@@ -1149,6 +1161,7 @@ function render(s) {
   const chains = s.chains || {};
   const topics = s.topics || {};
   const refine = s.refine || {};
+  const music = s.music || {};
   const tokens = s.tokens || {};
   const today = tokens.today || {};
   const total = today.total || {};
@@ -1179,6 +1192,13 @@ function render(s) {
     text('companionFirstDay', '今天');
     text('companionToday', '还没有第一条记忆 · 今天 · ' + (s.today || '—'));
   }
+
+  text('musicCount', n(music.count || 0));
+  text('musicLast', music.last_song
+    ? '最近：' + music.last_song
+      + (music.last_artist ? ' — ' + music.last_artist : '')
+      + (music.last_at ? ' · ' + music.last_at : '')
+    : '还没有陪听过');
 
   text('tokenTotal', n((total.in || 0) + (total.out || 0)));
   text('tokenIn', n(total.in));
@@ -1568,6 +1588,30 @@ setInterval(load, 10000);
       if (!document.getElementById('boot')) { clearInterval(wait); open(); }
     }, 250);
     setTimeout(() => { clearInterval(wait); if (!note.classList.contains('on')) open(); }, 8000);
+  }
+
+  const musicCopy = document.getElementById('musicCopy');
+  if (musicCopy) {
+    musicCopy.addEventListener('click', async () => {
+      const text = '我想边听歌边聊，帮我打开音乐陪听面板，并绑定这个会话。';
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch (e2) { /* ignore */ }
+        ta.remove();
+      }
+      const hint = document.getElementById('musicCopyHint');
+      if (hint) {
+        hint.textContent = '已复制，去 DSH 粘贴';
+        setTimeout(() => { hint.textContent = ''; }, 2500);
+      }
+    });
   }
 })();
 </script>

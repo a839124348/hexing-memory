@@ -29,6 +29,12 @@ test/ACCEPTANCE-*.md
 *.zip
 *.tgz
 
+# 音乐陪听歌尾分享卡（运行时手递手文件，不提交）
+music/share-last.json
+music/.share-last.json.tmp
+music/listen-stats.json
+music/.listen-stats.json.tmp
+
 # 运行时依赖
 node_modules/
 vector/onnx/node_modules/

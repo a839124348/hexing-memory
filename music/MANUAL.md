@@ -3,7 +3,7 @@
 > 一个给 AI 用的音乐测量工具。它不"听懂"，只测量；话由调用方按第二部分写。
 > 轻量版 **37 MB**：`pip install numpy soundfile soxr`。不需要歌词时，一个模型都不用下。
 
-> **本目录是 lite 发行包**：只带 `listen.py`、`listener_lite.py`、本说明书三个文件。
+> **本目录是 lite 发行包**：只带 `listen.py`、`listener_lite.py`、`tap.py`、本说明书。
 > 第三部分提到的 `soundkit/`、`listen5/`、`dataset_cn/`、ASR/转写脚本是研究机上的素材，不随仓库分发。
 
 ## 三条铁律（任何地方冲突，以这里为准）
@@ -40,6 +40,8 @@ py listen.py <音频路径> [--pretty] [--brief] [--with-key]
 ```
 pip install numpy soundfile soxr
 ```
+
+边录边分析（`tap.py`）再加一个 `pyaudiowpatch`（0.1 MB）。
 
 **速度**：约 48 倍实时（5 分钟的曲子约 6 秒）。
 
@@ -136,15 +138,14 @@ lite 版不测调性（与 librosa CQT 只有 60% 一致）。**没有 `--with-k
 
 ## 5. 什么时候需要完整版
 
-完整版的调性用 librosa 的 CQT，与人工判断一致率明显更高。
-**下表带“未随本包提供”的，是完整版/可选件，仓库里没有。**
-
 | 需要 | 用这个 |
 |---|---|
 | 只想知道形状、强弱、结尾 | `listen.py`（37 MB） |
+| 边听边分析（系统正在放的声音） | `py tap.py`（本包） |
 | 还要调性、分轨、谱面、歌词 | `py -m soundkit.corpus`（300 MB，未随本包提供） |
-| 实时陪听（边放边听） | `py listener_lite.py <音频>` |
 | 边听边拿指称（歌词那层） | `py stream_lyrics.py <音频>`（540 MB，未随本包提供；见第 7 节） |
+
+完整版的调性用 librosa 的 CQT，与人工判断一致率明显更高。
 
 ---
 
@@ -768,11 +769,15 @@ py stream_lyrics.py <音频>                   # 按真实时间跑
 | 路径 | 作用 | 谁读 |
 |---|---|---|
 | `MANUAL.md` 第二部分 | **写作规范**：词表、降级链、故事化、14 条自检、例子 | **每次写描述前必读** |
-| `listen.py` | 给一首歌，输出测量 JSON（37 MB 依赖，48 倍实时） | AI 调用 |
-| `listener_lite.py` | **实时陪听**：按真实时间轴逐句输出 | AI 调用 |
+| `listen.py` | 给一首歌，输出测量 JSON（48 倍实时） | AI 调用 |
+| `listener_lite.py` | 实时陪听的判断层；也可从文件回放（`--fast` 不限速） | AI 调用 |
+| `tap.py` | **边录边分析**：抓系统输出（WASAPI 环回），0.5 秒一块 | AI 调用 |
+| `lyrics.py` | 识别当前歌曲（SMTC）+ 联网查同步歌词（LRCLIB） | AI 调用 |
+| `share.py` | 歌尾分享卡：初印象 / 想象 / 依据 / 歌词材料 | AI 调用 |
+| `ui/panel.html` | `--ui` 的陪听面板（WebView 渲染） | 界面 |
 
 **不在本发行包内**（研究机上的素材/可选件，按需自行准备）：
-`soundkit/`（完整版，300 MB）、`stream_lyrics.py` / `asr_full.py` / `mix_asr.py`（歌词与转写）、`listener.py`（librosa 对照版）、`listen5/`、`dataset_cn/`、`data/`、`scripts/_archive/`，以及任何音频文件。
+`soundkit/`（完整版，300 MB）、`stream_lyrics.py` / `asr_full.py` / `mix_asr.py`（歌词与转写）、`listener.py`（librosa 对照版）、`dump_song.py`（依赖 soundkit）、`listen5/`、`dataset_cn/`、`data/`、`scripts/_archive/`，以及任何音频文件。
 
 ---
 
@@ -784,7 +789,9 @@ Python 3.10+（Windows 用 py 启动器，Linux/macOS 用 python3）
 
 | 用途 | 依赖 | 体积 |
 |---|---|---|
-| 测量 + 实时陪听（本包） | numpy + soundfile + soxr（m4a/视频另需 ffmpeg） | ≈ 37 MB |
+| 测量 + 边录边分析（本包） | numpy + soundfile + soxr + pyaudiowpatch（m4a/视频另需 ffmpeg） | ≈ 37 MB |
+| 陪听面板（可选） | pywebview + 系统 WebView2（Win10/11 通常已有） | ≈ 6 MB |
+| 歌词识别（可选） | winrt-Windows.Media.Control | ≈ 1 MB |
 | 完整版（未随本包提供） | 再加 librosa + scipy + numba | ≈ 300 MB |
 | 分轨（未随本包提供） | onnxruntime + MDX 权重 | ≈ 115 MB |
 | 歌词（未随本包提供） | faster-whisper + ctranslate2 + small 模型 | ≈ 540 MB |
@@ -805,18 +812,78 @@ Python 3.10+（Windows 用 py 启动器，Linux/macOS 用 python3）
 **输出要求**：`初印象`（数据层原话，不雅化）+ `场景`（一个世界，动词与初印象对齐）。
 递话只在对话里出现，默认不写。**不许写真实地点**（车里、夏天、一屋子人）——8.2 的"场景"是世界比喻，不是"在哪儿"。
 
-### 场景 B：实时陪听（边放边听）
+### 场景 B：实时陪听（边录边分析）
 
 ```
-py listener_lite.py <音频>            # 按真实时间轴跑
-py listener_lite.py <音频> --fast     # 只为看输出，不限速
-py listener_lite.py <音频> --save     # 另存 <音频同目录>/<名字>_listen_lite.txt
-py listener_lite.py <音频> --with-key # 额外报调性变化（默认关，混音上不可靠）
+py tap.py                       # 听系统正在放的声音，Ctrl+C 收
+py tap.py --ui                  # 陪听面板（WebView；没装 pywebview 回退 tkinter 浮窗）
+py tap.py --stop-silence 12     # 连续安静多少秒算“歌放完”（默认 12；0 = 不自动收）
+py tap.py --no-stop             # 不自动收，只听 Ctrl+C
+py tap.py --lyrics              # 再加一层：边听边转写（约 540 MB 模型）
+py tap.py --json                # NDJSON 输出，给上层 AI 读
+py tap.py --save                # 同时存下这段音频，事后可以复算
+py tap.py --with-key            # 额外报明暗变化（默认关）
+py tap.py --device 23           # 自动选错设备时手动指定环回设备
+py tap.py --seconds 30          # 只听 30 秒（测试用，不下回顾）
 ```
 
-输出分两层：
+DSH 里让模型调 `memory_music(open)` 也能拉起面板，并把歌尾绑到当前会话；开始陪听仍由用户在面板上点。
+
+`--ui` 打开陪听面板：深色卡片、L/R 双通道电平条（带 dB 刻度）、开始/停止陪听、状态栏，
+下面是一块语录框——开始后按事件（上顶/退下/变密/换歌/收尾）滚动显示陪听语；
+无边框、可拖动，右上角 × 关闭。面板用 WebView 渲染，需要 `pip install pywebview`
+和系统 WebView2（Win10/11 通常已有）；没有就自动回退到 tkinter 小浮窗。
+配 `pyw` 启动（`pyw tap.py --ui`）没有控制台黑窗口。只允许一个实例：重复启动会退出，并把已有窗口提到前台。
+
+两种模式用音频源旁的「切换」按钮切换，主圆按钮开始当前模式；正在听也能切。关闭用右上角 ×，主按钮不承担关闭：
+
+- `陪听这首`：只听当前这一首，换歌就收；歌尾给一次四拍。
+- `兴趣陪听`：网易云一直放，面板一直听；隔 8–15 分钟随机挑一首给反馈，最多 15 条。不是每首都回。
+
+右上角 `小窗` 缩成 420×280（去掉音频源和状态栏，只留电平、按钮和语录），再点 `还原` 回到 540×353
+（语录两三行时会临时加高到 392，短句再落回来）；办公时放一边不挡。`▾` 收起成桌面底部的 520×88 透明语录条，
+点它展开回原来的大小和位置（小窗收起的就回小窗）；歌听完会自动展开看回顾。
+
+**歌放完会自动收**：连续安静 12 秒就停，并用“最后有声的时刻”当歌长（不把尾部静音算进去）。
+听到过 15 秒才允许自动停，避免前奏静音时误收。暂停超过 12 秒也会收——想等久一点用
+`--stop-silence 20`，或者 `--no-stop` 自己 Ctrl+C。
+
+**歌词**：陪听时自动读系统媒体会话（SMTC）拿歌名/歌手/时长，再到 LRCLIB 查同步歌词，
+开始陪听后语录框下面会接上当前一句（面板后开也能从换歌时刻把时钟对齐）。查不到就只显示事件；歌词只在内存里，退出即清，不落盘、不进仓库、不写进记忆。
+
+**歌尾分享（四拍）**：`py share.py <音频> --title 歌名 --artist 歌手` 输出一张分享卡——
+初印象（测量）/ 想象（想的）/ 歌词材料（上网查的）/ 问句。顺序必须是先量、再想、再查词：
+先看了歌词，想象就被带跑了。歌词是查的、画面是想的、测量是量的，三样不混。
+
+问句不是固定的“你听的时候像什么”：查完歌词后，接着歌词对照问一个具体问题（那句词、那个差、那个画面、歌词里的人）；没查到歌词才用泛问。不要每首都用同一句。
+
+面板的歌尾会自动把这张卡写到 `music/share-last.json`（`at` / `elapsed_s` / `share`，每次覆盖，只有最近一首）。
+DSH 插件只把歌尾投到 `memory_music(open/bind)` 绑定的会话（全歌延迟）；**没绑定就不投**，不猜最近活跃的会话。绑错/换会话就 `unbind` 或在新的会话重新 `open/bind`。
+没有插件、没绑定或没投到时，模型在用户说“听完了 / 刚才那首”时先读这个文件，再按四拍说；音频和其余歌词仍只在内存，退出即清。
+
+`--json` 每行一个对象，两层共用一条时间轴：
+
+```json
+{"layer": "energy", "t": 11.2, "kind": "dense", "text": "密起来了"}
+{"layer": "lyrics", "t": 17.6, "text": "让我充满能量分子"}
+{"layer": "energy", "t": 62.0, "kind": "review", "text": "（回顾）刚才最响的是这一段，…"}
+```
+
+`tap.py` 抓的是 **WASAPI 环回**（系统正在放什么就听什么），不碰麦克风。
+判断逻辑与 `listener_lite.py` 同一套：改那一个文件，两边都变。
+
+想拿一首存好的歌演练，用文件模式：
+
+```
+py listener_lite.py <音频>          # 按真实时间跑
+py listener_lite.py <音频> --fast   # 不限速，只为看输出
+```
+
+输出分三层：
+
 - **即时层**：只说现象（开始往上顶了 / 退下来了 / 密起来了）
-- **回顾层**：歌结束才下结论（刚才最响的是这一段…），且当 `peak_margin < 5%` 时说“整首响度差不多”
+- **词层**（`--lyrics`）：每 6 秒一句，取指称用，不引用原句
+- **回顾层**：收尾才下结论；听不足 60 秒只说"太短"，不硬下判断
 
 ### 场景 B2：边听边拿歌词（可选辅助，**未随本包提供**）
 

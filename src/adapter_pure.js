@@ -80,10 +80,10 @@ function readManualIndexFrom(text) {
     const m = /^##\s+(.+?)\s*$/.exec(line);
     if (!m) continue;
     const h = m[1].trim();
-    if (/^常驻摘要|^常驻规范|^目录|^一句话总结/.test(h)) continue;
+    if (/^常驻摘要|^常驻规范|^常驻核心|^示例|^目录|^一句话总结/.test(h)) continue;
     heads.push('- ' + h);
   }
-  return heads.slice(0, 20).join('\n');
+  return heads.slice(0, 24).join('\n');
 }
 
 /** 按行裁剪到预算内，保留完整行 */

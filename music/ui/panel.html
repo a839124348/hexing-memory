@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>音乐陪听</title>
+<style>
+  :root{
+    --bg:#0f1218; --card:#282d35; --card2:#232830; --inset:#1b1f26;
+    --text:#eef1f5; --muted:#9aa3b2; --dim:#6b7484;
+    --cyan:#63e8d6; --cyan2:#3fd4c2; --green:#7ef0b8; --yellow:#f2d06b;
+    --line:rgba(255,255,255,.07);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:transparent; color:var(--text);
+    font-family:"Microsoft YaHei UI","PingFang SC",system-ui,sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    -webkit-user-select:none; user-select:none; overflow:hidden;
+  }
+  .card{
+    position:relative;
+    width:100%; min-height:100%; padding:12px 20px 12px; border-radius:28px;
+    background:linear-gradient(180deg,rgba(36,41,49,.96) 0%,rgba(27,31,38,.97) 100%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+    display:flex; flex-direction:column; justify-content:space-between;
+  }
+  .head{display:flex; align-items:center; gap:8px; margin-bottom:10px}
+  .logo{width:24px; height:24px; flex:none}
+  .title{font-size:18px; font-weight:600; letter-spacing:.5px}
+  .head .sp{flex:1}
+  .ghost{
+    height:32px; min-width:44px; padding:0 10px; border-radius:9px;
+    background:#343a43; color:#d6dde8; border:0; font-size:12.5px; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    transition:background .15s, transform .08s;
+  }
+  .ghost:hover{background:#3d444e}
+  .ghost:active{transform:scale(.96)}
+  .icon-btn{width:36px; padding:0}
+  .row{
+    display:flex; align-items:center; gap:10px;
+    background:rgba(255,255,255,.035); border-radius:12px; padding:9px 13px;
+  }
+  .row .lab{font-size:14px; color:#dfe5ee; display:flex; align-items:center; gap:8px}
+  .row .lab:after{content:"▾"; color:var(--muted); font-size:12px}
+  select{
+    flex:1; height:36px; border-radius:9px; border:1px solid var(--line);
+    background:#2b313a; color:#e8edf5; font-size:13px; padding:0 10px; outline:none;
+  }
+  .primary{
+    height:36px; padding:0 15px; border:0; border-radius:9px; cursor:pointer;
+    background:linear-gradient(180deg,#7ef2e2,#45dccb); color:#0b1512;
+    font-size:13px; font-weight:600; transition:filter .15s, transform .08s;
+  }
+  .primary:hover{filter:brightness(1.05)}
+  .primary:active{transform:scale(.97)}
+  .body{display:flex; align-items:center; gap:16px; margin-top:10px}
+  .meter{
+    flex:1; background:rgba(12,16,22,.72); border-radius:14px;
+    padding:11px 15px 8px; border:1px solid rgba(255,255,255,.04);
+  }
+  .mline{display:flex; align-items:center; gap:10px; height:30px}
+  .ch{width:12px; font-size:12px; color:#c9d1dd; text-align:center}
+  .track{position:relative; flex:1; height:6px; border-radius:4px; background:#1b222c;
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.45); overflow:visible}
+  .fill{
+    position:absolute; left:0; top:0; bottom:0; width:0%; border-radius:5px;
+    background:linear-gradient(90deg,var(--green),var(--yellow));
+    transition:width .05s linear; box-shadow:0 0 10px rgba(126,240,184,.22);
+  }
+  .knob{
+    position:absolute; top:50%; left:0%; width:12px; height:12px; margin-left:-6px;
+    transform:translateY(-50%); border-radius:50%; background:#f4f7fb;
+    box-shadow:0 1px 4px rgba(0,0,0,.5); opacity:0;
+    transition:left .05s linear, opacity .3s ease;
+  }
+  body.running .knob{opacity:1}
+  .scale{
+    position:relative; flex:1; height:13px; margin-top:2px;
+    color:var(--dim); font-size:9px; font-family:Consolas,monospace;
+  }
+  .scale span{position:absolute; transform:translateX(-50%)}
+  .scale i{position:absolute; top:-6px; width:1px; height:4px; background:#3a414c}
+  .startwrap{width:106px; display:flex; align-items:center; justify-content:center}
+  .round{
+    width:96px; height:96px; border-radius:50%; border:1px solid rgba(255,255,255,.10);
+    background:radial-gradient(circle at 50% 38%,#8ff6e8,#43dccb 70%);
+    color:#0a1512; font-size:14.5px; font-weight:700; cursor:pointer;
+    box-shadow:0 0 0 9px rgba(99,232,214,.07), inset 0 2px 0 rgba(255,255,255,.35);
+    transition:transform .1s, filter .15s;
+  }
+  .round:hover{filter:brightness(1.04)}
+  .round:active{transform:scale(.97)}
+  .round.stop{background:radial-gradient(circle at 50% 38%,#ffd9a1,#f0a94e 70%); box-shadow:0 0 0 9px rgba(240,169,78,.08), inset 0 2px 0 rgba(255,255,255,.3)}
+  .round:disabled{opacity:.55; cursor:default}
+  .round.active{box-shadow:0 0 0 3px rgba(99,232,214,.42), 0 0 0 11px rgba(99,232,214,.10), inset 0 2px 0 rgba(255,255,255,.35)}
+  .ghost.active{color:var(--cyan); border-color:rgba(99,232,214,.38)}
+
+  /* 语录框 */
+  .quotes{
+    margin-top:8px; min-height:80px; padding:12px 18px 12px 20px;
+    background:linear-gradient(180deg,rgba(99,232,214,.06),rgba(99,232,214,.02));
+    border:1px solid rgba(99,232,214,.12); border-left:2px solid rgba(99,232,214,.45);
+    border-radius:13px; display:flex; align-items:center;
+  }
+  .qcol{width:100%}
+  .qlyric{margin-top:7px; font-size:12px; line-height:1.5; color:#7f8b9e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .qtext{
+    font-size:14.5px; line-height:1.8; color:#e6ecf4;
+    transition:opacity .28s ease; opacity:1; white-space:pre-wrap;
+  }
+  .qtext .qtag{color:var(--cyan); font-size:12px; margin-right:8px; opacity:.9}
+  .qtext.fade{opacity:0}
+
+  .status{
+    display:flex; align-items:center; gap:14px; padding:8px 13px; margin-top:8px;
+    background:rgba(255,255,255,.03); border-radius:10px; color:#c3cbd8; font-size:11.5px;
+  }
+  .status .it{display:flex; align-items:center; gap:8px; white-space:nowrap}
+  .dot{width:6px; height:6px; border-radius:50%; background:var(--dim)}
+  .dot.on{animation:breathe 3.8s ease-in-out infinite;}
+  @keyframes breathe{
+    0%,100%{background:#4aa8ff; opacity:.28; transform:scale(.85); box-shadow:0 0 2px rgba(74,168,255,.45);}
+    50%{background:#63e8d6; opacity:1; transform:scale(1.25); box-shadow:0 0 12px rgba(99,232,214,.95), 0 0 0 5px rgba(99,232,214,0);}
+  }
+  .dot.warn{background:var(--yellow); box-shadow:0 0 8px var(--yellow)}
+  .status .sp{flex:1}
+  .hide{display:none !important}
+
+  /* 收起：只剩一个透明语录条 */
+  body.collapsed .card{width:100%; height:100%; padding:0; background:transparent; border:0; box-shadow:none;}
+  body.collapsed .head, body.collapsed .row, body.collapsed .body, body.collapsed .status{display:none;}
+  body.collapsed .quotes{margin:0; height:100%; box-sizing:border-box; min-height:0; padding:12px 18px; background:rgba(10,14,20,.45); border:1px solid rgba(255,255,255,.08); border-left:2px solid var(--cyan); border-radius:14px;}
+  body.collapsed .qtext{font-size:14px; line-height:1.6;}
+  body.collapsed .qlyric{display:none;}
+  body.collapsed .qtext .qtag{display:none;}
+  body.collapsed .quotes{cursor:pointer;}
+
+  /* 小窗：办公时缩到 420x280，去掉音频源和状态栏，按住手边还能用 */
+  body.mini .card{padding:10px 16px;}
+  body.mini .row, body.mini .status{display:none;}
+  body.mini .head{margin-bottom:4px;}
+  body.mini .head .title{font-size:17px}
+  body.mini .body{gap:12px; margin-top:4px;}
+  body.mini .quotes{min-height:70px; padding:10px 14px;}
+  body.mini .round{width:76px; height:76px; font-size:13px;}
+  body.mini .startwrap{width:84px;}
+  body.mini .scale{font-size:8px}
+  .mono{font-family:Consolas,monospace; letter-spacing:.5px}
+
+  .toast{
+    position:absolute; left:50%; bottom:18px; transform:translateX(-50%) translateY(12px);
+    background:#11151b; color:#dfe6f2; padding:10px 18px; border-radius:10px;
+    font-size:13px; opacity:0; pointer-events:none; transition:all .2s;
+    border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.5);
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="card drag-region">
+  <div class="head drag-region">
+    <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="#63e8d6" stroke-width="2" stroke-linecap="round">
+      <path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2M21 12h0"/>
+    </svg>
+    <div class="title">音乐陪听</div>
+    <div class="sp"></div>
+    <button class="ghost" id="mini" title="缩小窗口">小窗</button>
+    <button class="ghost icon-btn" id="collapse" title="收起">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d6dde8" stroke-width="2" stroke-linecap="round">
+        <path d="M6 9l6 6 6-6"/>
+      </svg>
+    </button>
+    <button class="ghost icon-btn" id="close" title="关闭">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d6dde8" stroke-width="2" stroke-linecap="round">
+        <path d="M6 6l12 12M18 6L6 18"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="row">
+    <div class="lab">音频源</div>
+    <select id="source">
+      <option>系统内录</option>
+    </select>
+    <button class="primary" id="modeBtn" title="切换陪听模式：陪听这首 / 兴趣陪听">切换</button>
+  </div>
+
+  <div class="body">
+    <div class="meter">
+      <div class="mline">
+        <div class="ch">L</div>
+        <div class="track"><div class="fill" id="fillL"></div><div class="knob" id="knobL"></div></div>
+      </div>
+      <div class="mline">
+        <div class="ch">R</div>
+        <div class="track"><div class="fill" id="fillR"></div><div class="knob" id="knobR"></div></div>
+      </div>
+      <div class="scale" id="scale"></div>
+    </div>
+    <div class="startwrap">
+      <button class="round" id="mainBtn">陪听这首</button>
+    </div>
+  </div>
+
+  <div class="quotes">
+    <div class="qcol">
+      <div class="qtext" id="qtext"><span class="qtag">陪听</span>点圆按钮，我一边听一边陪你。</div>
+      <div class="qlyric" id="qlyric"></div>
+    </div>
+  </div>
+
+  <div class="status">
+    <div class="it"><span class="dot" id="dot"></span><span id="stState">等待开始</span></div>
+    <div class="it"><span class="dot"></span><span>采样率 <span class="mono" id="stRate">—</span></span></div>
+    <div class="it"><span class="dot"></span><span>位深 <span class="mono" id="stFmt">—</span></span></div>
+    <div class="sp"></div>
+    <div class="it"><span class="dot"></span><span>时长 <span class="mono" id="stTime">00:00</span></span></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let S = null;
+  let lastQuote = '';
+  let collapsed = false;
+  let mini = false;
+  let selectedMode = 'single';
+  let fittedH = 353;
+  let lastFitKey = '';
+
+  // 语录由 Python 的 present.py 从 quotes.json 里挑，面板只负责显示
+  function setQuote(text) {
+    if (!text || text === lastQuote) return;
+    lastQuote = text;
+    const el = $('qtext');
+    el.classList.add('fade');
+    setTimeout(() => {
+      el.innerHTML = '<span class="qtag">陪听</span>' + text;
+      el.classList.remove('fade');
+    }, 180);
+  }
+
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._t);
+    t._t = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  function mmss(sec) {
+    sec = Math.max(0, Math.floor(sec || 0));
+    return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+  }
+
+  const meterShown = { L: 0, R: 0 };
+
+  function normPeak(peakDb) {
+    const peak = Number(peakDb);
+    // 还没开始听时 peak 是 -60，窗口会翻过来，用一条默认的音乐刻度顶着
+    return (!isFinite(peak) || peak <= -50) ? -12 : peak;
+  }
+
+  function dbToPct(db, peakDb) {
+    const peak = normPeak(peakDb);
+    const floor = Math.max(-55, peak - 30);
+    const p = ((Number(db) - floor) / 30) * 100;
+    return Math.max(0, Math.min(100, p));
+  }
+
+  function setMeter(ch, db, peakDb) {
+    const p = dbToPct(db, peakDb);
+    const prev = meterShown[ch] || 0;
+    const shown = p > prev ? p : Math.max(p, prev - 6);
+    meterShown[ch] = shown;
+    $('fill' + ch).style.width = shown + '%';
+    $('knob' + ch).style.left = shown + '%';
+  }
+
+  let scalePeak = null;
+
+  function buildScale(peakDb) {
+    const peak = normPeak(peakDb);
+    if (scalePeak !== null && Math.abs(peak - scalePeak) < 1) return;
+    scalePeak = peak;
+    const floor = Math.max(-55, peak - 30);
+    let html = '';
+    for (let p = 0; p <= 100; p += 25) html += `<i style="left:${p}%"></i>`;
+    // 刻度跟着测出来的窗口走：左端是地板，右端是峰值，中间是地板 +15dB
+    const marks = [[0, Math.round(floor), 'translateX(0)'],
+                   [50, Math.round(floor + 15), 'translateX(-50%)'],
+                   [100, Math.round(peak), 'translateX(-100%)']];
+    for (const [p, v, tf] of marks) {
+      html += `<span style="left:${p}%;transform:${tf}">${v}</span>`;
+    }
+    $('scale').innerHTML = html;
+  }
+
+  function render(s) {
+    S = s;
+    document.body.classList.toggle('running', !!s.started && !s.done);
+    buildScale(s.peakDb);
+    setMeter('L', s.dbL, s.peakDb);
+    setMeter('R', s.dbR, s.peakDb);
+    $('stRate').textContent = (s.rate ? (s.rate / 1000).toFixed(1) : '—') + 'kHz';
+    $('stFmt').textContent = s.format || '—';
+    $('stTime').textContent = mmss(s.elapsed);
+    $('qlyric').textContent = s.lyric ? '♪ ' + s.lyric : '';
+
+    const st = $('stState');
+    const dot = $('dot');
+    const mode = s.mode || 'single';
+    dot.className = 'dot';
+    if (s.done) {
+      st.textContent = '已停止';
+    } else if (!s.started) {
+      st.textContent = '等待开始';
+    } else if (s.paused) {
+      st.textContent = '已暂停';
+      dot.classList.add('warn');
+    } else if (mode === 'random') {
+      st.textContent = '正在陪听（兴趣 ' + (Number(s.randomCount) || 0) + '/15）';
+      dot.classList.add('on');
+    } else {
+      st.textContent = '正在陪听';
+      dot.classList.add('on');
+    }
+
+    if (s.started && !s.done && s.mode) selectedMode = s.mode;
+    const modeName = (m) => m === 'random' ? '兴趣陪听' : '陪听这首';
+    const main = $('mainBtn');
+    main.textContent = modeName(selectedMode);
+    main.classList.remove('stop');
+    main.classList.toggle('active', !!s.started && !s.done);
+
+    if (s.quote) setQuote(s.quote);
+    requestAnimationFrame(fitHeight);
+  }
+
+  // 语录两行 + 歌词时把窗口加高；短语录回到 353
+  function fitHeight() {
+    if (collapsed || mini) return;
+    const key = $('qtext').textContent + '|' + $('qlyric').textContent;
+    if (key === lastFitKey) return;
+    lastFitKey = key;
+    const q = document.querySelector('.quotes');
+    const grow = Math.max(0, Math.max(q.clientHeight, q.scrollHeight) - 80);
+    const target = Math.max(340, Math.min(392, 353 + grow + (grow > 0 ? 2 : 0)));
+    if (Math.abs(target - fittedH) < 2) return;
+    fittedH = target;
+    api('fit_height', target);
+  }
+
+  async function expand() {
+    if (!collapsed) return;
+    collapsed = false;
+    document.body.classList.remove('collapsed');
+    document.querySelector('.card').classList.add('drag-region');
+    await api('collapse', false);
+  }
+
+  async function api(name, ...args) {
+    try {
+      return await window.pywebview.api[name](...args);
+    } catch (e) {
+      toast('操作失败：' + e);
+      return null;
+    }
+  }
+
+  function bind() {
+    $('mainBtn').onclick = async () => {
+      if (S && S.started && !S.done) return;
+      await api('start', selectedMode);
+    };
+    $('modeBtn').onclick = async () => {
+      const cur = (S && S.started && !S.done) ? (S.mode || 'single') : selectedMode;
+      const next = cur === 'random' ? 'single' : 'random';
+      selectedMode = next;
+      $('mainBtn').textContent = next === 'random' ? '兴趣陪听' : '陪听这首';
+      if (S && S.started && !S.done) await api('set_mode', next);
+    };
+    $('mini').onclick = async () => {
+      if (collapsed) return;
+      mini = !mini;
+      document.body.classList.toggle('mini', mini);
+      $('mini').textContent = mini ? '还原' : '小窗';
+      $('mini').title = mini ? '还原窗口' : '缩小窗口';
+      await api('compact', mini);
+    };
+    $('collapse').onclick = async () => {
+      if (collapsed) return;
+      collapsed = true;
+      document.body.classList.add('collapsed');
+      document.querySelector('.card').classList.remove('drag-region');
+      await api('collapse', true);
+    };
+    $('close').onclick = () => api('close');
+    document.querySelector('.quotes').onclick = () => expand();
+  }
+
+  buildScale(-12);
+  bind();
+  window.addEventListener('pywebviewready', () => {
+    setInterval(async () => {
+      const s = await api('state');
+      if (s) render(s);
+    }, 60);
+  });
+</script>
+</body>
+</html>

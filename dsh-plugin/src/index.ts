@@ -14,6 +14,7 @@
  */
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { spawn } from 'node:child_process'
 import path from 'node:path'
 import fs from 'node:fs'
 import http from 'node:http'
@@ -48,6 +49,12 @@ const COMMON_MARK = '<!-- memory-system:common -->'
 
 // 唯一说明书路径（发布时把 docs/RULES.md 一起打包；可用环境变量覆盖）
 const RULES_PATH = process.env.MEMORY_RULES || path.join(__dirname, '..', '..', 'docs', 'RULES.md')
+
+// 音乐陪听：面板脚本、歌尾分享、陪听统计（总览页读）
+const MUSIC_DIR = process.env.MEMORY_MUSIC_DIR || path.join(__dirname, '..', '..', 'music')
+const MUSIC_SHARE_PATH = process.env.MEMORY_MUSIC_SHARE
+  || path.join(MUSIC_DIR, 'share-last.json')
+const MUSIC_STATS_PATH = path.join(MUSIC_DIR, 'listen-stats.json')
 
 // 说明书阅读进度（首次安装/升级强制通读）；apply() 里初始化
 let manualReader: any = null
@@ -242,6 +249,26 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: an
         res.end(JSON.stringify(stats))
         return
       }
+      // ── 鱼的声音：放在独立 JS 里，按需加载；坏了只影响语音页 ──
+      if (url.pathname === '/api/voice' || url.pathname.startsWith('/api/voice/')) {
+        try {
+          const voice = require(path.join(__dirname, 'voice_api.cjs'))
+          await voice.handle(req, res, url, app, DATA_ROOT)
+        } catch (e: any) {
+          if (!res.headersSent) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({
+              ok: false,
+              error: '语音模块加载失败：' + (e && e.message ? e.message : e),
+            }))
+          } else {
+            try { res.end() } catch (_) { /* ignore */ }
+          }
+        }
+        return
+      }
+
       // 2026-11-13：心路历程（简称日记）。GET 打开页面时读一次，POST 切开关。
       // 不做轮询：页面打开读一次，操作后用响应即时刷新。
       if (url.pathname === '/api/heart') {
@@ -404,13 +431,16 @@ function startViewer(ctx: any, app: MemoryApp, embedService?: any, backfill?: an
         return
       }
 
-      const page = (url.pathname === '/' || url.pathname === '/dashboard')
-        ? 'dashboard.html'
-        : (url.pathname === '/heart' ? 'heart.html'
-          : (url.pathname === '/wake' ? 'wake.html'
-            : (url.pathname === '/qq-groups' ? 'qq-groups.html'
-              : (url.pathname === '/qq-switch' ? 'qq-switch.html'
-                : ((url.pathname === '/universe' || url.pathname === '/viewer') ? 'viewer.html' : '')))))
+      const pageMap: Record<string, string> = {
+        '/': 'dashboard.html', '/dashboard': 'dashboard.html',
+        '/heart': 'heart.html',
+        '/voice': 'voice.html',
+        '/wake': 'wake.html',
+        '/qq-groups': 'qq-groups.html',
+        '/qq-switch': 'qq-switch.html',
+        '/universe': 'viewer.html', '/viewer': 'viewer.html',
+      }
+      const page = pageMap[url.pathname] || ''
         if (page) {
           const file = path.join(__dirname, page)
           if (fs.existsSync(file)) {
@@ -627,6 +657,19 @@ async function collectStats(app: MemoryApp, embedService?: any, backfill?: any) 
     if (app.onboarding) onboarding = { mode: app.onboarding.status().mode || null }
   } catch (e) { /* ignore */ }
 
+  // 音乐陪听统计：面板每产出一首歌尾就 +1（面板自己写，DSH 没开也算）
+  let musicStats: any = { count: 0, last_at: '', last_song: '', last_artist: '' }
+  try {
+    const m = JSON.parse(fs.readFileSync(MUSIC_STATS_PATH, 'utf8'))
+    musicStats = {
+      count: Number(m.count) || 0,
+      last_at: String(m.last_at || ''),
+      last_song: String(m.last_song || ''),
+      last_artist: String(m.last_artist || ''),
+    }
+  } catch (e) { /* 还没有陪听统计 */ }
+
+
   let service: any = {
     status: embedService && typeof embedService.status === 'function' ? embedService.status() : null,
     health: { ok: false, error: 'not checked' },
@@ -654,6 +697,7 @@ async function collectStats(app: MemoryApp, embedService?: any, backfill?: any) 
     })(),
     tokens,
     onboarding,
+    music: musicStats,
     service,
   }
 }
@@ -2120,6 +2164,10 @@ export function apply(ctx: Context) {
   const seenMsgs = new Set<string>()
   // 最近一次对话请求用的模型（LLM 提炼优先复用宿主模型）
   let lastModel: { provider: string; model: string } | null = null
+  // 最近一次对话的 session id（音乐陪听的歌尾投到这里）
+  let lastAgentSessionId = ''
+  // 用户明确绑定的陪听会话；不拿“最近活跃”猜，避免投到工作会话
+  let musicSessionId = ''
   // 防重入：定时器 + 对话驱动可能同时触发提炼
   let refining = false
   // 提炼阈值：草稿最老那条放了多久 / 一次最多攒多少
@@ -2833,8 +2881,21 @@ export function apply(ctx: Context) {
       sid = String(rawSid).startsWith('dsh:') ? String(rawSid) : 'dsh:' + rawSid
       // QQ 群 @ 的公开会话：不写主 raw/草稿，也不旁听 AI 回复
       if (sid.includes('qq:group:')) return next()
+      if (!sid.includes('qq:')) lastAgentSessionId = String(rawSid)
       streamKey = sid + ':' + Date.now().toString(36) + ':' + Math.random().toString(36).slice(2, 10)
-      const snapshot = messages.slice()
+      // 音乐陪听的歌尾是面板递来的材料，不是用户原话：不进 raw/草稿
+      const snapshot = messages.filter((m: any) => {
+        try {
+          if (m && m.source && m.source.kind === 'music-share') return false
+          const c = m && m.content
+          const text = Array.isArray(c)
+            ? c.map((p: any) => (p && p.text) || '').join('')
+            : (typeof c === 'string' ? c : '')
+          return !text.startsWith('【音乐陪听·歌尾】')
+        } catch (e) {
+          return true
+        }
+      })
       setImmediate(() => { try { autoCapture(snapshot, sid) } catch (e) { /* 绝不打断对话 */ } })
     } catch (e) {
       console.error('[memory-system] 记录失败：', e)
@@ -2867,6 +2928,183 @@ export function apply(ctx: Context) {
   // 主要靠对话驱动，这个定时器只是兜底；即使它失效，用户一说话也会补上。
   ctx.effect(() => {
     const timer = setInterval(() => { maybeRefine() }, 3 * 60 * 1000)
+    return () => clearInterval(timer)
+  })
+
+  // ── 音乐陪听：歌尾分享卡 → 投到绑定的会话（全歌延迟模式）──
+  // 面板在换歌/停止时写 music/share-last.json；这里只读文件，不开服务。
+  // 路径见文件顶部的 MUSIC_DIR / MUSIC_SHARE_PATH。
+
+  function launchMusicPanel(): boolean {
+    try {
+      const exe = process.env.MEMORY_MUSIC_PYTHON || 'pyw'
+      const child = spawn(exe, ['tap.py', '--ui'], {
+        cwd: MUSIC_DIR, detached: true, stdio: 'ignore', windowsHide: true,
+      })
+      child.on('error', (e: any) => {
+        console.warn('[memory-system] 音乐陪听启动失败：' + (e && e.message))
+      })
+      child.unref()
+      return true
+    } catch (e: any) {
+      console.warn('[memory-system] 音乐陪听启动失败：' + (e && e.message))
+      return false
+    }
+  }
+
+  function musicShareText(j: any): string {
+    const sh = (j && j.share) || {}
+    const song = sh.song || {}
+    const lines: string[] = []
+    lines.push('【音乐陪听·歌尾】')
+    lines.push('歌曲：' + (song.title || '未知') + (song.artist ? ' — ' + song.artist : ''))
+    const secs = Math.round(Number(j && j.elapsed_s) || 0)
+    if (secs) lines.push('这一首：' + Math.floor(secs / 60) + ' 分 ' + (secs % 60) + ' 秒')
+    lines.push('初印象（面板测量）：' + (sh.first_impression || ''))
+    lines.push('面板的想象（标明是想的）：' + (sh.image || ''))
+    if (sh.because) lines.push('依据：' + sh.because)
+    const ly = sh.lyrics || {}
+    const nLines = Number(ly.total_lines) || 0
+    const sparse = !!(ly.instrumental || ly.sparse || (ly.found && nLines <= 2))
+    const ex = (ly.excerpt || []).slice(0, 3).join(' / ')
+    if (!ly.found) {
+      lines.push('歌词：面板没查到。按纯音乐/无歌词处理，不要自己补全，也不要假装查到了。')
+    } else if (sparse) {
+      lines.push('歌词：几乎无歌词（面板只查到 ' + nLines + ' 行）' + (ex ? '：' + ex : '') +
+        '。按纯音乐说，不要硬说有完整歌词。')
+    } else {
+      lines.push('歌词（LRCLIB 查的，' + nLines + ' 行）：' + ex)
+    }
+    if (sh.ask) lines.push('想问用户：' + sh.ask)
+    lines.push('')
+    lines.push('这不是用户说的话，是面板递来的歌尾材料。请按 RULES 第二十节四拍，主动和用户分享：')
+    lines.push('初印象（测量）→ 我想的（标明是想的）→ 歌词对照（查的，差在哪）→ 结合歌词问一个具体问题。')
+    lines.push('面板的 lyrics 是唯一歌词来源，不要另外查歌词来覆盖它；你如果查了别的，标明来源和不确定。')
+    lines.push('第四拍要接着歌词对照问：问那句词、那个差、那个画面，或歌词里的人；不要每次重复“你听的时候像什么”。')
+    lines.push('不要编，不要把它当成用户原话。')
+    lines.push('')
+    lines.push('格式例（只学格式，不要照抄内容）：')
+    lines.push('初印象：开头低，0:42 起鼓点密了一倍，结尾收在长音上。')
+    lines.push('我想的：像夜里开在环路上的车，窗外的灯一盏一盏往后退。（想的，不是测的）')
+    lines.push('歌词：面板只查到一句「…」；和我想的雨夜差在…')
+    lines.push('你听到那句「…」的时候，想到的是谁？')
+    lines.push('')
+    lines.push('一致性：场景只用上面面板的 image，一篇只用一个世界，不要另起；初印象是测量，不改写；不猜真实地点；动词和初印象对齐。')
+    return lines.join('\n')
+  }
+
+  function readMusicShare(): any | null {
+    try {
+      return JSON.parse(fs.readFileSync(MUSIC_SHARE_PATH, 'utf8'))
+    } catch (e) {
+      return null
+    }
+  }
+
+  try {
+  ctx.tools.register(defineTool({
+    name: 'memory_music',
+    description: '音乐陪听：打开面板、绑定会话、读最近一首分享。用户说想边听歌边聊时（音乐陪听 / 音乐配听 / 陪我听歌），调 action=open：拉起面板并把歌尾绑到当前会话；开始陪听由用户在面板上点。工作会话不要绑。',
+    parameters: {
+      action: {
+        type: 'string', required: true,
+        description: 'open=打开面板并开始陪听+绑定当前会话；bind=只绑定当前会话；unbind=解绑；status=看绑定和最近一首；share=读最近一首分享卡',
+      },
+    } as any,
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args: any, value: any) => [{ type: 'text', text: JSON.stringify(value, null, 1) }],
+    },
+    async execute(args: any, exec: any) {
+      const action = String((args && args.action) || '')
+      const curSid = agentSidOf(exec && exec.agent) || lastAgentSessionId
+      if (action === 'open') {
+        if (curSid) musicSessionId = curSid
+        const ok = launchMusicPanel()
+        return {
+          ok, bound: musicSessionId,
+          panel: 'music/tap.py --ui',
+          note: ok ? '面板已打开；请用户在面板上点「开始陪听」' : '启动命令失败',
+        }
+      }
+      if (action === 'bind') {
+        if (!curSid) {
+          return { ok: false, error: '还没有当前会话：先让用户在这个会话里说一句话' }
+        }
+        musicSessionId = curSid
+        return { ok: true, bound: musicSessionId }
+      }
+      if (action === 'unbind') {
+        musicSessionId = ''
+        return { ok: true, bound: '' }
+      }
+      const j = readMusicShare()
+      if (action === 'share') {
+        if (!j) return { ok: false, error: '还没有歌尾分享卡' }
+        return {
+          ok: true, at: j.at, elapsed_s: j.elapsed_s,
+          text: musicShareText(j), share: j.share,
+        }
+      }
+      return {
+        ok: true, bound: musicSessionId,
+        last: j ? { at: j.at, elapsed_s: j.elapsed_s, song: (j.share && j.share.song) || null } : null,
+      }
+    },
+  }))
+  } catch (e: any) {
+    console.warn('[memory-system] memory_music 注册失败：' + (e && e.message ? e.message : e))
+  }
+
+  async function deliverMusicShare(j: any) {
+    if (!musicSessionId) {
+      console.log('[memory-system] 音乐陪听：没有绑定会话，跳过')
+      return
+    }
+    let agent: any = null
+    try { agent = (ctx as any).agents?.get?.(musicSessionId) || null } catch (e) { agent = null }
+    if (!agent) {
+      console.log('[memory-system] 音乐陪听：绑定会话不在，跳过 ' + musicSessionId)
+      return
+    }
+    const message = createUserMessage({
+      content: [{ type: 'text', text: musicShareText(j) }],
+      source: { kind: 'music-share', form: 'notice', summary: '音乐陪听·歌尾' } as any,
+    })
+    try {
+      agent.followup(message)
+      try { await (ctx as any).sessions?.flush?.(agent.session) } catch (e) { /* ignore */ }
+      console.log('[memory-system] 音乐陪听已投递：' + musicSessionId)
+    } catch (e: any) {
+      console.warn('[memory-system] 音乐陪听投递失败：' + (e && e.message))
+    }
+  }
+
+  ctx.effect(() => {
+    let lastAt = ''
+    // 插件启动时先记下现有文件的 at，避免把上一首的旧分享再投一遍
+    try {
+      const j = JSON.parse(fs.readFileSync(MUSIC_SHARE_PATH, 'utf8'))
+      lastAt = String(j.at || '')
+    } catch (e) { /* 没有文件 */ }
+
+    const timer = setInterval(() => {
+      try {
+        const st = fs.statSync(MUSIC_SHARE_PATH)
+        if (!st.isFile()) return
+        // 只认最近 15 分钟的分享，避免 DSH 重启把昨天的歌投出来
+        if (Date.now() - st.mtimeMs > 15 * 60 * 1000) return
+        const j = JSON.parse(fs.readFileSync(MUSIC_SHARE_PATH, 'utf8'))
+        const at = String(j.at || '')
+        if (!at || at === lastAt) return
+        lastAt = at
+        if (!musicSessionId) {
+          console.log('[memory-system] 音乐陪听：未绑定会话，歌尾只写文件')
+          return
+        }
+        void deliverMusicShare(j)
+      } catch (e) { /* 文件不在/正在写，下一轮再看 */ }
+    }, 3000)
     return () => clearInterval(timer)
   })
 
