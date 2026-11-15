@@ -63,7 +63,13 @@ v0.4.4 / v0.4.5 的下载包和解压副本里带了一些不该公开的示例�
 2. **新增「鱼的心路历程」（默认关，简称日记）**：她的当天自述，存本机 `data/heart/年/月/日期.jsonl`，不进记忆检索。开关在总览页顶部「鱼的心路历程 →」。**只问用户一次**要不要开，拒绝后不要再提；常识层会按开关状态带一行提示，不需要你另外记着。
 3. **新增「自动唤醒」页**：总览页顶部「自动唤醒 →」。默认没绑定会话＝不会叫醒；要开就先 `memory_wake action=bind target=current` 再 enable。
 
-装完验证四件事：日志出现 `核星记忆 v0.4.6 已加载`、工具栏能看到新工具、`/heart` 与 `/wake` 能打开、QQ 的 `transport-status.json` 里线路符合预期。
+## 0.7 升级到 v0.4.7 的变化（旧链修复，老用户必读）
+
+- **提炼规范独立**：`src/prompts/refine.md` 只给后台提炼器加载，启动时拼进提炼提示；学习链只收结论/方法/技能/工具规范，教学过程不进。
+- **旧链可以修**：用户说「旧链修复」时，先 `memory_chain action=spec` 读规范、`action=audit` 看全链概览和疑似学习过程；逐链 `get` 出计划给用户确认，再用 `repair` / `move` / `drop`。**不要直接改 JSON，不要批量重写节点。**
+- 升级后 `memory_manual` 进度会归零，先按提示通读再改链网；`move/repair/drop` 都要求用户确认并先备份到 `data/_backup/links/`。
+
+装完验证四件事：日志出现 `核星记忆 v0.4.7 已加载`、工具栏能看到新工具、`/heart` 与 `/wake` 能打开、QQ 的 `transport-status.json` 里线路符合预期。
 
 ---
 
@@ -81,7 +87,7 @@ v0.4.4 / v0.4.5 的下载包和解压副本里带了一些不该公开的示例�
 2. 下载固定 tag 的源码包（**不要装 main**）：
 
 ```powershell
-$Tag = 'v0.4.6'
+$Tag = 'v0.4.7'
 $InstallDir = Join-Path $env:USERPROFILE 'hexing-memory'
 $Zip = Join-Path $env:TEMP "hexing-memory-$Tag.zip"
 Invoke-WebRequest "https://github.com/a839124348/hexing-memory/archive/refs/tags/$Tag.zip" -OutFile $Zip
@@ -108,7 +114,7 @@ bge-small-zh-v1.5.onnx.data 02A5F74BE93B625908C7AE11B04042C21F06864E9A439605D304
 
 不一致就停下，别继续装。
 
-> 如果 GitHub 打不开：让用户下载 Release 的 `hexing-memory-v0.4.6-full.zip`（已含模型），解压后把文件夹路径给你；从第 2 步的 `install.ps1` 开始。
+> 如果 GitHub 打不开：让用户下载 Release 的 `hexing-memory-v0.4.7-full.zip`（已含模型），解压后把文件夹路径给你；从第 2 步的 `install.ps1` 开始。
 
 ### B. 用户给了 full zip
 
@@ -202,7 +208,7 @@ memory_onboarding action=status
 如果工具不存在：
 
 1. 看 `cordis.patch.yml` 里有没有 `id: memory-system`
-2. 看启动日志有没有 `[memory-system] 核星记忆 v0.4.6 已加载`
+2. 看启动日志有没有 `[memory-system] 核星记忆 v0.4.7 已加载`
 3. 跑 `node tools/check-paths.js`，按红项修
 4. 仍不行：把 profile 备份恢复，保留数据，把日志给用户/开发者
 

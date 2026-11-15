@@ -1,9 +1,9 @@
-# 核星记忆 / Hexing Memory · 开源版（v0.4.6）
+# 核星记忆 / Hexing Memory · 开源版（v0.4.7）
 
 给个人用户用的 AI 长期记忆：**实时跨会话 + 自动 LLM 提炼建链 + 完整向量库**。
 当前以 DSH（DeepSeek Harness）插件形式交付；核心引擎是纯 JS，可接其他平台。
 
-**版本：v0.4.6**（音乐陪听 + 鱼的声音 + 心路历程 / 自动唤醒 / QQ 双 transport）。
+**版本：v0.4.7**（旧链修复 + 提炼规范常驻 + 音乐陪听 + 鱼的声音）。
 
 ## 星核卖点
 
@@ -25,7 +25,7 @@
 
 模型会下载固定 tag、校验模型、备份 `cordis.patch.yml`、写入插件、装依赖、重启并验证。**不要自己手写路径，也不要改 DSH 源码。**
 
-如果网络打不开 GitHub：下载 Release 里的 `hexing-memory-v0.4.6-full.zip`（已含两个向量模型），解压后把文件夹路径发给 DSH，还是同一句话。
+如果网络打不开 GitHub：下载 Release 里的 `hexing-memory-v0.4.7-full.zip`（已含两个向量模型），解压后把文件夹路径发给 DSH，还是同一句话。
 
 ## 它能做什么
 
@@ -168,6 +168,7 @@ src/               核心引擎（纯 JS，与平台无关）
   usage.js         每日 token 累计（对话/提炼分开，common/stats.json）
   onboarding.js    迁移问卷/相处方式档案（inherit/memory/fresh）
   adapter_pure.js  适配层纯函数（选真话/剥注入/常识层组装）
+  prompts/refine.md 提炼器专用规范（启动时注入；主模型不用读）
 docs/              规划书 v0.4、RULES 唯一说明书、测试报告
 test/              单元测试 + 全链路验收
 tools/             迁移导入器、相处方式抽样、patch 生成器、路径自检、只读诊断
@@ -213,7 +214,7 @@ node test/acceptance.js     # 全链路自动验收（生成 ACCEPTANCE-*.md）
 
 ## 反馈问题
 
-1. 先记下**版本号**：启动日志、总览页右上角、或诊断报告里的 `v0.4.6`。
+1. 先记下**版本号**：启动日志、总览页右上角、或诊断报告里的 `v0.4.7`。
 2. 在项目目录运行只读诊断：
 
    ```sh

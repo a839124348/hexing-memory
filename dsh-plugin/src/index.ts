@@ -28,7 +28,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const APP_NAME = '核星记忆'
 const APP_NAME_EN = 'Hexing Memory'
 // 版本号单一来源：dsh-plugin/package.json；读不到再退回常量
-let APP_VERSION = '0.4.6'
+let APP_VERSION = '0.4.7'
 try {
   const pkg = require(path.join(__dirname, '..', 'package.json'))
   if (pkg && pkg.version) APP_VERSION = String(pkg.version)
@@ -49,6 +49,8 @@ const COMMON_MARK = '<!-- memory-system:common -->'
 
 // 唯一说明书路径（发布时把 docs/RULES.md 一起打包；可用环境变量覆盖）
 const RULES_PATH = process.env.MEMORY_RULES || path.join(__dirname, '..', '..', 'docs', 'RULES.md')
+// 提炼器专用规范：主模型用 memory_chain action=spec 读它，方便按同一口径纠错
+const REFINE_SPEC_PATH = process.env.MEMORY_REFINE_SPEC || path.join(CORE_DIR, 'prompts', 'refine.md')
 
 // 音乐陪听：面板脚本、歌尾分享、陪听统计（总览页读）
 const MUSIC_DIR = process.env.MEMORY_MUSIC_DIR || path.join(__dirname, '..', '..', 'music')
@@ -1651,10 +1653,10 @@ export function apply(ctx: Context) {
   // 链负责"直接给出答案"，不让人每次都去翻原文。
   ctx.tools.register(defineTool({
     name: 'memory_chain',
-    description: '访问链网（以「核星」为中心的树）。用户问"我喜欢什么/我们经历过什么/这个项目怎么样"之类，先看链——链里常常直接有答案。action：tree（看全貌）／get（读一条链；大链默认前3后3+中间抽样，可用 offset/limit/full）／append（往链里加节点；链不存在时建链，父链只能是核星、九个默认根或已有链，最多 4 层）／header（写链头概览，建议 ≤200 字，硬上限 500）／audit（体检：孤儿链、空链、重复节点、待补链头）。**get 返回 needHeader=true 时，读完顺手用 header 写一段 ≤200 字概览。**',
+    description: '访问链网（以「核星」为中心的树）。用户问"我喜欢什么/我们经历过什么/这个项目怎么样"之类，先看链——链里常常直接有答案。action：spec（读提炼规范，发现分类/节点不对时先读它）／tree（看全貌）／get（读一条链；大链默认前3后3+中间抽样，可用 offset/limit/full）／append（往链里加节点；链不存在时建链，父链只能是核星、九个默认根或已有链，最多 4 层）／header（写链头概览，建议 ≤200 字，硬上限 500）／audit（体检：孤儿链、空链、重复节点、待补链头、链概览、测试或演示链、学习链疑似教学过程）／move（纠错：把某条链里的指定节点移到日常等目标链；先 audit，用户明确确认后带 confirm=true）／repair（批量修复旧链条：去重 + 把所有学习链疑似教学过程移到日常；先 audit，用户确认后带 confirm=true）／drop（只删已经空掉的测试/错链；先清空、再确认）。用户说「旧链修复/把链网过一遍」时走 spec→audit→逐链 get→计划→确认后 repair/move/drop。**get 返回 needHeader=true 时，读完顺手用 header 写一段 ≤200 字概览。**',
     parameters: {
-      action: { type: 'string', required: true, description: 'tree / get / append / header / audit' },
-      name: { type: 'string', description: '链名，如「身份链」「项目链-xxx」（get/append/header 必填）' },
+      action: { type: 'string', required: true, description: 'spec / tree / get / append / header / audit / move / repair / drop' },
+      name: { type: 'string', description: '链名，如「身份链」「项目链-xxx」（get/append/header/move 必填；move 是源链）' },
       text: { type: 'string', description: 'append：节点正文；header：新的头部概览（建议 ≤200 字，硬上限 500）' },
       who: { type: 'string', description: 'append：这条属于谁——我 / 你 / 我们' },
       type: { type: 'string', description: 'append：event（事件，永不推翻）或 state（状态，可被推翻）' },
@@ -1663,6 +1665,12 @@ export function apply(ctx: Context) {
       offset: { type: 'number', description: 'get：从第几个节点开始（0 起）' },
       limit: { type: 'number', description: 'get：取几个节点（offset 模式默认 10，最大 50）' },
       full: { type: 'boolean', description: 'get：true 才返回全部节点（大链慎用）' },
+      indices: { type: 'array', items: { type: 'number' }, description: 'move：要移动的源链节点下标（audit/get 返回的 index(indices)，最多 50 个）' },
+      to: { type: 'string', description: 'move：目标链，默认「日常」；只能是已有链或九个默认根' },
+      reason: { type: 'string', description: 'move：移动原因，如「教学过程，不是学习结论」' },
+      confirm: { type: 'boolean', description: 'move/repair/drop：必须 true。先让用户确认要移动/修复/删除什么，再执行' },
+      mode: { type: 'string', description: 'repair：all（默认，去重 + 学习链教学过程）/ learning（只移学习链）/ duplicates（只去重）' },
+      dropEmptyTest: { type: 'boolean', description: 'repair：清空后顺手删掉 0 节点的测试/演示链（删前备份）' },
     } as any,
     output: {
       schema: { type: 'object', additionalProperties: true },
@@ -1670,6 +1678,21 @@ export function apply(ctx: Context) {
     },
     async execute(args: any) {
       const action = String(args.action || '').trim()
+      // 学习链错节点的共用判定；audit 只报“疑似”，repair 也只用这一组，不做语义猜测。
+      const learningProcessRe = /(卡在|卡哪|不理解|没懂|没听懂|要求.{0,6}算|教我|讲了|问我|试了|没成功)/
+
+      if (action === 'spec') {
+        try {
+          return cleanJson({
+            ok: true,
+            path: REFINE_SPEC_PATH,
+            text: fs.readFileSync(REFINE_SPEC_PATH, 'utf8'),
+            hint: '纠错时先 audit；全链 review/移动流程见 memory_manual read section=5（RULES 第五节）',
+          })
+        } catch (e: any) {
+          return { ok: false, error: '读不到提炼规范：' + (e && e.message ? e.message : e), path: REFINE_SPEC_PATH }
+        }
+      }
 
       if (action === 'tree') {
         return cleanJson(app.chain.tree())
@@ -1678,22 +1701,43 @@ export function apply(ctx: Context) {
       if (action === 'audit') {
         const rows = app.chain.list()
         const dup: any[] = []
+        const learningSuspects: any[] = []
+        // 只做“疑似”提示：学习链里像教学过程、不像结论的节点，交给用户确认后再 move。
         for (const r of rows) {
           const c = app.chain.get(r.name)
           if (!c || !Array.isArray(c.nodes)) continue
           const seen = new Set<string>()
-          for (const n of c.nodes) {
-            const k = [n.t, n.text].join('\u0000')
-            if (seen.has(k)) dup.push({ 链: r.name, t: n.t, text: String(n.text).slice(0, 80) })
-            else seen.add(k)
+          const isLearning = String(r.name).startsWith('学习') || r.parent === '学习'
+          for (let i = 0; i < c.nodes.length; i++) {
+            const n = c.nodes[i]
+            const key = [n.t, n.text].join('\u0000')
+            if (seen.has(key)) dup.push({ 链: r.name, t: n.t, text: String(n.text).slice(0, 80) })
+            else seen.add(key)
+            if (isLearning && n && !n.superseded && learningProcessRe.test(String(n.text || ''))) {
+              learningSuspects.push({
+                链: r.name, index: i, t: n.t,
+                text: String(n.text || '').slice(0, 120),
+                原因: '疑似教学过程，不像学习结论',
+              })
+            }
           }
         }
         return cleanJson({
           ...app.chain.audit(),
+          链概览: rows.slice(0, 200).map((r: any) => ({
+            链: r.name, 父: r.parent, 节点: r.nodes,
+            待补头: !!r.needHeader, 待刷新: !!r.needRefresh,
+          })),
+          链总数: rows.length,
+          测试或演示链: rows
+            .filter((r: any) => /测试|验收|demo|test|tmp/i.test(String(r.name)))
+            .map((r: any) => ({ 链: r.name, 节点: r.nodes })),
           待补链头: rows.filter((r: any) => r.needHeader).map((r: any) => r.name),
           待刷新链头: rows.filter((r: any) => r.needRefresh).map((r: any) => r.name),
           重复节点: dup.slice(0, 20),
           重复总数: dup.length,
+          疑似学习过程: learningSuspects.slice(0, 50),
+          疑似学习过程总数: learningSuspects.length,
         })
       }
 
@@ -1754,7 +1798,111 @@ export function apply(ctx: Context) {
         }))
       }
 
-      return { ok: false, error: '未知 action：' + action + '（可用：tree / get / append / header / audit）' }
+      if (action === 'move') {
+        const g = manualGate()
+        if (!g.ok) return g
+        if (args.confirm !== true) {
+          return { ok: false, error: 'move 需要 confirm=true：先让用户确认要移哪些节点，再执行' }
+        }
+        const from = String(args.name || args.from || '').trim()
+        const to = String(args.to || '日常').trim() || '日常'
+        const raw = Array.isArray(args.indices)
+          ? args.indices
+          : (args.indices !== undefined ? [args.indices] : (args.index !== undefined ? [args.index] : []))
+        if (!from) return { ok: false, error: 'move 需要 name（源链）' }
+        if (!raw.length) return { ok: false, error: 'move 需要 indices：先用 audit 或 get 看节点下标' }
+        try {
+          const r = app.chain.move(from, raw, to, {
+            reason: args.reason || '提取错误：移到日常链',
+            by: 'model',
+          })
+          // 链节点索引按 (链,下标,内容) 做 id；移动后要重建，否则旧节点还会被 memory_search 搜到。
+          if (r.ok && r.moved > 0) {
+            try { await app.chainSearch.buildIndex() } catch (e) { /* 向量服务不可用也不影响链文件 */ }
+          }
+          return cleanJson(r)
+        } catch (e: any) {
+          return { ok: false, error: 'move 失败：' + (e && e.message ? e.message : e) }
+        }
+      }
+
+      if (action === 'repair') {
+        const g = manualGate()
+        if (!g.ok) return g
+        if (args.confirm !== true) {
+          return { ok: false, error: 'repair 需要 confirm=true：先 audit 给用户看，再执行' }
+        }
+        const mode = String(args.mode || 'all').trim()
+        if (!['all', 'learning', 'duplicates'].includes(mode)) {
+          return { ok: false, error: 'mode 只能是 all / learning / duplicates' }
+        }
+        const out: any = { ok: true, mode, dedupe: null, learning: null }
+        if (mode !== 'learning') out.dedupe = app.chain.dedupe()
+        if (mode !== 'duplicates') {
+          const rows = app.chain.list()
+          const chains: any[] = []
+          let total = 0
+          for (const r of rows) {
+            if (!(String(r.name).startsWith('学习') || r.parent === '学习')) continue
+            if (!r.nodes) continue
+            let removed = 0
+            let guard = 0
+            while (guard++ < 20) {
+              const c = app.chain.get(r.name)
+              if (!c || !Array.isArray(c.nodes)) break
+              const idxs: number[] = []
+              for (let i = 0; i < c.nodes.length; i++) {
+                const n = c.nodes[i]
+                if (n && !n.superseded && learningProcessRe.test(String(n.text || ''))) idxs.push(i)
+              }
+              if (!idxs.length) break
+              const mr = app.chain.move(r.name, idxs.slice(0, 50), '日常', {
+                reason: '提炼规范修正：教学过程',
+                by: 'repair',
+              })
+              if (!mr.ok) break
+              const moved = Number(mr.moved) || 0
+              const skipped = Number(mr.skipped) || 0
+              removed += moved + skipped
+              if (!moved && !skipped) break
+              if (idxs.length <= 50) break
+            }
+            if (removed) {
+              chains.push({ 链: r.name, 移出: removed })
+              total += removed
+            }
+          }
+          out.learning = { 移出: total, chains }
+          if (total) out.hint = '学习链头部可能过时；建议用 memory_chain action=header 重写'
+        }
+        if (args.dropEmptyTest === true) {
+          const dropped: any[] = []
+          for (const r of app.chain.list()) {
+            if (!/测试|验收|demo|test|tmp/i.test(String(r.name))) continue
+            if (r.nodes) continue
+            const d = app.chain.drop(r.name)
+            if (d.ok) dropped.push({ 链: r.name, backup: d.backup })
+          }
+          out.dropped = dropped
+        }
+        if ((out.dedupe && out.dedupe.removed) || (out.learning && out.learning.移出)) {
+          try { await app.chainSearch.buildIndex() } catch (e) { /* 向量服务不可用不影响链文件 */ }
+        }
+        return cleanJson(out)
+      }
+
+      if (action === 'drop') {
+        const g = manualGate()
+        if (!g.ok) return g
+        if (args.confirm !== true) {
+          return { ok: false, error: 'drop 需要 confirm=true：只删已经空掉的测试/错链，先让用户确认' }
+        }
+        const name = String(args.name || '').trim()
+        if (!name) return { ok: false, error: 'drop 需要 name' }
+        return cleanJson(app.chain.drop(name))
+      }
+
+      return { ok: false, error: '未知 action：' + action + '（可用：tree / get / append / header / audit / move / repair / drop）' }
     },
   }))
 

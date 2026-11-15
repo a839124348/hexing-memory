@@ -65,6 +65,19 @@ class ChainStore {
     }
   }
 
+  /** 改链前先备份到 data/_backup/links/；返回备份路径，失败抛错（不写链） */
+  _backup(name) {
+    const src = this._file(name);
+    if (!fs.existsSync(src)) return '';
+    const dir = path.join(this.root, '_backup', 'links');
+    fs.mkdirSync(dir, { recursive: true });
+    const safe = String(name).replace(/[\\/:*?"<>|]/g, '_').replace(/\.\./g, '_');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const dst = path.join(dir, safe + '-' + stamp + '.json');
+    fs.copyFileSync(src, dst);
+    return dst;
+  }
+
   /** 核星：链网的根，代表 AI 的自我。不存在就建一个空的 */
   _ensureRoot() {
     if (this._read('核星')) return;
@@ -258,9 +271,166 @@ class ChainStore {
     });
   }
 
+  /**
+   * 纠正错节点：把 from 链里的指定节点移到 to 链（默认日常）。
+   * - 不是删除：目标链保留一份副本，带 movedFrom/movedAt/movedReason；
+   * - 源链移除该节点，避免它继续出现在原来的链里；
+   * - 两边的链文件都先备份到 data/_backup/links/，失败不写；
+   * - 这是人工纠错，不是自动提炼的常规路径。
+   * @param {string} from 源链
+   * @param {number[]} indices 源链 nodes 下标（memory_chain get 返回的 indices）
+   * @param {string} to 目标链（默认日常）
+   * @param {{reason?:string, by?:string}} meta
+   */
+  move(from, indices, to = '日常', meta = {}) {
+    return withWriteLock(this.root, () => {
+      const srcName = String(from || '').trim();
+      const dstName = String(to || '日常').trim() || '日常';
+      if (!srcName) return { ok: false, error: 'move 需要 from（源链）' };
+      if (srcName === dstName) return { ok: false, error: '源链和目标链不能相同' };
+
+      const src = this._read(srcName);
+      if (!src) return { ok: false, error: '源链不存在：' + srcName };
+      src.nodes = Array.isArray(src.nodes) ? src.nodes : [];
+      let dst = this._read(dstName);
+      if (!dst) {
+        if (!DEFAULT_ROOTS.has(dstName)) {
+          return { ok: false, error: '目标链不存在：' + dstName, hint: '目标只能是已有链或九个默认根' };
+        }
+        dst = {
+          name: dstName,
+          parent: '核星',
+          header: '',
+          headerNodeCount: 0,
+          headerAt: '',
+          headerBy: '',
+          nodes: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      dst.nodes = Array.isArray(dst.nodes) ? dst.nodes : [];
+
+      const list = (Array.isArray(indices) ? indices : [indices])
+        .map((i) => Number(i))
+        .filter((i) => Number.isInteger(i) && i >= 0 && i < (src.nodes || []).length);
+      const picked = [...new Set(list)].sort((a, b) => a - b).slice(0, 50);
+      if (!picked.length) return { ok: false, error: '没有有效的节点下标（先用 memory_chain get 拿 indices）' };
+
+      const backupFrom = this._backup(srcName);
+      const backupTo = this._backup(dstName);
+
+      const pickedSet = new Set(picked);
+      const now = new Date().toISOString();
+      const reason = String(meta.reason || '').slice(0, 200);
+      const existing = new Set((dst.nodes || []).map((n) => [n.t, n.type, n.text].join('\u0000')));
+      let moved = 0;
+      let skipped = 0;
+      for (const i of picked) {
+        const n = src.nodes[i];
+        if (!n) continue;
+        const key = [n.t, n.type, n.text].join('\u0000');
+        if (existing.has(key)) {
+          skipped++;
+        } else {
+          dst.nodes.push({
+            ...n,
+            movedFrom: srcName,
+            movedAt: now,
+            movedReason: reason,
+            movedBy: String(meta.by || 'model'),
+          });
+          existing.add(key);
+          moved++;
+        }
+      }
+      src.nodes = src.nodes.filter((_, i) => !pickedSet.has(i));
+      src.updatedAt = now;
+      dst.updatedAt = now;
+
+      // 先写目标、再写源：即使第二步失败，也是目标多一份副本，不会丢节点。
+      this._write(dst);
+      this._write(src);
+      return {
+        ok: true,
+        from: srcName,
+        to: dstName,
+        moved,
+        skipped,
+        fromLeft: src.nodes.length,
+        toTotal: dst.nodes.length,
+        backupFrom,
+        backupTo,
+      };
+    });
+  }
+
+  /**
+   * 去重：同一链里 (t,type,text) 完全相同的节点只留第一条。
+   * 只处理完全重复，不做语义合并；改前备份，原文不动。
+   */
+  dedupe(name = null) {
+    return withWriteLock(this.root, () => {
+      const names = name ? [String(name).trim()] : this.list().map((r) => r.name);
+      if (name && !this._read(name)) return { ok: false, error: '链不存在：' + name };
+      const detail = [];
+      for (const n of names) {
+        const c = this._read(n);
+        if (!c || !Array.isArray(c.nodes)) continue;
+        const seen = new Set();
+        const kept = [];
+        let removed = 0;
+        for (const node of c.nodes) {
+          const key = [node.t, node.type, node.text].join('\u0000');
+          if (seen.has(key)) { removed++; continue; }
+          seen.add(key);
+          kept.push(node);
+        }
+        if (!removed) continue;
+        this._backup(n);
+        c.nodes = kept;
+        c.updatedAt = new Date().toISOString();
+        this._write(c);
+        detail.push({ name: n, removed, left: kept.length });
+      }
+      return {
+        ok: true,
+        chains: detail.length,
+        removed: detail.reduce((sum, x) => sum + x.removed, 0),
+        detail,
+      };
+    });
+  }
+
+  /**
+   * 删除一条已经空掉的非根链（测试/演示/已清空的错链）。
+   * 只允许叶子链、0 节点、非默认根；删前备份到 data/_backup/links/。
+   * 有节点的链先 move/repair 清空，不在这里硬删。
+   */
+  drop(name) {
+    return withWriteLock(this.root, () => {
+      const n = String(name || '').trim();
+      if (!n) return { ok: false, error: 'drop 需要 name' };
+      if (n === '核星' || DEFAULT_ROOTS.has(n)) {
+        return { ok: false, error: '默认根和核星不能删除：' + n };
+      }
+      const c = this._read(n);
+      if (!c) return { ok: false, error: '链不存在：' + n };
+      if (Array.isArray(c.nodes) && c.nodes.length) {
+        return { ok: false, error: '链里还有 ' + c.nodes.length + ' 个节点，先 move/repair 清空再 drop' };
+      }
+      const kids = this.list(n);
+      if (kids.length) {
+        return { ok: false, error: '还有 ' + kids.length + ' 条子链，先处理子链再 drop' };
+      }
+      const backup = this._backup(n);
+      fs.unlinkSync(this._file(n));
+      return { ok: true, name: n, backup };
+    });
+  }
+
   /** 整棵树（从核星往下） */
-  tree() {
-    const all = this.list();
+  tree() {    const all = this.list();
     const byParent = new Map();
     for (const c of all) {
       if (!byParent.has(c.parent)) byParent.set(c.parent, []);

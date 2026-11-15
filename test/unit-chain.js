@@ -80,6 +80,58 @@ const cs = new ChainStore(TMP);
   check('节点 ≥5 提示 needHeader', after.needHeader === true);
 }
 
+// 7b. 纠正错节点：move 到目标链（副本 + 备份，不丢原文）
+{
+  cs.create('学习链-纠错测试', '学习');
+  cs.create('日常纠错目标', '核星');
+  cs.append('学习链-纠错测试', [
+    { t: '2026-11-16 10:00', type: 'event', text: '结论一' },
+    { t: '2026-11-16 10:01', type: 'event', text: '爸卡在哪' },
+    { t: '2026-11-16 10:02', type: 'event', text: '结论三' },
+  ]);
+  const r = cs.move('学习链-纠错测试', [1], '日常纠错目标', { reason: '教学过程，不是学习结论' });
+  check('move 成功', r.ok === true && r.moved === 1, JSON.stringify(r));
+  check('move 源链减少', cs.get('学习链-纠错测试').nodes.length === 2);
+  check('move 剩余顺序正确', cs.get('学习链-纠错测试').nodes.map((n) => n.text).join('|') === '结论一|结论三');
+  const moved = cs.get('日常纠错目标').nodes[0];
+  check('move 目标有副本', !!moved && moved.text === '爸卡在哪');
+  check('move 副本带来源', moved && moved.movedFrom === '学习链-纠错测试' && moved.movedReason.includes('教学过程'));
+  check('move 有备份', !!r.backupFrom && fs.existsSync(r.backupFrom));
+  check('move 备份在 _backup', String(r.backupFrom).includes('_backup') && String(r.backupFrom).includes('links'));
+  check('move 同链被拒绝', cs.move('学习链-纠错测试', [0], '学习链-纠错测试').ok === false);
+  check('move 空下标被拒绝', cs.move('学习链-纠错测试', [], '日常纠错目标').ok === false);
+}
+
+// 7c. 去重：完全相同的节点只留一条，改前备份
+{
+  cs.create('去重测试', '核星');
+  cs.append('去重测试', [
+    { t: '2026-11-16 11:00', type: 'event', text: '重复节点' },
+    { t: '2026-11-16 11:00', type: 'event', text: '重复节点' },
+    { t: '2026-11-16 11:01', type: 'event', text: '另一个节点' },
+  ]);
+  const r = cs.dedupe('去重测试');
+  check('dedupe 去掉 1 条', r.ok === true && r.removed === 1, JSON.stringify(r));
+  check('dedupe 保留唯一节点', cs.get('去重测试').nodes.length === 2);
+  check('dedupe 有备份', r.detail[0] && fs.existsSync(path.join(TMP, '_backup', 'links')));
+  check('dedupe 不存在的链报错', cs.dedupe('不存在的链').ok === false);
+}
+
+// 7d. drop：只删空的叶子非根链，删前备份
+{
+  cs.create('空测试链', '核星');
+  const r = cs.drop('空测试链');
+  check('drop 空叶子链成功', r.ok === true && !fs.existsSync(path.join(TMP, 'links', '空测试链.json')), JSON.stringify(r));
+  check('drop 有备份', !!r.backup && fs.existsSync(r.backup));
+  check('drop 默认根拒绝', cs.drop('学习').ok === false);
+  cs.create('有节点链', '核星');
+  cs.append('有节点链', { t: '2026-11-16 12:00', type: 'event', text: 'x' });
+  check('drop 有节点拒绝', cs.drop('有节点链').ok === false);
+  cs.create('父测试链', '核星');
+  cs.create('子测试链', '父测试链');
+  check('drop 有子链拒绝', cs.drop('父测试链').ok === false);
+}
+
 // 8. 树结构
 {
   const t = cs.tree();

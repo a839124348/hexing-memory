@@ -31,7 +31,17 @@ const prompt = buildRefinePrompt(records, chain.list());
 check('提示词含对话原文', prompt.user.includes('我喜欢西瓜'));
 check('提示词含链索引', prompt.user.includes('身份链'));
 check('提示词带输出契约', prompt.system.includes('"chains"'));
+check('按整段对话但区分来源', prompt.system.includes('按整段对话判断') && prompt.system.includes('AI 侧节点'));
+check('共同形成的内容可记', prompt.system.includes('共同形成的内容可以记'));
 check('梗/表情默认不自动建节点', prompt.system.includes('梗、表情用法、口头禅、一次性玩笑默认不建节点'));
+check('学习链只收结论', prompt.system.includes('学习链准入') && prompt.system.includes('只收“学会了什么”'));
+check('学习链排除教学过程', prompt.system.includes('教学过程、讲解顺序') && prompt.system.includes('卡在哪'));
+check('学习链带正例', prompt.system.includes('EMA 替代全量平均'));
+check('提炼规范覆盖九条链', ['身份', '关系', '约定链', '项目', '学习', '避坑', '存储', '想法', '日常'].every((x) => prompt.system.includes(x)));
+check('提炼规范含节点自包含', prompt.system.includes('自包含'));
+check('提炼规范含建链门槛', prompt.system.includes('至少 3 次'));
+const backfillPrompt = buildRefinePrompt(records, chain.list(), [], { mode: 'backfill' });
+check('回填模式带旧历史规则', backfillPrompt.system.includes('旧历史回填模式'));
 const wakePrompt = buildRefinePrompt([
   ...records,
   { t: '2026-11-07 23:32', s: '小绪', c: '午饭吃了吗', origin: 'wake', cid: 'c1', v: 1 },

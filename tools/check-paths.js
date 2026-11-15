@@ -49,6 +49,8 @@ add('核心引擎', exists('src/store.js'), path.join(ROOT, 'src', 'store.js'),
   '保持 dsh-plugin/ 与 src/ 在同一仓库；或设置 MEMORY_CORE');
 add('说明书', exists('docs/RULES.md'), path.join(ROOT, 'docs', 'RULES.md'),
   '设置 MEMORY_RULES 指向 RULES.md');
+add('提炼规范', exists('src/prompts/refine.md'), path.join(ROOT, 'src', 'prompts', 'refine.md'),
+  '缺少时提炼器只会退回学习链最小规则，九条链的完整规范不会注入');
 add('插件 package.json', exists('dsh-plugin/package.json'));
 add('侧边栏入口包', exists('dsh-plugin-ui/lib/client.js'), path.join(ROOT, 'dsh-plugin-ui', 'lib', 'client.js'),
   '缺 dsh-plugin-ui 时插件本体仍能用，但 DSH 左侧栏不会有「记忆总览」入口');

@@ -15,7 +15,7 @@ const READ_ONLY = new Set([
 ]);
 
 const READ_ACTIONS = {
-  'memory_chain': new Set(['list', 'tree', 'get', 'status']),
+  'memory_chain': new Set(['list', 'tree', 'get', 'status', 'spec']),
   'memory_topic': new Set(['list', 'get', 'status']),
   'memory_manual': new Set(['toc', 'read', 'status']),
   'memory_identity': new Set(['get', 'status', 'read']),

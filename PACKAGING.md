@@ -31,7 +31,7 @@ ONNX 模型文件不进主仓库：
 - `vector/onnx/model.onnx`（41KB 图）
 - `vector/onnx/bge-small-zh-v1.5.onnx.data`（约 96MB）
 
-发布时创建 tag `v0.4.6`，把这两个文件作为 Release assets 上传。  
+发布时创建 tag `v0.4.7`，把这两个文件作为 Release assets 上传。  
 用户可以下载后放进 `vector/onnx/`，再运行：
 
 ```powershell
@@ -51,6 +51,9 @@ node -e "const fs=require('fs');const {validateRecords}=require('./src/validate'
 
 # 3) 全量单测 + 验收
 node test/acceptance.js
+
+# 4) 提炼规范随包（src/llm.js 启动时会读，只给提炼器）
+Test-Path src\prompts\refine.md
 ```
 
 ## 4. Git 初始化
@@ -59,7 +62,7 @@ node test/acceptance.js
 git init
 git add .
 git status
-git commit -m "核星记忆 v0.4.6: 自动唤醒 + QQ 双 transport + 心路历程（简称日记）"
+git commit -m "核星记忆 v0.4.7: 提炼规范常驻 + 旧链修复"
 git branch -M main
 ```
 
@@ -84,10 +87,10 @@ git push -u origin main
 
 然后在 GitHub 创建 Release：
 
-- tag：`v0.4.6`
-- title：`核星记忆 v0.4.6`
+- tag：`v0.4.7`
+- title：`核星记忆 v0.4.7`
 - assets：
-  - `hexing-memory-v0.4.6-full.zip`（源码 + 两个模型，给链接安装失败/离线用户）
+  - `hexing-memory-v0.4.7-full.zip`（源码 + 两个模型，给链接安装失败/离线用户）
   - `model.onnx` + `bge-small-zh-v1.5.onnx.data`（给只下源码的用户）
 
 链接安装：用户把仓库链接发给 DSH，模型按 `INSTALL-FOR-AI.md` 下载固定 tag 和模型、跑 `install.ps1`。

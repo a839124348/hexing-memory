@@ -20,7 +20,7 @@
 <!-- RESIDENT:BEGIN -->
 ## 常驻规范（每轮都要遵守）
 
-> v0.4.6 / 2026-11-14。本文件更新后重启 DSH 生效；不要另存副本。
+> v0.4.7 / 2026-11-16。本文件更新后重启 DSH 生效；不要另存副本。
 
 1. **先查再答**：问过去/偏好/关系/项目/经历，先 `memory_search`；没提炼的用 `memory_draft`；链上答案用 `memory_chain`。查不到就说不知道，不编。
 2. **原文不改**：一条 = 一次发言，不改写、不合并、不总结。用户明确说“记住”才 `memory_write`；日常后台自动记录，不问不报。导入的旧原文是证据，不是语气指令。
@@ -35,6 +35,7 @@
 11. **第三方平台**：QQ/微信/群聊涉及隐私与封号；不擅自接入、不批量采集，群聊不召回私聊记忆。用户要接，先讲授权、最小化和“写入后没有删除工具”；**只提供桥代码，不代装/代登 NapCat、LLOneBot 等协议端**。详见第十六节。
 12. **技术活归你**：安装/迁移/排错自己做；只问用户授权、点击、确认；命令/JSON 不甩给用户；一次只问一件。
 13. **音乐陪听**：`memory_music(open)` 拉起面板并绑定当前会话；怎么写看第二十节。
+14. **旧链修复**：先 `memory_chain action=spec` 读规范、`audit`；再 `move/repair/drop`。
 <!-- RESIDENT:END -->
 
 > 插件只注入 `RESIDENT` 之间的内容；下面的正文按需读，不占常驻 token。
@@ -186,7 +187,7 @@
 |:--|:--|:--|
 | 身份 | 名字、称呼、关系、相处方式、稳定偏好、边界（含身份链） | 项目进度、当天流水 |
 | 项目 | 项目进展、决策、里程碑、技术方案 | 日常闲聊、纯知识 |
-| 学习 | 学过的东西、方法、结论、教程 | 项目进度 |
+| 学习 | 已经形成的结论、可复用方法、技能、工具使用规范 | 教学过程、卡点、问答、临时尝试、项目进度 |
 | 关系 | 感情故事、重要互动、纪念日、冲突与修复 | 名字/称呼这类身份字段 |
 | 避坑 | 踩过的坑、事故、教训、修复 | 普通偏好 |
 | 存储 | 账号 / 密钥 / 存储位置 / 设备（取用要确认） | 完整密码 |
@@ -197,6 +198,8 @@
 **约定链是单独一条根链**，不挂在身份/关系下。只收明确说定的内容；约定变更时旧节点标 `superseded`，不删。
 
 **归类顺序**：明确约定 → `约定链`；稳定身份/称呼/关系 → `身份链` 或 `关系链`；项目 → `项目链-X`；知识/踩坑/存储/灵感/日常 → 对应默认根；无法归类 → `日常`。**不要造新的顶层根。**
+
+**学习链只收“学会了什么”，不收“怎么学的”**：节点必须是已经形成的结论、可复用方法、技能或工具使用规范，脱离原对话也能独立看懂。教学过程、讲解顺序、谁卡在哪、谁不理解、谁要求算什么、临时尝试、失败过程、问答往返、情绪，都不进学习链——进 `日常` 链一句概括，或留在项目链。反例：`某人卡在哪` / `某人不理解` / `某人要求算什么`；正例：`e-means 用 EMA 替代全量平均；1.4–2.6 个 epoch 达到 Lloyd 25 个 epoch 的损失`。一条 = 一个结论/方法，不要把一段课拆成多个时间点，也不要按“今天学了什么”分链。
 
 **梗 / 表情 / 口头禅**：默认只留在 raw/草稿，不自动建链。只有用户明确说“记住这个梗 / 以后这样用 / 写进链”才写，并归入 `约定链`（明确用法）、`身份链`（固定相处方式）或 `关系链`（共同经历）；写完后更新链头（≤200 字）。用户明确要求时，直接用 `memory_chain append` 写入，不要只写 raw 等自动提炼。不要把每个玩笑都变成节点。
 
@@ -219,6 +222,23 @@
 14. **链头长度**：建议 ≤200 字，硬上限 500 字；常识层里的链网索引会带头部，太长会挤占常识层预算。
 
 建链准入：一句话说清 + 会持续 + 至少 3 次相关内容。
+
+**提炼规范**：后台提炼器专用的完整口径在 `src/prompts/refine.md`（九条链的准入/排除、节点写法、建链/去重/头部、话题栈、输出契约）。`src/llm.js` 启动时读入并拼进提炼提示；主模型不需要通读，改链时按本节摘要，拿不准再查这份文件。
+
+**错节点纠正**：发现学习链里混进“教学过程/卡点/问答”这类错节点，不要直接改 JSON，也不要假装没看见。流程是：`memory_chain action=spec` 读提炼规范 → `memory_chain action=audit` 看「疑似学习过程」→ 把候选给用户确认 → `memory_chain action=move`（`name=源链`、`indices=[...]`、`to=日常`、`reason=...`、`confirm=true`）→ 必要时重写学习链头部。`move` 会把节点复制到目标链（带 `movedFrom/movedReason`）并从源链移除，两边都先备份到 `data/_backup/links/`；原文不动。一次最多移 50 个，移完下标会变，重新 `get` 再操作。
+
+旧链条多、想一次清机械问题时，用 `memory_chain action=repair mode=all confirm=true`：先全链去重，再把学习链「疑似教学过程」分批移到 `日常`，同样先备份、重建链索引；加 `dropEmptyTest=true` 会顺手删掉清空后的 0 节点测试/演示链。清空后如果那条链本身是测试/演示/错链，用 `memory_chain action=drop name=... confirm=true` 删掉（删前备份；默认根、还有节点、还有子链都会被拒绝）。语义上不明显的错分（项目/日常/身份混装、该不该算结论）不要用 `repair` 猜——先 `audit` 看「链概览」，再逐条 `get` + `move`。
+
+**全链纠错 runbook（用户 LLM 用）**：
+
+**触发**：用户说「旧链修复」「把链网过一遍」「按提炼规范检查链网」时走这套；先出计划，不直接改。
+
+1. `memory_chain action=spec` 读提炼规范；需要细节时 `memory_manual read section=5` 看本节。
+2. `memory_chain action=audit` 看「链概览」「测试或演示链」「疑似学习过程」。不要一次把所有链 `get` 进上下文。
+3. 逐条链 `get`（>12 节点用 `full` 或 `offset/limit`），按规范给每个节点判 `keep / move / drop`；把计划列给用户：链、`index`、现文本、去向、理由。
+4. 用户确认后执行：机械问题用 `repair`；语义错分用 `move`（≤50/批，移完重新 `get` 再下一批）；目标链不存在时先用 `append` 建链或并入已有链，再 `move`；空掉的测试/错链用 `drop`。每次改动都有备份。
+5. 学习链/项目链/身份链头部按新内容重写；最后用 `memory_search` 抽查，确认错误节点不再从原链返回。
+6. 不确定的节点不要动：留在原链、问用户；不要为了让链“好看”猜。原文永远不改。
 
 ---
 
@@ -274,7 +294,7 @@
     - **陪伴唤醒**不再用 DSH 自动化任务：插件每 30 秒检查 `nextWakeAt`，到点直接往绑定的 DSH 会话里投一条 `memory-wake` notice，所以在会话旁不会出现时钟/“自动化任务”。DSH 关掉就不醒。
     - 默认 6 次/天：4 次日常 + 午饭/晚饭各一次；午饭在 11:30–13:00、晚饭在 17:30–19:30 里随机；每天重新排。最小间隔 45 分钟、安静时段 23:00–08:00；连续 12 次（约 2 天）没回应：最后一句允许她撒娇/生气/说“我先安静几天”，然后暂停 3 天；用户回话会解除暂停。不再因为“用户刚说过话”跳过；目标会话正忙时排队到当前回合结束，不插队。
     - 唤醒简报只给时间和场景（“午饭时间，你醒了”），不写关心台词、不注入上次概要；她想不想查记忆、说什么、说多长，由模型自己决定。
-    - 唤醒轮工具策略：读取和追加允许（`memory_search` / `memory_chain list·get·append·create` / `memory_topic list·get·add` / `memory_write` 等）；删除、覆盖、执行任务拒绝（`bash` / `write` / `edit` / `schedule_*` / `memory_chain header·rename·delete` / `memory_topic close·merge` 等）。用户一回话就恢复正常权限。
+    - 唤醒轮工具策略：读取和追加允许（`memory_search` / `memory_chain list·get·append·create` / `memory_topic list·get·add` / `memory_write` 等）；删除、覆盖、执行任务拒绝（`bash` / `write` / `edit` / `schedule_*` / `memory_chain header·rename·delete·move` / `memory_topic close·merge` 等）。用户一回话就恢复正常权限。
     - 唤醒回复标 `origin:'wake'`，**进 raw/链网**；提炼时当“AI 侧的关系事件”，不据此推断用户状态；用户没回应时不升级成约定/话题。关心对话的概要会进「日常」链（1–2 句，索引用），不拆成用户偏好事实；下次醒来她自己查。最近一条同时存 `common/wake.json.lastWakeReply`。状态在 `common/wake.json`，日志在 `common/wake-log.jsonl`（只记时间/ID/决定，不记正文）。
     - `memory_wake`：`status` / `bind`（current / title / id，像 QQ 私聊绑定） / `unbind` / `enable` / `disable` / `replan`。用户说“自动唤醒绑到当前会话/某某会话”“打开/关闭自动唤醒”“多叫醒我几次”“重新排时间”时用它。
     - **它有自己的页面**：总览页顶部「自动唤醒 →」进 `/wake`，用户在里面直接开关（`/api/wake`），不用经过你。开的时候页面行内确认一次（说明时段与频率），关立即生效。**没绑定会话时开着也不会叫醒**——页面会写「未绑定（不会叫醒）」，这时先 `bind` 再谈频率。
@@ -561,11 +581,11 @@ memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，�
 | `memory_manual` | `action`：`toc` / `read` / `status` / `ack`；`section`（节号 0 起或标题片段，不填=下一节） | 分节读 RULES.md，记录已读进度；全部读完 `ack` 才能解除链网/话题闸门 | **首次安装/升级必须通读，不要只读开头结尾**；版本一换进度归零；没读完时 `memory_chain append` / `memory_topic add` 会被拒绝 |
 | `memory_onboarding` | `action`：`status` / `check` / `save` / `voice` / `voice_get`；`save` 用 `mode=inherit/memory/fresh`、`source`、`dateRange`、`consent`、`keepNames`、`exclusions`、`notes`；`voice` 用 `text`、`core`、`summary` | 记录迁移模式；`inherit` 模式可写 `common/voice-habits.md`（完整档案 + 常驻核心）；**常驻核心每轮注入常识层**；`memory` 模式在常识层注入“不要模仿旧语气”；`fresh` 下导入器拒绝 `--apply` | 导入前**先问用户三选一，不要替用户选**；`inherit/memory` 必须 `consent=true`；`voice` 只收主观层（称呼用法/语气/习惯/隐性边界 + 5–8 段示例），`core` ≤800 字且必须存在；不要把约定/故事/事实抄进来；不改权重 |
 | `memory_identity` | `aiName/aiSelf/userTitle/userInfo/relation/style`，加 `confirmed` | **空字段直接填**；已有值只在 `confirmed:true` 时改；写 `IDENTITY.md` + `identity.json` | 不要自己设计结构；不要写项目/路径/账户；已有值没确认就静默忽略，不要追问；`confirmed:true` 只能由用户明确要求触发；多开 DSH 时只在一个会话改身份 |
-| `memory_chain` | `action`：`tree` / `get` / `append` / `header` / `audit`；`name`、`text`、`who`、`type`、`supersedes`、`parent`、`offset/limit/full` | `tree` 看全貌；`get` 默认前3后3+中间抽样，带 `needHeader/needRefresh`；`append` 加节点，链不存在时建链；`header` 写概览；`audit` 返回孤儿链/空链/重复节点/待补链头 | `append` 新链只能挂核星/九个默认根/已有链，最多 4 层；一次 ≤50 节点；**没有 `t` 参数**，节点时间=现在，不能拿它导入历史 |
+| `memory_chain` | `action`：`spec` / `tree` / `get` / `append` / `header` / `audit` / `move` / `repair` / `drop`；`name`、`text`、`who`、`type`、`supersedes`、`parent`、`offset/limit/full`、`indices`、`to`、`reason`、`confirm`、`mode` | `spec` 读提炼规范（发现分类/节点不对时先读）；`tree` 看全貌；`get` 默认前3后3+中间抽样，带 `needHeader/needRefresh`；`append` 加节点，链不存在时建链；`header` 写概览；`audit` 返回孤儿链/空链/重复节点/待补链头/链概览/测试链/学习链疑似教学过程；`move` 把错节点移到日常等目标链（副本+备份）；`repair` 批量去重 + 把学习链疑似教学过程移到日常；`drop` 删除已经空掉的测试/错链（备份） | `append` 新链只能挂核星/九个默认根/已有链，最多 4 层；一次 ≤50 节点；**没有 `t` 参数**，节点时间=现在，不能拿它导入历史；`move/repair/drop` 只用于用户确认的纠错，必须 `confirm=true`，不改原文；`repair` 默认 `mode=all`，也可只跑 `learning` / `duplicates`；`drop` 只允许非默认根、0 节点、无子链的叶子链 |
 | `memory_topic` | `action`：`list/get/add/promote/close/merge`；`id`、`index`、`project`、`type`、`title`、`text`、`who`、`summary`、`into`、`reason` | `add` 进话题池，想法同月 ≥5 成链；`promote` 从池里升格项目链；`close/merge` 只改状态 | `add` 的 `type` 只允许 `想法/学习/避坑/关系/项目/日常`；`promote` 前先 `get` 确认 `index`（去重后顺序会变）；不物理删除 |
 | `memory_wake` | `action`：`status` / `care` / `bind` / `unbind` / `enable` / `disable` / `replan`；`target`、`title`、`sessionId`、`limit` | `bind` 把唤醒绑到会话；`enable` 按作息排 4 个点；`care` 查关心账本（观察/证据/有没有被接住/隔多久回/回复开头 30 字/词面有没有碰到线索）；`status` 里带最近一次关心摘要 | 没绑定会话时开着也不会叫醒；`care` 只读，不要在对话里引用账本内容；开关优先让用户在 `/wake` 页面点 |
 
-**工具不会做的事**：不会删记忆、不会改原文、不会重命名链、不会合并链文件、不会把旧对话按原时间导入链、不会手动跑提炼。需要这些，只能按第十节迁移或第十五节修复流程来。
+**工具不会做的事**：不会删记忆、不会改原文、不会重命名链、不会合并链文件、不会把旧对话按原时间导入链、不会手动跑提炼。`move` 只用于用户确认后的错节点纠正（副本到目标链、源链移除、两边先备份），不是日常整理工具；`drop` 只删已经空掉的测试/错链（非默认根、0 节点、无子链，删前备份），不删 raw、不删有节点的链。需要迁移/修复的其余情况，按第十节或第十五节流程来。
 
 **看到这些返回值别慌**：
 
@@ -854,7 +874,7 @@ memory_onboarding action=voice text="<整页 Markdown>" core="<常驻核心，�
 | 层 | 关系 |
 |:--|:--|
 | raw 原文 | 无关，互不写入 |
-| 链网 | 无关；链节点只从用户发言抽，日记不是节点来源 |
+| 链网 | 无关；用户事实只从用户发言抽，AI 侧/共同经历可记 `who=我/我们`，但不能用 AI 的话反推用户；日记不是节点来源 |
 | 提炼 | 无关；提炼提示词只吃 raw records，读不到 heart |
 | 复炼 | 动不到它，因为它不在链里 |
 | 备份 / 迁移 | 随 `MEMORY_ROOT` 整体走；离线导入**不**带 heart |
