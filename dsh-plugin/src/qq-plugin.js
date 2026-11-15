@@ -26,6 +26,33 @@ const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const QQ_CORE = path.join(__dirname, '..', '..', 'qq-bridge', 'src');
 
+const REPO_URL = 'https://github.com/a839124348/hexing-memory';
+let REPO_VERSION = 'v0.4.7';
+try {
+  REPO_VERSION = 'v' + JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).version;
+} catch (e) { /* 读不到就退回常量 */ }
+const SELLING_POINTS = [
+  '跨会话记忆',
+  '会长大的链网',
+  '看得见陪伴天数',
+  '心路历程',
+  '自动唤醒',
+  '音乐陪听',
+  '鱼的声音',
+];
+function wantsRepoAnswer(text) {
+  return /(仓库|项目地址|项目在哪|地址|链接|github|repo|在哪下|哪里下|怎么下|下载地址)/i.test(String(text || ''));
+}
+function repoAnswer() {
+  return [
+    '核星记忆 / Hexing Memory',
+    `仓库：${REPO_URL}`,
+    `版本：${REPO_VERSION}`,
+    '能做什么：',
+    ...SELLING_POINTS.map((x) => '- ' + x),
+  ].join('\n');
+}
+
 const { createTransport } = require(path.join(QQ_CORE, 'transport.js'));
 const { classify, shouldHandle, ROUTES } = require(path.join(QQ_CORE, 'router.js'));
 const { GroupBoard } = require(path.join(QQ_CORE, 'group-board.js'));
@@ -712,7 +739,10 @@ export function apply(ctx, rawConfig = {}) {
         await enqueueGroup(msg.groupId, async () => {
           let reply;
           try {
-            reply = await groupResponder.reply({ system: groupSystem, user: groupUser });
+            // 群友 @ 要仓库地址：固定回复，保证带上版本号和卖点，不靠模型自由发挥。
+            reply = wantsRepoAnswer(msg.text)
+              ? repoAnswer()
+              : await groupResponder.reply({ system: groupSystem, user: groupUser });
           } catch (e) {
             log.error(`群聊 stateless 回复失败：${e.message}`);
             return;
