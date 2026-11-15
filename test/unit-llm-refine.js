@@ -44,7 +44,7 @@ const backfillPrompt = buildRefinePrompt(records, chain.list(), [], { mode: 'bac
 check('回填模式带旧历史规则', backfillPrompt.system.includes('旧历史回填模式'));
 const wakePrompt = buildRefinePrompt([
   ...records,
-  { t: '2026-11-07 23:32', s: '小绪', c: '午饭吃了吗', origin: 'wake', cid: 'c1', v: 1 },
+  { t: '2026-11-07 23:32', s: '小助手', c: '午饭吃了吗', origin: 'wake', cid: 'c1', v: 1 },
 ], chain.list());
 check('提示词带 origin=wake', wakePrompt.user.includes('"origin":"wake"'));
 check('提示词区分 AI 主动表达', wakePrompt.system.includes('AI 主动醒来说的话'));

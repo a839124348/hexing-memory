@@ -86,7 +86,7 @@ const cs = new ChainStore(TMP);
   cs.create('日常纠错目标', '核星');
   cs.append('学习链-纠错测试', [
     { t: '2026-11-16 10:00', type: 'event', text: '结论一' },
-    { t: '2026-11-16 10:01', type: 'event', text: '爸卡在哪' },
+    { t: '2026-11-16 10:01', type: 'event', text: '卡在哪' },
     { t: '2026-11-16 10:02', type: 'event', text: '结论三' },
   ]);
   const r = cs.move('学习链-纠错测试', [1], '日常纠错目标', { reason: '教学过程，不是学习结论' });
@@ -94,7 +94,7 @@ const cs = new ChainStore(TMP);
   check('move 源链减少', cs.get('学习链-纠错测试').nodes.length === 2);
   check('move 剩余顺序正确', cs.get('学习链-纠错测试').nodes.map((n) => n.text).join('|') === '结论一|结论三');
   const moved = cs.get('日常纠错目标').nodes[0];
-  check('move 目标有副本', !!moved && moved.text === '爸卡在哪');
+  check('move 目标有副本', !!moved && moved.text === '卡在哪');
   check('move 副本带来源', moved && moved.movedFrom === '学习链-纠错测试' && moved.movedReason.includes('教学过程'));
   check('move 有备份', !!r.backupFrom && fs.existsSync(r.backupFrom));
   check('move 备份在 _backup', String(r.backupFrom).includes('_backup') && String(r.backupFrom).includes('links'));

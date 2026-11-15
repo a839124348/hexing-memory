@@ -11,16 +11,16 @@ test('public-identity：只读公开字段，缺失返回空', () => {
 
   fs.mkdirSync(path.join(root, 'common'), { recursive: true });
   fs.writeFileSync(path.join(root, 'common', 'identity.json'), JSON.stringify({
-    aiName: '小绪',
-    userTitle: '小明',
+    aiName: '小助手',
+    userTitle: '用户',
     relation: '朋友关系',
     aiSelf: '这是私密自述，不应被群聊读取',
     userInfo: '私事',
   }), 'utf8');
 
   const id = loadPublicIdentity(root);
-  assert.strictEqual(id.aiName, '小绪');
-  assert.strictEqual(id.userTitle, '小明');
+  assert.strictEqual(id.aiName, '小助手');
+  assert.strictEqual(id.userTitle, '用户');
   assert.strictEqual(id.relation, '朋友关系');
   assert.strictEqual(Object.keys(id).length, 3);
 });
