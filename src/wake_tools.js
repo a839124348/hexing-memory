@@ -11,7 +11,7 @@
 
 const READ_ONLY = new Set([
   'read', 'glob', 'grep', 'web_search', 'web_fetch', 'ask_user_question', 'skill',
-  'memory_search', 'memory_common', 'memory_draft',
+  'memory_search', 'memory_common', 'memory_draft', 'memory_support',
 ]);
 
 const READ_ACTIONS = {

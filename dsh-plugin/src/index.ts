@@ -51,6 +51,8 @@ const COMMON_MARK = '<!-- memory-system:common -->'
 const RULES_PATH = process.env.MEMORY_RULES || path.join(__dirname, '..', '..', 'docs', 'RULES.md')
 // 提炼器专用规范：主模型用 memory_chain action=spec 读它，方便按同一口径纠错
 const REFINE_SPEC_PATH = process.env.MEMORY_REFINE_SPEC || path.join(CORE_DIR, 'prompts', 'refine.md')
+// 公开客服知识库：群聊原本就注入；私聊通过 memory_support 只读读取
+const SUPPORT_KB_PATH = path.join(DATA_ROOT, 'common', 'support-kb.md')
 
 // 音乐陪听：面板脚本、歌尾分享、陪听统计（总览页读）
 const MUSIC_DIR = process.env.MEMORY_MUSIC_DIR || path.join(__dirname, '..', '..', 'music')
@@ -741,6 +743,13 @@ function textOf(msg: any): string {
 function readResidentSpec(): string {
   try {
     return pure.readResidentSpecFrom(fs.readFileSync(RULES_PATH, 'utf8'))
+  } catch (e) { return '' }
+}
+
+/** 公开客服知识库；只读 common/support-kb.md，最多 3000 字 */
+function readSupportKb(): string {
+  try {
+    return fs.readFileSync(SUPPORT_KB_PATH, 'utf8').trim().slice(0, 3000)
   } catch (e) { return '' }
 }
 
@@ -1903,6 +1912,29 @@ export function apply(ctx: Context) {
       }
 
       return { ok: false, error: '未知 action：' + action + '（可用：tree / get / append / header / audit / move / repair / drop）' }
+    },
+  }))
+
+  // ── 公开客服知识库（私聊也能读；群聊原本就注入） ─────
+  ctx.tools.register(defineTool({
+    name: 'memory_support',
+    description: '只读核星记忆的公开客服知识库（common/support-kb.md）。用户问仓库地址、怎么安装、收费、隐私、QQ 接入、旧版本这类公开问题时先调用；只回答公开资料，不透露私事/私聊记忆/密钥，不把它写进记忆。',
+    parameters: {} as any,
+    output: {
+      schema: { type: 'object', additionalProperties: true },
+      render: (_args: any, value: any) => [{ type: 'text', text: JSON.stringify(value, null, 1) }],
+    },
+    async execute() {
+      const text = readSupportKb()
+      if (!text) {
+        return {
+          ok: false,
+          configured: false,
+          error: 'common/support-kb.md 还没配置或为空',
+          hint: '让用户/安装者写一份公开客服知识库（仓库地址、安装步骤、收费、隐私、QQ 接入），不要写私事。',
+        }
+      }
+      return cleanJson({ ok: true, configured: true, chars: text.length, text })
     },
   }))
 

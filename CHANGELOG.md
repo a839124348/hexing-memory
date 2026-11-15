@@ -5,6 +5,12 @@
 
 > 用户向的星核卖点见 [docs/星核卖点.md](docs/星核卖点.md)；本文件保留技术明细。
 
+## [Unreleased]
+
+### Added
+
+- **私聊也能回答公开资料**：新增只读 `memory_support`，读 `common/support-kb.md`（≤3000 字），返回仓库地址、安装、收费、隐私、QQ 接入等公开信息；常识层加一行“公开资料先调 memory_support”。群聊原本就注入这份知识库，逻辑不变。
+
 ## [0.4.7] - 2026-11-16
 
 旧链修复版：提炼规范独立成 `src/prompts/refine.md` 并常驻提炼器；旧链可按规范用 `audit → repair/move/drop` 整理；用户 LLM 的常识层留了规范入口。

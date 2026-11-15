@@ -119,6 +119,8 @@ function composeCommonText({ profile, resident, residentExtra, manualIndex, chai
     ...(residentExtra ? ['', String(residentExtra).trim()] : []),
     ...(onboarding ? ['', String(onboarding).trim()] : []),
     ...(inheritance ? ['', String(inheritance).trim()] : []),
+    '',
+    '公开资料入口：用户问仓库地址、安装、收费、隐私、QQ 接入时，先调 memory_support（只读 common/support-kb.md）。',
   ].join('\n');
 
   if (head.length >= maxChars) {
