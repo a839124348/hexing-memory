@@ -27,29 +27,44 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const QQ_CORE = path.join(__dirname, '..', '..', 'qq-bridge', 'src');
 
 const REPO_URL = 'https://github.com/a839124348/hexing-memory';
-let REPO_VERSION = 'v0.4.7';
+const SITE_URL = 'https://mozi1.top/';
+let REPO_VERSION = 'v0.4.8';
 try {
   REPO_VERSION = 'v' + JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).version;
 } catch (e) { /* 读不到就退回常量 */ }
-const SELLING_POINTS = [
-  '跨会话记忆',
-  '会长大的链网',
-  '看得见陪伴天数',
-  '心路历程',
-  '自动唤醒',
-  '音乐陪听',
-  '鱼的声音',
-];
 function wantsRepoAnswer(text) {
   return /(仓库|项目地址|项目在哪|地址|链接|github|repo|在哪下|哪里下|怎么下|下载地址)/i.test(String(text || ''));
 }
+// 群友 @ 要地址：给网页介绍 + 仓库 + 版本；卖点由网页承载，不在群里刷清单。
 function repoAnswer() {
   return [
     '核星记忆 / Hexing Memory',
-    `仓库：${REPO_URL}`,
     `版本：${REPO_VERSION}`,
-    '能做什么：',
-    ...SELLING_POINTS.map((x) => '- ' + x),
+    `介绍：${SITE_URL}`,
+    `仓库：${REPO_URL}`,
+  ].join('\n');
+}
+
+// 格物：配套的上下文插件，和核星互不影响。群友问起时给固定回复。
+const GEWU_URL = 'https://github.com/a839124348/dsh-gewu';
+const GEWU_VERSION = 'v0.3.0';
+// 只认「名字 + 意图」：光提“格物致知”不触发，免得把闲聊当提问。
+// 模糊的问法交给模型（support-kb 里有这一段），固定回复只用于明确的索取。
+function wantsGewuAnswer(text) {
+  const s = String(text || '');
+  if (!/(格物(?!致知)|gewu)/i.test(s)) return false;
+  return /(插件|安装|装|地址|仓库|链接|github|下载|怎么用|是什么|介绍|在哪)/i.test(s);
+}
+function gewuAnswer() {
+  return [
+    '格物 / gewu（DSH 插件）',
+    '让模型只看结果，不反复读自己的旧草稿。',
+    '上下文更宽裕（旧思考能占 20%~45%）；思考更清爽；原文一条不少。',
+    `版本：${GEWU_VERSION}`,
+    `仓库：${GEWU_URL}`,
+    '装法：把仓库里的 INSTALL-FOR-AI.md 发给 DSH 里的模型，说「按这个装」。',
+    '验证：看 ~/.dsh/gewu/gewu.log 的「已挂载 / 已摘」。',
+    '注意：v0.1.0 在 DSH 0.1.3+ 上无效，覆盖升级即可。',
   ].join('\n');
 }
 
@@ -739,10 +754,13 @@ export function apply(ctx, rawConfig = {}) {
         await enqueueGroup(msg.groupId, async () => {
           let reply;
           try {
-            // 群友 @ 要仓库地址：固定回复，保证带上版本号和卖点，不靠模型自由发挥。
-            reply = wantsRepoAnswer(msg.text)
-              ? repoAnswer()
-              : await groupResponder.reply({ system: groupSystem, user: groupUser });
+            // 群友 @ 问地址：固定回复，不靠模型自由发挥。
+            // 先认「格物」再认核星——repoAnswer 的正则含「地址/链接」，会把格物也吞进去。
+            reply = wantsGewuAnswer(msg.text)
+              ? gewuAnswer()
+              : wantsRepoAnswer(msg.text)
+                ? repoAnswer()
+                : await groupResponder.reply({ system: groupSystem, user: groupUser });
           } catch (e) {
             log.error(`群聊 stateless 回复失败：${e.message}`);
             return;
